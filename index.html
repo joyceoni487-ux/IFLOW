@@ -27,7 +27,9 @@
     header .logo span { color: #4f8ef7; }
     header .subtitle { font-size: 0.85rem; color: #a0aec0; margin-top: 2px; }
 
-    .container { max-width: 860px; margin: 32px 0; padding: 0 28px; }
+    .app-body { display: flex; align-items: flex-start; height: calc(100vh - 64px); overflow: hidden; }
+
+    .container { width: 820px; min-width: 560px; flex-shrink: 0; margin: 28px 0; padding: 0 28px; overflow-y: auto; height: 100%; }
 
     /* ── Entry Card ── */
     .card {
@@ -206,6 +208,225 @@
 
   .error-msg { color: #e53e3e; font-size: 0.82rem; margin-top: 4px; display: none; }
 
+  /* ── Messages Panel ── */
+  .messages-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 64px);
+    border-left: 1px solid #e2e8f0;
+    background: #fff;
+    min-width: 0;
+  }
+
+  .msg-header {
+    padding: 20px 24px 0;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .msg-header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .msg-header-top h2 { font-size: 1.05rem; font-weight: 700; color: #1a1a2e; }
+  .msg-live-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #38a169;
+    background: #f0fff4;
+    border-radius: 20px;
+    padding: 4px 10px;
+  }
+  .msg-live-badge .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #38a169;
+    animation: blink 1.4s infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  /* Sub-tabs */
+  .msg-tabs { display: flex; gap: 0; }
+  .msg-tab {
+    padding: 9px 20px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #a0aec0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s;
+    font-family: 'Poppins', sans-serif;
+  }
+  .msg-tab.active { color: #4f8ef7; border-bottom-color: #4f8ef7; }
+  .msg-tab .tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #fee2e2;
+    color: #e53e3e;
+    border-radius: 10px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    margin-left: 5px;
+  }
+  .msg-tab.active .tab-count { background: #ebf4ff; color: #4f8ef7; }
+
+  /* Conversation list */
+  .conv-list { flex: 1; overflow-y: auto; }
+  .conv-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 20px;
+    border-bottom: 1px solid #f0f4f8;
+    cursor: pointer;
+    transition: background .15s;
+    position: relative;
+  }
+  .conv-item:hover { background: #f7fafc; }
+  .conv-item.active { background: #ebf4ff; }
+
+  .conv-avatar {
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .conv-avatar .platform-dot {
+    position: absolute;
+    bottom: 0; right: 0;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.55rem;
+  }
+
+  .conv-body { flex: 1; min-width: 0; }
+  .conv-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; }
+  .conv-name { font-size: 0.88rem; font-weight: 600; color: #1a1a2e; }
+  .conv-time { font-size: 0.72rem; color: #a0aec0; white-space: nowrap; }
+  .conv-preview { font-size: 0.8rem; color: #718096; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+  .conv-unread {
+    background: #4f8ef7;
+    color: #fff;
+    border-radius: 10px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    margin-top: 4px;
+    display: inline-block;
+  }
+
+  /* Priority flag */
+  .priority-flag {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #e53e3e;
+    background: #fff5f5;
+    border-radius: 4px;
+    padding: 2px 6px;
+    margin-top: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+
+  /* Chat view */
+  .chat-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .chat-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #fafbfc;
+  }
+  .chat-header .chat-name { font-weight: 700; font-size: 0.92rem; color: #1a1a2e; }
+  .chat-header .chat-sub { font-size: 0.75rem; color: #a0aec0; }
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: #f7fafc;
+  }
+  .bubble-wrap { display: flex; flex-direction: column; }
+  .bubble-wrap.them { align-items: flex-start; }
+  .bubble-wrap.us   { align-items: flex-end; }
+  .bubble {
+    max-width: 75%;
+    padding: 9px 14px;
+    border-radius: 14px;
+    font-size: 0.84rem;
+    line-height: 1.5;
+  }
+  .bubble-wrap.them .bubble { background: #fff; color: #1a1a2e; border-bottom-left-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,.07); }
+  .bubble-wrap.us   .bubble { background: #4f8ef7; color: #fff; border-bottom-right-radius: 4px; }
+  .bubble-time { font-size: 0.68rem; color: #a0aec0; margin-top: 3px; padding: 0 4px; }
+  .ai-label { font-size: 0.68rem; color: #7b5ea7; font-weight: 600; margin-bottom: 2px; padding: 0 4px; }
+
+  .chat-input-bar {
+    padding: 14px 16px;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    background: #fff;
+  }
+  .chat-input-bar input {
+    flex: 1;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 20px;
+    padding: 9px 16px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.85rem;
+    outline: none;
+    color: #1a1a2e;
+  }
+  .chat-input-bar input:focus { border-color: #4f8ef7; }
+  .chat-send {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    background: #4f8ef7;
+    border: none;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: background .15s;
+  }
+  .chat-send:hover { background: #3a7be0; }
+  .chat-send svg { width: 16px; height: 16px; fill: #fff; }
+
+  .no-chat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #cbd5e0;
+    gap: 10px;
+    font-size: 0.88rem;
+  }
+  .no-chat svg { width: 48px; height: 48px; fill: #e2e8f0; }
+
   /* ── Floating Mic Button ── */
   .fab-mic {
     position: fixed;
@@ -354,6 +575,7 @@
   </div>
 </header>
 
+<div class="app-body">
 <div class="container">
 
   <!-- Entry Form -->
@@ -427,7 +649,42 @@
     </div>
   </div>
 
-</div>
+</div><!-- end .container -->
+
+<!-- Messages Panel -->
+<div class="messages-panel">
+
+  <!-- Header + Tabs -->
+  <div class="msg-header">
+    <div class="msg-header-top">
+      <h2>Messages</h2>
+      <span class="msg-live-badge"><span class="dot"></span> 3 active</span>
+    </div>
+    <div class="msg-tabs">
+      <button class="msg-tab active" onclick="switchTab('all', this)">All <span class="tab-count">3</span></button>
+      <button class="msg-tab" onclick="switchTab('priorities', this)">Priorities <span class="tab-count">1</span></button>
+    </div>
+  </div>
+
+  <!-- Body: list + chat side by side -->
+  <div style="display:flex;flex:1;min-height:0;overflow:hidden;">
+
+    <!-- Conversation List -->
+    <div class="conv-list" id="convList" style="width:280px;flex-shrink:0;border-right:1px solid #e2e8f0;">
+    </div>
+
+    <!-- Chat Area -->
+    <div style="flex:1;display:flex;flex-direction:column;min-width:0;" id="chatArea">
+      <div class="no-chat">
+        <svg viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/></svg>
+        Select a conversation
+      </div>
+    </div>
+
+  </div>
+</div><!-- end .messages-panel -->
+
+</div><!-- end .app-body -->
 
 <!-- Floating Mic Button -->
 <button class="fab-mic" onclick="openAI()" title="Ask AI">
@@ -642,6 +899,130 @@
     document.getElementById('aiStatus').textContent = 'Tap mic to speak';
     document.getElementById('aiStatus').classList.remove('active');
   }
+
+  // ── Messages ──
+  const convos = [
+    {
+      id: 1, platform: 'whatsapp', name: 'Sarah K.', handle: '+1 (555) 021-4490',
+      avatar: 'SK', color: '#25d366', platformColor: '#25d366', platformIcon: 'W',
+      preview: 'Is the iPhone 14 case still available? 👀', time: '2m ago',
+      unread: 2, priority: true,
+      messages: [
+        { from: 'them', text: 'Hi there! 👋', time: '10:41 AM' },
+        { from: 'them', text: 'Is the iPhone 14 case still available? 👀', time: '10:42 AM' },
+        { from: 'ai',   text: 'Hi Sarah! Yes, the iPhone 14 case is in stock. We have it in Clear, Black, and Midnight Blue. Which color interests you?', time: '10:42 AM' },
+        { from: 'them', text: 'The clear one! How much is it?', time: '10:43 AM' },
+        { from: 'ai',   text: 'The clear case is $12.50. Would you like to place an order?', time: '10:43 AM' },
+        { from: 'them', text: 'Can I get 2? And can you deliver today?', time: '10:44 AM' },
+      ]
+    },
+    {
+      id: 2, platform: 'instagram', name: 'marco.buys', handle: '@marco.buys',
+      avatar: 'MB', color: '#e1306c', platformColor: '#e1306c', platformIcon: 'IG',
+      preview: 'How much for the earbuds? 🎧 Can you do a deal?', time: '8m ago',
+      unread: 1, priority: false,
+      messages: [
+        { from: 'them', text: 'Hey! Saw your post 🔥', time: '10:35 AM' },
+        { from: 'them', text: 'How much for the wireless earbuds? 🎧 Can you do a deal?', time: '10:36 AM' },
+        { from: 'ai',   text: 'Hey Marco! The Wireless Earbuds are $49.99 a pair. If you grab 2 or more we can do $45 each 🎉', time: '10:36 AM' },
+      ]
+    },
+    {
+      id: 3, platform: 'twitter', name: '@techdeals_fan', handle: '@techdeals_fan',
+      avatar: 'TD', color: '#1da1f2', platformColor: '#1da1f2', platformIcon: 'X',
+      preview: 'Do you ship internationally? Need 3 units.', time: '15m ago',
+      unread: 0, priority: false,
+      messages: [
+        { from: 'them', text: 'Do you ship internationally? Need 3 units of the USB-C cable.', time: '10:28 AM' },
+        { from: 'ai',   text: 'Hi! Yes, we ship internationally 🌍 The USB-C Cable is $8.99/unit, so 3 units would be $26.97 + shipping. Which country are you in?', time: '10:29 AM' },
+        { from: 'them', text: 'Canada 🇨🇦', time: '10:30 AM' },
+      ]
+    }
+  ];
+
+  let activeTab = 'all';
+  let activeConvo = null;
+
+  function switchTab(tab, btn) {
+    activeTab = tab;
+    document.querySelectorAll('.msg-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    renderConvList();
+  }
+
+  function renderConvList() {
+    const list = document.getElementById('convList');
+    const filtered = activeTab === 'priorities' ? convos.filter(c => c.priority) : convos;
+    list.innerHTML = filtered.map(c => `
+      <div class="conv-item ${activeConvo === c.id ? 'active' : ''}" onclick="openConvo(${c.id})">
+        <div class="conv-avatar" style="background:${c.color}">
+          ${c.avatar}
+          <span class="platform-dot" style="background:${c.platformColor}">${c.platformIcon}</span>
+        </div>
+        <div class="conv-body">
+          <div class="conv-top">
+            <span class="conv-name">${c.name}</span>
+            <span class="conv-time">${c.time}</span>
+          </div>
+          <div class="conv-preview">${c.preview}</div>
+          <div style="display:flex;gap:6px;align-items:center;margin-top:4px;flex-wrap:wrap;">
+            ${c.unread ? `<span class="conv-unread">${c.unread} new</span>` : ''}
+            ${c.priority ? `<span class="priority-flag">⚑ Priority — needs human</span>` : ''}
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function openConvo(id) {
+    activeConvo = id;
+    renderConvList();
+    const c = convos.find(x => x.id === id);
+    c.unread = 0;
+    const area = document.getElementById('chatArea');
+    area.innerHTML = `
+      <div class="chat-view">
+        <div class="chat-header">
+          <div class="conv-avatar" style="background:${c.color};width:34px;height:34px;font-size:0.75rem;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;flex-shrink:0;">
+            ${c.avatar}
+          </div>
+          <div>
+            <div class="chat-name">${c.name}</div>
+            <div class="chat-sub">${c.handle} · via ${c.platform}</div>
+          </div>
+          ${c.priority ? `<span class="priority-flag" style="margin-left:auto;">⚑ Priority</span>` : ''}
+        </div>
+        <div class="chat-messages" id="chatMessages">
+          ${c.messages.map(m => `
+            <div class="bubble-wrap ${m.from === 'them' ? 'them' : 'us'}">
+              ${m.from === 'ai' ? `<span class="ai-label">AI Assistant</span>` : ''}
+              <div class="bubble">${m.text}</div>
+              <span class="bubble-time">${m.time}</span>
+            </div>
+          `).join('')}
+        </div>
+        <div class="chat-input-bar">
+          <input type="text" placeholder="Type a reply…" id="replyInput" />
+          <button class="chat-send" onclick="sendReply(${id})">
+            <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  function sendReply(id) {
+    const inp = document.getElementById('replyInput');
+    const text = inp.value.trim();
+    if (!text) return;
+    const c = convos.find(x => x.id === id);
+    c.messages.push({ from: 'us', text, time: fmtTime(Date.now()) });
+    inp.value = '';
+    openConvo(id);
+    document.getElementById('chatMessages').scrollTop = 9999;
+  }
+
+  renderConvList();
 </script>
 </body>
 </html>

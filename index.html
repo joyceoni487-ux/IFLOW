@@ -107,44 +107,83 @@
       margin-bottom: 10px;
     }
 
-    /* ── Sales Table ── */
+    /* ── Sales Table — Spreadsheet style ── */
     .table-wrap { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; table-layout: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      table-layout: auto;
+      border: 1px solid #d0d7de;
+    }
     thead th {
-      background: #f7fafc;
-      padding: 11px 14px;
+      background: #f0f4f8;
+      padding: 9px 12px;
       text-align: left;
       font-size: 0.75rem;
       text-transform: uppercase;
       letter-spacing: .5px;
       color: #718096;
-      border-bottom: 1.5px solid #e2e8f0;
+      border: 1px solid #d0d7de;
       white-space: nowrap;
     }
-    tbody tr { border-bottom: 1px solid #f0f4f8; transition: background .15s; }
-    tbody tr:hover { background: #f7fafc; }
-    tbody td { padding: 6px 10px; vertical-align: middle; word-break: break-word; }
+    tbody tr { background: #fff; }
+    tbody tr:nth-child(even) { background: #fafbfc; }
+    tbody td {
+      border: 1px solid #d0d7de;
+      padding: 0;
+      vertical-align: middle;
+    }
+    tbody td.row-num {
+      padding: 0 10px;
+      color: #a0aec0;
+      font-size: 0.8rem;
+      text-align: center;
+      background: #f7fafc;
+      border-right: 1px solid #d0d7de;
+      user-select: none;
+      min-width: 36px;
+    }
+    tbody td.cell-action {
+      padding: 0 8px;
+      text-align: center;
+      border-left: 1px solid #d0d7de;
+    }
+    tbody td.cell-subtotal {
+      padding: 0 12px;
+      font-weight: 600;
+      color: #2d3748;
+      white-space: nowrap;
+      background: #f7fafc;
+    }
 
-    /* ── Inline editable cell inputs ── */
+    /* ── Spreadsheet cell inputs ── */
     .cell-input {
       font-family: 'Poppins', sans-serif;
-      font-size: 0.9rem;
+      font-size: 0.88rem;
       color: #1a1a2e;
-      border: 1.5px solid #e2e8f0;
-      border-radius: 6px;
-      padding: 6px 10px;
-      background: #f9fafb;
+      border: none;
+      border-radius: 0;
+      padding: 8px 12px;
+      background: transparent;
       width: 100%;
       min-width: 60px;
       outline: none;
-      transition: border-color .2s, background .2s, box-shadow .2s;
+      display: block;
     }
-    .cell-input:hover { border-color: #c3d4ea; background: #f1f5fb; cursor: text; }
-    .cell-input:focus { border-color: #4f8ef7; background: #fff; box-shadow: 0 0 0 3px rgba(79,142,247,.13); }
     .cell-input.product { font-weight: 600; }
-    .cell-input[type="number"] { max-width: 90px; }
+    .cell-input[type="number"] { max-width: 100px; }
 
-    .subtotal { font-weight: 600; color: #2d3748; padding: 5px 8px; display: inline-block; }
+    /* Active cell — green outline like Excel */
+    tbody td:focus-within {
+      outline: 2px solid #21a366;
+      outline-offset: -2px;
+      background: #fff;
+      z-index: 1;
+      position: relative;
+    }
+
+    .subtotal { font-weight: 600; color: #2d3748; }
     .btn-delete {
       background: none;
       border: none;
@@ -152,7 +191,7 @@
       cursor: pointer;
       font-size: 1rem;
       padding: 2px 6px;
-      border-radius: 5px;
+      border-radius: 4px;
       transition: background .15s;
     }
     .btn-delete:hover { background: #fff5f5; }
@@ -270,7 +309,7 @@
     const row = document.querySelector(`tr[data-index="${i}"]`);
     if (!row) return;
     const sub = sales[i].quantity * sales[i].price;
-    row.querySelector('.subtotal').textContent = '$' + fmt(sub);
+    row.querySelector('.cell-subtotal').textContent = '$' + fmt(sub);
     updateTotal();
   }
 
@@ -293,13 +332,13 @@
       const tr = document.createElement('tr');
       tr.dataset.index = i;
       tr.innerHTML = `
-        <td style="color:#a0aec0;font-size:0.8rem;padding-left:14px">${i + 1}</td>
+        <td class="row-num">${i + 1}</td>
         <td><input class="cell-input product" value="${escAttr(s.product)}" placeholder="Product name" data-field="product" data-index="${i}" /></td>
         <td><input class="cell-input" value="${escAttr(s.variant)}" placeholder="Variant" data-field="variant" data-index="${i}" /></td>
         <td><input class="cell-input" type="number" min="1" value="${s.quantity}" data-field="quantity" data-index="${i}" /></td>
         <td><input class="cell-input" type="number" min="0" step="0.01" value="${s.price}" data-field="price" data-index="${i}" /></td>
-        <td><span class="subtotal">$${fmt(sub)}</span></td>
-        <td><button class="btn-delete" onclick="deleteSale(${i})" title="Remove">✕</button></td>
+        <td class="cell-subtotal">$${fmt(sub)}</td>
+        <td class="cell-action"><button class="btn-delete" onclick="deleteSale(${i})" title="Remove">✕</button></td>
       `;
       body.appendChild(tr);
     });

@@ -97,9 +97,19 @@
       font-size: 1rem;
     }
 
+    /* ── Inventory subheading ── */
+    .inventory-heading {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #a0aec0;
+      margin-bottom: 10px;
+    }
+
     /* ── Sales Table ── */
     .table-wrap { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; table-layout: auto; }
     thead th {
       background: #f7fafc;
       padding: 11px 14px;
@@ -109,10 +119,11 @@
       letter-spacing: .5px;
       color: #718096;
       border-bottom: 1.5px solid #e2e8f0;
+      white-space: nowrap;
     }
     tbody tr { border-bottom: 1px solid #f0f4f8; transition: background .15s; }
     tbody tr:hover { background: #f7fafc; }
-    tbody td { padding: 11px 14px; vertical-align: middle; }
+    tbody td { padding: 11px 14px; vertical-align: middle; word-break: break-word; }
 
     .badge {
       display: inline-block;
@@ -198,6 +209,7 @@
       <div class="daily-total">Daily Total: $<span id="dailyTotal">0.00</span></div>
     </div>
 
+    <p class="inventory-heading">Inventory</p>
     <div class="table-wrap">
       <table>
         <thead>

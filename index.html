@@ -204,7 +204,145 @@
     }
     .btn-terminate:hover { color: #e53e3e; background: #fff5f5; }
 
-.error-msg { color: #e53e3e; font-size: 0.82rem; margin-top: 4px; display: none; }
+  .error-msg { color: #e53e3e; font-size: 0.82rem; margin-top: 4px; display: none; }
+
+  /* ── Floating Mic Button ── */
+  .fab-mic {
+    position: fixed;
+    bottom: 32px;
+    right: 32px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4f8ef7, #7b5ea7);
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(79,142,247,.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    transition: transform .2s, box-shadow .2s;
+  }
+  .fab-mic:hover { transform: scale(1.1); box-shadow: 0 6px 28px rgba(79,142,247,.55); }
+  .fab-mic:active { transform: scale(.95); }
+  .fab-mic svg { width: 26px; height: 26px; fill: #fff; }
+
+  /* ── AI Panel Overlay ── */
+  .ai-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10,12,28,.45);
+    backdrop-filter: blur(3px);
+    z-index: 200;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s;
+  }
+  .ai-overlay.open { opacity: 1; pointer-events: all; }
+
+  .ai-panel {
+    background: #fff;
+    width: 100%;
+    max-width: 540px;
+    border-radius: 24px 24px 0 0;
+    padding: 28px 28px 36px;
+    transform: translateY(100%);
+    transition: transform .3s cubic-bezier(.4,0,.2,1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+  .ai-overlay.open .ai-panel { transform: translateY(0); }
+
+  .ai-panel .drag-handle {
+    width: 40px; height: 4px;
+    background: #e2e8f0;
+    border-radius: 4px;
+    margin-bottom: 4px;
+  }
+
+  .ai-panel h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #2d3748;
+    text-align: center;
+  }
+  .ai-panel .ai-hint {
+    font-size: 0.82rem;
+    color: #a0aec0;
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  /* Mic pulse ring */
+  .mic-ring {
+    position: relative;
+    width: 88px;
+    height: 88px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .mic-ring .pulse {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: rgba(79,142,247,.15);
+    animation: none;
+  }
+  .mic-ring.listening .pulse {
+    animation: pulse-ring 1.4s ease-out infinite;
+  }
+  @keyframes pulse-ring {
+    0%   { transform: scale(.85); opacity: .8; }
+    70%  { transform: scale(1.25); opacity: 0; }
+    100% { transform: scale(1.25); opacity: 0; }
+  }
+  .mic-ring .mic-btn-inner {
+    position: relative;
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4f8ef7, #7b5ea7);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 16px rgba(79,142,247,.4);
+    transition: transform .15s;
+    z-index: 1;
+  }
+  .mic-btn-inner:active { transform: scale(.93); }
+  .mic-btn-inner svg { width: 30px; height: 30px; fill: #fff; }
+
+  .ai-status {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #718096;
+    min-height: 20px;
+    text-align: center;
+  }
+  .ai-status.active { color: #4f8ef7; }
+
+  .ai-close {
+    background: #f4f6f9;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 28px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #718096;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .ai-close:hover { background: #e2e8f0; }
   </style>
 </head>
 <body>
@@ -289,6 +427,34 @@
     </div>
   </div>
 
+</div>
+
+<!-- Floating Mic Button -->
+<button class="fab-mic" onclick="openAI()" title="Ask AI">
+  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm-1 17.93V21h2v-2.07A8.001 8.001 0 0 0 20 11h-2a6 6 0 0 1-12 0H4a8.001 8.001 0 0 0 7 7.93z"/>
+  </svg>
+</button>
+
+<!-- AI Panel -->
+<div class="ai-overlay" id="aiOverlay" onclick="handleOverlayClick(event)">
+  <div class="ai-panel">
+    <div class="drag-handle"></div>
+    <h3>AI Assistant</h3>
+    <p class="ai-hint">Tap the mic and speak to log a sale,<br/>ask a question, or get a summary.</p>
+
+    <div class="mic-ring" id="micRing">
+      <div class="pulse"></div>
+      <button class="mic-btn-inner" onclick="toggleListening()">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm-1 17.93V21h2v-2.07A8.001 8.001 0 0 0 20 11h-2a6 6 0 0 1-12 0H4a8.001 8.001 0 0 0 7 7.93z"/>
+        </svg>
+      </button>
+    </div>
+
+    <p class="ai-status" id="aiStatus">Tap mic to speak</p>
+    <button class="ai-close" onclick="closeAI()">Dismiss</button>
+  </div>
 </div>
 
 <script>
@@ -442,6 +608,40 @@
   });
 
   render();
+
+  // ── AI Panel ──
+  let listening = false;
+
+  function openAI() {
+    document.getElementById('aiOverlay').classList.add('open');
+  }
+
+  function closeAI() {
+    stopListening();
+    document.getElementById('aiOverlay').classList.remove('open');
+  }
+
+  function handleOverlayClick(e) {
+    if (e.target === document.getElementById('aiOverlay')) closeAI();
+  }
+
+  function toggleListening() {
+    listening ? stopListening() : startListening();
+  }
+
+  function startListening() {
+    listening = true;
+    document.getElementById('micRing').classList.add('listening');
+    document.getElementById('aiStatus').textContent = 'Listening…';
+    document.getElementById('aiStatus').classList.add('active');
+  }
+
+  function stopListening() {
+    listening = false;
+    document.getElementById('micRing').classList.remove('listening');
+    document.getElementById('aiStatus').textContent = 'Tap mic to speak';
+    document.getElementById('aiStatus').classList.remove('active');
+  }
 </script>
 </body>
 </html>

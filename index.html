@@ -156,6 +156,13 @@
       white-space: nowrap;
       background: #f7fafc;
     }
+    tbody td.cell-datetime {
+      padding: 0 12px;
+      font-size: 0.8rem;
+      color: #718096;
+      white-space: nowrap;
+      background: #f7fafc;
+    }
 
     /* ── Spreadsheet cell inputs ── */
     .cell-input {
@@ -257,6 +264,8 @@
         <thead>
           <tr>
             <th>#</th>
+            <th>Date</th>
+            <th>Time</th>
             <th>Product</th>
             <th>Variant</th>
             <th>Qty</th>
@@ -292,6 +301,18 @@
     return Number(n).toFixed(2);
   }
 
+  function fmtDate(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function fmtTime(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  }
+
   function updateTotal() {
     const total = sales.reduce((sum, s) => sum + s.quantity * s.price, 0);
     document.getElementById('dailyTotal').textContent = fmt(total);
@@ -321,6 +342,8 @@
       tr.dataset.index = i;
       tr.innerHTML = `
         <td class="row-num">${i + 1}</td>
+        <td class="cell-datetime">${s ? fmtDate(s.timestamp) : ''}</td>
+        <td class="cell-datetime">${s ? fmtTime(s.timestamp) : ''}</td>
         <td><input class="cell-input product" value="${s ? escAttr(s.product) : ''}" placeholder="" data-field="product" data-index="${i}" /></td>
         <td><input class="cell-input" value="${s ? escAttr(s.variant) : ''}" placeholder="" data-field="variant" data-index="${i}" /></td>
         <td><input class="cell-input" type="number" min="1" value="${s ? s.quantity : ''}" placeholder="" data-field="quantity" data-index="${i}" /></td>
@@ -344,7 +367,7 @@
 
     // If typing into a blank row, create the entry first
     if (!sales[i]) {
-      sales[i] = { product: '', variant: '', quantity: 1, price: 0 };
+      sales[i] = { product: '', variant: '', quantity: 1, price: 0, timestamp: Date.now() };
     }
 
     if (field === 'quantity') { val = Math.max(1, parseFloat(val) || 1); }
@@ -378,7 +401,7 @@
     }
     errEl.style.display = 'none';
 
-    sales.push({ product, variant, quantity, price });
+    sales.push({ product, variant, quantity, price, timestamp: Date.now() });
     persist();
     render();
 

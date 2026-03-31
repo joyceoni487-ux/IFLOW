@@ -196,15 +196,7 @@
     }
     .btn-delete:hover { background: #fff5f5; }
 
-    .empty-state {
-      text-align: center;
-      padding: 40px 0;
-      color: #a0aec0;
-      font-size: 0.95rem;
-    }
-    .empty-state .icon { font-size: 2.5rem; margin-bottom: 10px; }
-
-    .error-msg { color: #e53e3e; font-size: 0.82rem; margin-top: 4px; display: none; }
+.error-msg { color: #e53e3e; font-size: 0.82rem; margin-top: 4px; display: none; }
   </style>
 </head>
 <body>
@@ -317,31 +309,27 @@
     const body = document.getElementById('salesBody');
     body.innerHTML = '';
 
-    if (sales.length === 0) {
-      body.innerHTML = `<tr><td colspan="7">
-        <div class="empty-state">
-          <div class="icon">🛒</div>
-          No sales recorded yet. Add your first sale above.
-        </div></td></tr>`;
-      updateTotal();
-      return;
-    }
+    // Always render at least 5 blank rows so the grid never looks empty
+    const rows = sales.length > 0 ? sales : [];
+    const minRows = 5;
+    const totalRows = Math.max(rows.length, minRows);
 
-    sales.forEach((s, i) => {
-      const sub = s.quantity * s.price;
+    for (let i = 0; i < totalRows; i++) {
+      const s = sales[i];
+      const sub = s ? s.quantity * s.price : null;
       const tr = document.createElement('tr');
       tr.dataset.index = i;
       tr.innerHTML = `
         <td class="row-num">${i + 1}</td>
-        <td><input class="cell-input product" value="${escAttr(s.product)}" placeholder="Product name" data-field="product" data-index="${i}" /></td>
-        <td><input class="cell-input" value="${escAttr(s.variant)}" placeholder="Variant" data-field="variant" data-index="${i}" /></td>
-        <td><input class="cell-input" type="number" min="1" value="${s.quantity}" data-field="quantity" data-index="${i}" /></td>
-        <td><input class="cell-input" type="number" min="0" step="0.01" value="${s.price}" data-field="price" data-index="${i}" /></td>
-        <td class="cell-subtotal">$${fmt(sub)}</td>
-        <td class="cell-action"><button class="btn-delete" onclick="deleteSale(${i})" title="Remove">✕</button></td>
+        <td><input class="cell-input product" value="${s ? escAttr(s.product) : ''}" placeholder="" data-field="product" data-index="${i}" /></td>
+        <td><input class="cell-input" value="${s ? escAttr(s.variant) : ''}" placeholder="" data-field="variant" data-index="${i}" /></td>
+        <td><input class="cell-input" type="number" min="1" value="${s ? s.quantity : ''}" placeholder="" data-field="quantity" data-index="${i}" /></td>
+        <td><input class="cell-input" type="number" min="0" step="0.01" value="${s ? s.price : ''}" placeholder="" data-field="price" data-index="${i}" /></td>
+        <td class="cell-subtotal">${sub !== null ? '$' + fmt(sub) : ''}</td>
+        <td class="cell-action">${s ? `<button class="btn-delete" onclick="deleteSale(${i})" title="Remove">✕</button>` : ''}</td>
       `;
       body.appendChild(tr);
-    });
+    }
 
     updateTotal();
   }
@@ -353,11 +341,28 @@
     const i = parseInt(inp.dataset.index);
     const field = inp.dataset.field;
     let val = inp.value;
+
+    // If typing into a blank row, create the entry first
+    if (!sales[i]) {
+      sales[i] = { product: '', variant: '', quantity: 1, price: 0 };
+    }
+
     if (field === 'quantity') { val = Math.max(1, parseFloat(val) || 1); }
     if (field === 'price')    { val = Math.max(0, parseFloat(val) || 0); }
     sales[i][field] = (field === 'quantity' || field === 'price') ? +val : val;
     persist();
     updateSubtotal(i);
+
+    // Add a new blank row if the last row now has data
+    const tbody = document.getElementById('salesBody');
+    const lastRow = tbody.lastElementChild;
+    const lastIndex = parseInt(lastRow.dataset.index);
+    if (lastIndex < sales.length) {
+      const minRows = 5;
+      if (tbody.children.length <= sales.length || tbody.children.length < minRows) {
+        render();
+      }
+    }
   });
 
   function addSale() {

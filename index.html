@@ -401,6 +401,163 @@
     }
     .no-chat svg { width: 48px; height: 48px; fill: var(--border2); transition: fill .35s; }
 
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    height: calc(100vh - 64px);
+    background: var(--header-bg);
+    display: flex;
+    flex-direction: column;
+    padding: 20px 0;
+    transition: width .3s cubic-bezier(.4,0,.2,1), background .35s;
+    overflow: hidden;
+    border-right: 1px solid rgba(255,255,255,.05);
+    position: relative;
+    z-index: 5;
+  }
+  .sidebar.collapsed { width: 60px; }
+
+  .sidebar-toggle {
+    position: absolute;
+    top: 16px;
+    right: -12px;
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--header-bg);
+    color: #fff;
+    font-size: 0.65rem;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+    transition: transform .3s, background .2s;
+    box-shadow: 0 2px 8px rgba(0,0,0,.35);
+  }
+  .sidebar-toggle:hover { background: var(--accent-dark); }
+  .sidebar.collapsed .sidebar-toggle { transform: rotate(180deg); }
+
+  .sidebar-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0 10px;
+    overflow: hidden;
+  }
+
+  .sidebar-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: rgba(255,255,255,.25);
+    padding: 4px 8px 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    transition: opacity .2s;
+  }
+  .sidebar.collapsed .sidebar-label { opacity: 0; }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    color: rgba(255,255,255,.55);
+    font-size: 0.88rem;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: background .2s, color .2s, transform .15s, padding .3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .nav-item::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(79,142,247,.15), rgba(123,94,167,.15));
+    opacity: 0;
+    border-radius: 10px;
+    transition: opacity .2s;
+  }
+  .nav-item:hover { color: #fff; transform: translateX(3px); }
+  .nav-item:hover::before { opacity: 1; }
+  .nav-item.active { color: #fff; background: linear-gradient(135deg, rgba(79,142,247,.25), rgba(123,94,167,.2)); }
+  .nav-item.active::after {
+    content: '';
+    position: absolute;
+    left: 0; top: 20%; bottom: 20%;
+    width: 3px;
+    background: var(--accent);
+    border-radius: 0 3px 3px 0;
+  }
+
+  .nav-icon {
+    width: 36px; height: 36px;
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    font-size: 1.05rem;
+    background: rgba(255,255,255,.07);
+    transition: background .2s, transform .2s;
+  }
+  .nav-item:hover .nav-icon { background: rgba(255,255,255,.12); transform: scale(1.08); }
+  .nav-item.active .nav-icon { background: rgba(79,142,247,.3); }
+
+  .nav-label {
+    font-size: 0.85rem;
+    overflow: hidden;
+    transition: opacity .2s, max-width .3s;
+    max-width: 140px;
+    opacity: 1;
+  }
+  .sidebar.collapsed .nav-label { opacity: 0; max-width: 0; }
+
+  .nav-badge {
+    margin-left: auto;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.62rem;
+    font-weight: 700;
+    border-radius: 10px;
+    padding: 2px 6px;
+    transition: opacity .2s;
+    flex-shrink: 0;
+  }
+  .sidebar.collapsed .nav-badge { opacity: 0; }
+
+  .sidebar-divider {
+    height: 1px;
+    background: rgba(255,255,255,.07);
+    margin: 10px 10px;
+    flex-shrink: 0;
+  }
+
+  .sidebar-bottom {
+    padding: 0 10px;
+    flex-shrink: 0;
+  }
+
+  .signout-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    color: rgba(255,100,100,.7);
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: background .2s, color .2s, transform .15s;
+  }
+  .signout-item:hover { background: rgba(229,62,62,.12); color: #fc8181; transform: translateX(3px); }
+  .signout-item .nav-icon { background: rgba(229,62,62,.15); font-size: 1rem; }
+  .signout-item:hover .nav-icon { background: rgba(229,62,62,.25); }
+
   /* ── Floating Mic Button ── */
   .fab-mic {
     position: fixed;
@@ -559,6 +716,48 @@
 </header>
 
 <div class="app-body">
+
+<!-- Sidebar -->
+<aside class="sidebar" id="sidebar">
+  <button class="sidebar-toggle" onclick="toggleSidebar()" title="Collapse sidebar">&#8249;</button>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label">Main</div>
+
+    <div class="nav-item active" onclick="setNav(this, 'inventory')">
+      <div class="nav-icon">📦</div>
+      <span class="nav-label">Inventory</span>
+    </div>
+
+    <div class="nav-item" onclick="setNav(this, 'orders')">
+      <div class="nav-icon">🧾</div>
+      <span class="nav-label">Orders &amp; Sales</span>
+      <span class="nav-badge">3</span>
+    </div>
+
+    <div class="nav-item" onclick="setNav(this, 'subscription')">
+      <div class="nav-icon">💳</div>
+      <span class="nav-label">Subscription</span>
+    </div>
+
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-label">Account</div>
+
+    <div class="nav-item" onclick="setNav(this, 'settings')">
+      <div class="nav-icon">⚙️</div>
+      <span class="nav-label">Settings</span>
+    </div>
+  </div>
+
+  <div class="sidebar-divider"></div>
+  <div class="sidebar-bottom">
+    <div class="signout-item" onclick="setNav(this, 'signout')">
+      <div class="nav-icon">🚪</div>
+      <span class="nav-label">Sign Out</span>
+    </div>
+  </div>
+</aside>
+
 <div class="container">
 
   <!-- Entry Form -->
@@ -842,6 +1041,16 @@
       nepa.classList.add('show');
       setTimeout(() => nepa.classList.remove('show'), 2500);
     }
+  }
+
+  // ── Sidebar ──
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('collapsed');
+  }
+
+  function setNav(el, page) {
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    el.classList.add('active');
   }
 
   // Apply saved theme on load

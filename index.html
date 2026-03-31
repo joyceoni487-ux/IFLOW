@@ -365,9 +365,15 @@
     const field = inp.dataset.field;
     let val = inp.value;
 
-    // If typing into a blank row, create the entry first
+    // If typing into a blank row, stamp timestamp and show date/time immediately
     if (!sales[i]) {
-      sales[i] = { product: '', variant: '', quantity: 1, price: 0, timestamp: Date.now() };
+      const ts = Date.now();
+      sales[i] = { product: '', variant: '', quantity: 1, price: 0, timestamp: ts };
+      const row = document.querySelector(`tr[data-index="${i}"]`);
+      if (row) {
+        row.querySelectorAll('.cell-datetime')[0].textContent = fmtDate(ts);
+        row.querySelectorAll('.cell-datetime')[1].textContent = fmtTime(ts);
+      }
     }
 
     if (field === 'quantity') { val = Math.max(1, parseFloat(val) || 1); }

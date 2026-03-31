@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>iFlow — Sales Tracker</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #f4f6f9;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 18px 28px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header .logo { font-size: 1.5rem; font-weight: 700; letter-spacing: 1px; }
+    header .logo span { color: #4f8ef7; }
+    header .subtitle { font-size: 0.85rem; color: #a0aec0; margin-top: 2px; }
+
+    .container { max-width: 860px; margin: 32px auto; padding: 0 20px; }
+
+    /* ── Entry Card ── */
+    .card {
+      background: #fff;
+      border-radius: 14px;
+      padding: 28px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.07);
+      margin-bottom: 28px;
+    }
+    .card h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 20px; color: #2d3748; }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 540px) { .form-grid { grid-template-columns: 1fr; } }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: #718096; }
+
+    .field input {
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.95rem;
+      color: #1a1a2e;
+      transition: border-color .2s;
+      outline: none;
+      background: #fafafa;
+    }
+    .field input:focus { border-color: #4f8ef7; background: #fff; }
+    .field input::placeholder { color: #b0bec5; font-style: italic; }
+
+    .btn-add {
+      margin-top: 20px;
+      width: 100%;
+      padding: 12px;
+      background: #4f8ef7;
+      color: #fff;
+      border: none;
+      border-radius: 9px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s, transform .1s;
+    }
+    .btn-add:hover { background: #3a7be0; }
+    .btn-add:active { transform: scale(.98); }
+
+    /* ── Summary Bar ── */
+    .summary {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .summary h2 { font-size: 1.1rem; font-weight: 600; color: #2d3748; }
+    .daily-total {
+      background: #ebf4ff;
+      color: #2b6cb0;
+      border-radius: 8px;
+      padding: 8px 18px;
+      font-weight: 700;
+      font-size: 1rem;
+    }
+
+    /* ── Sales Table ── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    thead th {
+      background: #f7fafc;
+      padding: 11px 14px;
+      text-align: left;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: #718096;
+      border-bottom: 1.5px solid #e2e8f0;
+    }
+    tbody tr { border-bottom: 1px solid #f0f4f8; transition: background .15s; }
+    tbody tr:hover { background: #f7fafc; }
+    tbody td { padding: 11px 14px; vertical-align: middle; }
+
+    .badge {
+      display: inline-block;
+      background: #edf2f7;
+      color: #4a5568;
+      border-radius: 5px;
+      padding: 2px 8px;
+      font-size: 0.8rem;
+    }
+    .subtotal { font-weight: 600; color: #2d3748; }
+    .btn-delete {
+      background: none;
+      border: none;
+      color: #e53e3e;
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 2px 6px;
+      border-radius: 5px;
+      transition: background .15s;
+    }
+    .btn-delete:hover { background: #fff5f5; }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 0;
+      color: #a0aec0;
+      font-size: 0.95rem;
+    }
+    .empty-state .icon { font-size: 2.5rem; margin-bottom: 10px; }
+
+    .error-msg { color: #e53e3e; font-size: 0.82rem; margin-top: 4px; display: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">i<span>Flow</span></div>
+    <div class="subtitle">Sales Tracker</div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Entry Form -->
+  <div class="card">
+    <h2>Record a Sale</h2>
+    <div class="form-grid">
+
+      <div class="field">
+        <label for="productName">Product Name</label>
+        <input id="productName" type="text"
+          placeholder="e.g. Wireless Earbuds" />
+      </div>
+
+      <div class="field">
+        <label for="variant">Variant</label>
+        <input id="variant" type="text"
+          placeholder="e.g. Black / 64GB / Pro Max" />
+      </div>
+
+      <div class="field">
+        <label for="quantity">Quantity</label>
+        <input id="quantity" type="number" min="1"
+          placeholder="e.g. 2" />
+      </div>
+
+      <div class="field">
+        <label for="price">Price per Unit ($)</label>
+        <input id="price" type="number" min="0" step="0.01"
+          placeholder="e.g. 49.99" />
+      </div>
+
+    </div>
+    <div id="formError" class="error-msg">Please fill in all fields with valid values.</div>
+    <button class="btn-add" onclick="addSale()">+ Add Sale</button>
+  </div>
+
+  <!-- Sales Log -->
+  <div class="card">
+    <div class="summary">
+      <h2>Today's Sales</h2>
+      <div class="daily-total">Daily Total: $<span id="dailyTotal">0.00</span></div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Product</th>
+            <th>Variant</th>
+            <th>Qty</th>
+            <th>Unit Price</th>
+            <th>Subtotal</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="salesBody">
+          <tr id="emptyRow">
+            <td colspan="7">
+              <div class="empty-state">
+                <div class="icon">🛒</div>
+                No sales recorded yet. Add your first sale above.
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let sales = JSON.parse(localStorage.getItem('iflow_sales') || '[]');
+
+  function persist() {
+    localStorage.setItem('iflow_sales', JSON.stringify(sales));
+  }
+
+  function fmt(n) {
+    return Number(n).toFixed(2);
+  }
+
+  function render() {
+    const body = document.getElementById('salesBody');
+    const totalEl = document.getElementById('dailyTotal');
+
+    // Clear rows (keep nothing — we rebuild)
+    body.innerHTML = '';
+
+    if (sales.length === 0) {
+      body.innerHTML = `<tr id="emptyRow"><td colspan="7">
+        <div class="empty-state">
+          <div class="icon">🛒</div>
+          No sales recorded yet. Add your first sale above.
+        </div></td></tr>`;
+      totalEl.textContent = '0.00';
+      return;
+    }
+
+    let total = 0;
+    sales.forEach((s, i) => {
+      const sub = s.quantity * s.price;
+      total += sub;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${i + 1}</td>
+        <td><strong>${escHtml(s.product)}</strong></td>
+        <td><span class="badge">${escHtml(s.variant || '—')}</span></td>
+        <td>${s.quantity}</td>
+        <td>$${fmt(s.price)}</td>
+        <td class="subtotal">$${fmt(sub)}</td>
+        <td><button class="btn-delete" onclick="deleteSale(${i})" title="Remove">✕</button></td>
+      `;
+      body.appendChild(tr);
+    });
+
+    totalEl.textContent = fmt(total);
+  }
+
+  function addSale() {
+    const product  = document.getElementById('productName').value.trim();
+    const variant  = document.getElementById('variant').value.trim();
+    const quantity = parseFloat(document.getElementById('quantity').value);
+    const price    = parseFloat(document.getElementById('price').value);
+    const errEl    = document.getElementById('formError');
+
+    if (!product || isNaN(quantity) || quantity <= 0 || isNaN(price) || price < 0) {
+      errEl.style.display = 'block';
+      return;
+    }
+    errEl.style.display = 'none';
+
+    sales.push({ product, variant, quantity, price });
+    persist();
+    render();
+
+    // Clear inputs
+    ['productName', 'variant', 'quantity', 'price'].forEach(id => {
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('productName').focus();
+  }
+
+  function deleteSale(index) {
+    sales.splice(index, 1);
+    persist();
+    render();
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // Allow Enter key to submit
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && ['productName','variant','quantity','price'].includes(e.target.id)) {
+      addSale();
+    }
+  });
+
+  render();
+</script>
+</body>
+</html>

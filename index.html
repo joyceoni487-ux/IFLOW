@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>iFlow — Sales Tracker</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1019,6 +1020,123 @@
   }
   .ai-close:hover { background: #e2e8f0; }
 
+  /* ── Login Screen ── */
+  #loginScreen {
+    position: fixed;
+    inset: 0;
+    background: #0b0d14;
+    z-index: 9998;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+  }
+  .login-card {
+    background: #1a1d27;
+    border: 1px solid #2a2f45;
+    border-radius: 24px;
+    padding: 48px 44px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    width: 380px;
+    max-width: 94vw;
+    box-shadow: 0 8px 48px rgba(0,0,0,.55);
+  }
+  .login-brand {
+    font-size: 2.4rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: #e2e8f0;
+    margin-bottom: 8px;
+  }
+  .login-brand span { color: #4f8ef7; }
+  .login-tagline {
+    font-size: 0.82rem;
+    color: #4a5568;
+    letter-spacing: 0.8px;
+    margin-bottom: 32px;
+  }
+  .login-subtitle {
+    font-size: 0.88rem;
+    color: #8892a4;
+    margin-bottom: 24px;
+    text-align: center;
+  }
+  #googleSignInBtn { margin-bottom: 16px; min-height: 44px; }
+  .dev-signin-btn {
+    width: 100%;
+    padding: 11px 0;
+    border-radius: 10px;
+    border: 1.5px dashed #2a2f45;
+    background: transparent;
+    color: #4a5568;
+    font-size: 0.8rem;
+    font-family: 'Poppins', sans-serif;
+    cursor: pointer;
+    margin-bottom: 16px;
+    transition: border-color .2s, color .2s;
+  }
+  .dev-signin-btn:hover { border-color: #4f8ef7; color: #4f8ef7; }
+  .login-footer {
+    font-size: 0.72rem;
+    color: #2d3748;
+    text-align: center;
+    margin-top: 8px;
+  }
+
+  /* ── Sidebar user profile ── */
+  .sidebar-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    margin: 0 10px 6px;
+    border-radius: 10px;
+    background: rgba(79,142,247,.06);
+    border: 1px solid rgba(79,142,247,.1);
+    overflow: hidden;
+    flex-shrink: 0;
+    transition: background .35s, border-color .35s;
+  }
+  .sidebar-user-avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: #4f8ef7;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .sidebar-user-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .sidebar-user-info { min-width: 0; overflow: hidden; }
+  .sidebar-user-name {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text);
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color .35s;
+  }
+  .sidebar-user-email {
+    font-size: 0.68rem;
+    color: var(--muted);
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color .35s;
+  }
+  /* hide user info text when sidebar collapsed */
+  .sidebar.collapsed .sidebar-user-info,
+  .sidebar.collapsed .sidebar-user-name,
+  .sidebar.collapsed .sidebar-user-email { opacity: 0; max-width: 0; }
+
   /* ── App Loader ── */
   #appLoader {
     position: fixed;
@@ -1158,7 +1276,14 @@
 
   <div class="sidebar-divider"></div>
   <div class="sidebar-bottom">
-    <div class="signout-item" onclick="setNav(this, 'signout')">
+    <div class="sidebar-user" id="sidebarUser">
+      <div class="sidebar-user-avatar" id="sidebarUserAvatar">?</div>
+      <div class="sidebar-user-info">
+        <span class="sidebar-user-name" id="sidebarUserName">Guest</span>
+        <span class="sidebar-user-email" id="sidebarUserEmail">Not signed in</span>
+      </div>
+    </div>
+    <div class="signout-item" onclick="signOut()">
       <div class="nav-icon">🚪</div>
       <span class="nav-label">Sign Out</span>
     </div>
@@ -2200,6 +2325,18 @@
   renderConvList();
 </script>
 
+<!-- Login Screen -->
+<div id="loginScreen" style="display:none">
+  <div class="login-card">
+    <div class="login-brand">i<span>Flow</span></div>
+    <div class="login-tagline">AI-powered sales management</div>
+    <p class="login-subtitle">Sign in to access your store dashboard</p>
+    <div id="googleSignInBtn"></div>
+    <button class="dev-signin-btn" id="devSignInBtn" onclick="devSignIn()" style="display:none">⚡ Continue without Google (Dev Mode)</button>
+    <p class="login-footer">🔒 Secured by Google Authentication</p>
+  </div>
+</div>
+
 <!-- Save Toast -->
 <div id="saveToast"></div>
 
@@ -2209,6 +2346,89 @@
   <div class="loader-dots"><span></span><span></span><span></span></div>
   <div class="loader-msg" id="loaderMsg"></div>
 </div>
+
+<script>
+// ── Google Auth ──
+const GOOGLE_CLIENT_ID = 'YOUR_CLIENT_ID_HERE'; // Replace with your Google OAuth Client ID
+
+function initGoogleAuth() {
+  if (GOOGLE_CLIENT_ID === 'YOUR_CLIENT_ID_HERE') {
+    // No real Client ID — show dev bypass button
+    document.getElementById('devSignInBtn').style.display = 'block';
+    return;
+  }
+  if (typeof google === 'undefined') {
+    // GSI script not loaded (e.g. offline) — fall back to dev mode
+    document.getElementById('devSignInBtn').style.display = 'block';
+    return;
+  }
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: handleGoogleSignIn,
+    auto_select: false
+  });
+  google.accounts.id.renderButton(document.getElementById('googleSignInBtn'), {
+    theme: 'outline',
+    size: 'large',
+    width: 300,
+    shape: 'rectangular',
+    text: 'signin_with'
+  });
+}
+
+function handleGoogleSignIn(response) {
+  try {
+    const parts = response.credential.split('.');
+    const payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
+    const user = { name: payload.name, email: payload.email, picture: payload.picture || '' };
+    localStorage.setItem('iflow_user', JSON.stringify(user));
+    showApp(user);
+  } catch(e) {
+    console.error('Auth error', e);
+  }
+}
+
+function devSignIn() {
+  const user = { name: 'Dev User', email: 'dev@iflow.app', picture: '' };
+  localStorage.setItem('iflow_user', JSON.stringify(user));
+  showApp(user);
+}
+
+function showApp(user) {
+  document.getElementById('loginScreen').style.display = 'none';
+  // Populate sidebar user info
+  const nameEl = document.getElementById('sidebarUserName');
+  const emailEl = document.getElementById('sidebarUserEmail');
+  const avatarEl = document.getElementById('sidebarUserAvatar');
+  if (nameEl) nameEl.textContent = user.name;
+  if (emailEl) emailEl.textContent = user.email;
+  if (avatarEl) {
+    if (user.picture) {
+      avatarEl.innerHTML = `<img src="${user.picture}" />`;
+    } else {
+      avatarEl.textContent = user.name.charAt(0).toUpperCase();
+    }
+  }
+}
+
+function signOut() {
+  localStorage.removeItem('iflow_user');
+  if (typeof google !== 'undefined' && google.accounts) {
+    google.accounts.id.disableAutoSelect();
+  }
+  document.getElementById('loginScreen').style.display = 'flex';
+}
+
+function checkAuth() {
+  const user = JSON.parse(localStorage.getItem('iflow_user') || 'null');
+  if (user) {
+    showApp(user);
+  } else {
+    document.getElementById('loginScreen').style.display = 'flex';
+    initGoogleAuth();
+  }
+}
+</script>
 
 <script>
 // ── Loader ──
@@ -2223,7 +2443,7 @@
       setTimeout(() => {
         const loader = document.getElementById('appLoader');
         loader.classList.add('fade-out');
-        setTimeout(() => loader.remove(), 650);
+        setTimeout(() => { loader.remove(); checkAuth(); }, 650);
       }, 700);
     }
   }, 32);

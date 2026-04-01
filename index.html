@@ -1321,6 +1321,11 @@
       </div>
 
       <div class="field">
+        <label for="customerName">Customer Name</label>
+        <input id="customerName" type="text" placeholder="e.g. Sarah Johnson" />
+      </div>
+
+      <div class="field">
         <label for="productName">Product Name</label>
         <input id="productName" type="text"
           placeholder="e.g. Wireless Earbuds" />
@@ -1479,6 +1484,7 @@
               <th>#</th>
               <th>Date</th>
               <th>Time</th>
+              <th>Customer</th>
               <th>Product</th>
               <th>Qty</th>
               <th>Unit Price</th>
@@ -2014,6 +2020,7 @@
 
   function addSale() {
     const dateVal  = document.getElementById('saleDate').value;
+    const customer = document.getElementById('customerName').value.trim();
     const product  = document.getElementById('productName').value.trim();
     const quantity = parseFloat(document.getElementById('quantity').value);
     const price    = parseFloat(document.getElementById('price').value);
@@ -2027,16 +2034,17 @@
 
     // Use picked date if provided, otherwise now
     const timestamp = dateVal ? new Date(dateVal + 'T00:00:00').getTime() : Date.now();
-    const newSale = { product, quantity, price, timestamp };
+    const newSale = { customer, product, quantity, price, timestamp };
     sales.push(newSale);
     persist();
     render();
     SheetsAPI.withToken(() => SheetsAPI.appendRow(newSale));
 
-    ['saleDate', 'productName', 'quantity', 'price'].forEach(id => {
+    ['saleDate', 'customerName', 'productName', 'quantity', 'price'].forEach(id => {
       document.getElementById(id).value = '';
     });
-    document.getElementById('saleDate').focus();
+    document.getElementById('saleDate').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('customerName').focus();
   }
 
   // ── Google Sheets Integration ──
@@ -2118,11 +2126,11 @@
       localStorage.setItem('iflow_sheet_id', this.spreadsheetId);
       // Write header row
       await this.req(
-        `${this.BASE}/${this.spreadsheetId}/values/Sales!A1:G1?valueInputOption=RAW`,
+        `${this.BASE}/${this.spreadsheetId}/values/Sales!A1:H1?valueInputOption=RAW`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ values: [['Date','Time','Product','Quantity','Unit Price','Subtotal','_ts']] })
+          body: JSON.stringify({ values: [['Date','Time','Product','Quantity','Unit Price','Subtotal','_ts','Customer']] })
         }
       );
       const btn = document.getElementById('openSheetsBtn');
@@ -2131,20 +2139,21 @@
     },
 
     rowVals(s) {
-      return [fmtDate(s.timestamp), fmtTime(s.timestamp), s.product, s.quantity, s.price, (s.quantity * s.price).toFixed(2), s.timestamp];
+      return [fmtDate(s.timestamp), fmtTime(s.timestamp), s.product, s.quantity, s.price, (s.quantity * s.price).toFixed(2), s.timestamp, s.customer || ''];
     },
 
     async loadAll() {
       setSyncStatus('syncing', 'Loading…');
       const id = await this.ensureSheet();
-      const data = await this.req(`${this.BASE}/${id}/values/Sales!A2:G`);
+      const data = await this.req(`${this.BASE}/${id}/values/Sales!A2:H`);
       const rows = data.values || [];
       if (rows.length > 0) {
         sales = rows.filter(r => r[6]).map(r => ({
           timestamp: parseInt(r[6]),
-          product:  r[2] || '',
-          quantity: parseFloat(r[3]) || 0,
-          price:    parseFloat(r[4]) || 0
+          product:   r[2] || '',
+          quantity:  parseFloat(r[3]) || 0,
+          price:     parseFloat(r[4]) || 0,
+          customer:  r[7] || ''
         }));
         persist();
         render();
@@ -2162,7 +2171,7 @@
       const id = await this.ensureSheet();
       setSyncStatus('syncing', 'Saving…');
       await this.req(
-        `${this.BASE}/${id}/values/Sales!A:G:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+        `${this.BASE}/${id}/values/Sales!A:H:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2177,7 +2186,7 @@
       const r = rowIndex + 2;
       setSyncStatus('syncing', 'Updating…');
       await this.req(
-        `${this.BASE}/${id}/values/Sales!A${r}:G${r}?valueInputOption=USER_ENTERED`,
+        `${this.BASE}/${id}/values/Sales!A${r}:H${r}?valueInputOption=USER_ENTERED`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -2296,7 +2305,7 @@
     // Table rows
     const tbody = document.getElementById('ordersBody');
     if (filtered.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem;">No entries yet — add products from the Inventory page.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem;">No entries yet — add products from the Inventory page.</td></tr>`;
       return;
     }
     tbody.innerHTML = filtered.map((o, i) => {
@@ -2306,6 +2315,7 @@
           <td class="row-num">${i + 1}</td>
           <td class="cell-datetime">${fmtDate(o.timestamp)}</td>
           <td class="cell-datetime">${fmtTime(o.timestamp)}</td>
+          <td style="padding:10px 14px;color:var(--muted)">${escHtml(o.customer || '—')}</td>
           <td style="padding:10px 14px;font-weight:600;color:var(--text)">${escHtml(o.product || '')}</td>
           <td class="cell-datetime" style="text-align:center">${o.quantity}</td>
           <td class="cell-datetime">${cur}${o.price.toFixed(2)}</td>
@@ -2355,7 +2365,7 @@
 
   // Allow Enter key to submit
   document.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && ['saleDate','productName','quantity','price'].includes(e.target.id)) {
+    if (e.key === 'Enter' && ['saleDate','customerName','productName','quantity','price'].includes(e.target.id)) {
       addSale();
     }
   });

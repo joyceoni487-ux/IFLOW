@@ -2340,6 +2340,7 @@
 
   function terminateRow(index) {
     if (sales[index]) {
+      SheetsAPI.withToken(() => SheetsAPI.deleteRow(index));
       sales.splice(index, 1);
       persist();
     }

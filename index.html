@@ -1439,20 +1439,20 @@
       </div>
       <div class="orders-stats">
         <div class="stat-card">
-          <span class="stat-label">Total Orders</span>
-          <span class="stat-value">10</span>
+          <span class="stat-label">Total Entries</span>
+          <span class="stat-value" id="statTotalOrders">0</span>
         </div>
         <div class="stat-card">
           <span class="stat-label">Total Revenue</span>
-          <span class="stat-value" id="ordersRevenue" style="color:var(--accent)">$1,284.60</span>
+          <span class="stat-value" id="ordersRevenue" style="color:var(--accent)">$0.00</span>
         </div>
         <div class="stat-card">
-          <span class="stat-label">Completed</span>
-          <span class="stat-value" style="color:#38a169">8</span>
+          <span class="stat-label">Highest Sale</span>
+          <span class="stat-value" id="statHighest" style="color:#38a169">$0.00</span>
         </div>
         <div class="stat-card">
-          <span class="stat-label">Pending</span>
-          <span class="stat-value" style="color:#d97706">2</span>
+          <span class="stat-label">Avg Sale Value</span>
+          <span class="stat-value" id="statAvg" style="color:#d97706">$0.00</span>
         </div>
       </div>
     </div>
@@ -1462,7 +1462,7 @@
       <div class="orders-table-header">
         <p class="inventory-heading" style="margin:0">Sales Log</p>
         <div class="orders-filters">
-          <input class="orders-search" type="text" placeholder="Search orders…" />
+          <input class="orders-search" id="ordersSearch" type="text" placeholder="Search products…" oninput="renderOrders()" />
           <select class="orders-filter-select">
             <option>All Status</option>
             <option>Completed</option>
@@ -1479,14 +1479,10 @@
               <th>#</th>
               <th>Date</th>
               <th>Time</th>
-              <th>Customer</th>
               <th>Product</th>
-              <th>Variant</th>
               <th>Qty</th>
               <th>Unit Price</th>
               <th>Subtotal</th>
-              <th>Channel</th>
-              <th>Status</th>
             </tr>
           </thead>
           <tbody id="ordersBody"></tbody>
@@ -2156,6 +2152,9 @@
         // Migrate existing localStorage data up to Sheets
         for (const s of sales) await this.appendRow(s);
       }
+      // Refresh orders page if it's currently visible
+      const ordersPage = document.getElementById('page-orders');
+      if (ordersPage && ordersPage.style.display !== 'none') renderOrders();
       setSyncStatus('synced', 'Synced');
     },
 
@@ -2275,43 +2274,42 @@
   }
 
   // ── Orders dummy data ──
-  const ordersData = [
-    { date: 'Apr 1, 2026', time: '08:14 AM', customer: 'Sarah K.',       product: 'Wireless Earbuds',      variant: 'Midnight Black',     qty: 2, price: 49.99, channel: 'WhatsApp',  status: 'completed' },
-    { date: 'Apr 1, 2026', time: '08:47 AM', customer: 'Marco B.',        product: 'Phone Case',             variant: 'iPhone 15 / Clear',  qty: 5, price: 12.50, channel: 'Instagram', status: 'completed' },
-    { date: 'Apr 1, 2026', time: '09:03 AM', customer: 'Tunde A.',        product: 'USB-C Cable Braided',   variant: '1m / White',         qty: 3, price: 8.99,  channel: 'Walk-in',   status: 'completed' },
-    { date: 'Apr 1, 2026', time: '09:30 AM', customer: 'Chioma E.',       product: 'Screen Protector',       variant: 'Samsung S24 Ultra',  qty: 1, price: 15.00, channel: 'Twitter',   status: 'completed' },
-    { date: 'Apr 1, 2026', time: '10:12 AM', customer: 'James O.',        product: 'Power Bank 20000mAh',   variant: 'White / USB-C',      qty: 1, price: 39.99, channel: 'Walk-in',   status: 'completed' },
-    { date: 'Apr 1, 2026', time: '10:55 AM', customer: 'Fatima D.',       product: 'Bluetooth Speaker',      variant: 'Portable / Red',     qty: 2, price: 29.99, channel: 'WhatsApp',  status: 'completed' },
-    { date: 'Apr 1, 2026', time: '11:20 AM', customer: 'Emeka N.',        product: 'Laptop Stand',           variant: 'Aluminium / Silver', qty: 1, price: 24.99, channel: 'Instagram', status: 'completed' },
-    { date: 'Apr 1, 2026', time: '12:05 PM', customer: 'Aisha B.',        product: 'Wireless Mouse',         variant: 'Black / 2.4GHz',     qty: 2, price: 18.50, channel: 'Walk-in',   status: 'completed' },
-    { date: 'Apr 1, 2026', time: '01:15 PM', customer: 'David L.',        product: 'Mechanical Keyboard',    variant: 'TKL / Blue Switch',  qty: 1, price: 89.99, channel: 'Twitter',   status: 'pending'   },
-    { date: 'Apr 1, 2026', time: '02:30 PM', customer: 'Ngozi P.',        product: 'Smart Watch Band',       variant: 'Apple Watch 45mm',   qty: 3, price: 12.00, channel: 'WhatsApp',  status: 'pending'   },
-  ];
-
   function renderOrders() {
     document.getElementById('ordersDate').textContent =
       new Date().toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
 
     const cur = getCurrency();
-    const totalRevenue = ordersData.reduce((s, o) => s + o.qty * o.price, 0);
-    document.getElementById('ordersRevenue').textContent = cur + totalRevenue.toFixed(2);
+    const query = (document.getElementById('ordersSearch')?.value || '').toLowerCase();
+    const filtered = sales.filter(s => !query || (s.product || '').toLowerCase().includes(query));
 
+    // Stat cards
+    const totalRevenue = filtered.reduce((s, o) => s + o.quantity * o.price, 0);
+    const subtotals = filtered.map(o => o.quantity * o.price);
+    const highest = subtotals.length ? Math.max(...subtotals) : 0;
+    const avg = subtotals.length ? totalRevenue / subtotals.length : 0;
+
+    document.getElementById('statTotalOrders').textContent = filtered.length;
+    document.getElementById('ordersRevenue').textContent = cur + totalRevenue.toFixed(2);
+    document.getElementById('statHighest').textContent = cur + highest.toFixed(2);
+    document.getElementById('statAvg').textContent = cur + avg.toFixed(2);
+
+    // Table rows
     const tbody = document.getElementById('ordersBody');
-    tbody.innerHTML = ordersData.map((o, i) => {
-      const sub = (o.qty * o.price).toFixed(2);
+    if (filtered.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem;">No entries yet — add products from the Inventory page.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = filtered.map((o, i) => {
+      const sub = (o.quantity * o.price).toFixed(2);
       return `
         <tr>
           <td class="row-num">${i + 1}</td>
-          <td class="cell-datetime">${o.date}</td>
-          <td class="cell-datetime">${o.time}</td>
-          <td style="padding:10px 14px;font-weight:600;color:var(--text)">${o.customer}</td>
-          <td style="padding:10px 14px;font-weight:600;color:var(--text)">${o.product}</td>
-          <td style="padding:10px 14px"><span class="channel-badge">${o.variant}</span></td>
-          <td class="cell-datetime" style="text-align:center">${o.qty}</td>
-          <td class="cell-datetime">${getCurrency()}${o.price.toFixed(2)}</td>
-          <td class="cell-subtotal">${getCurrency()}${sub}</td>
-          <td style="padding:8px 12px"><span class="channel-badge">${o.channel}</span></td>
-          <td style="padding:8px 12px"><span class="status-badge ${o.status}">${o.status.charAt(0).toUpperCase()+o.status.slice(1)}</span></td>
+          <td class="cell-datetime">${fmtDate(o.timestamp)}</td>
+          <td class="cell-datetime">${fmtTime(o.timestamp)}</td>
+          <td style="padding:10px 14px;font-weight:600;color:var(--text)">${escHtml(o.product || '')}</td>
+          <td class="cell-datetime" style="text-align:center">${o.quantity}</td>
+          <td class="cell-datetime">${cur}${o.price.toFixed(2)}</td>
+          <td class="cell-subtotal">${cur}${sub}</td>
         </tr>`;
     }).join('');
   }

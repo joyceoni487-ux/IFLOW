@@ -664,6 +664,165 @@
     transition: background .35s, color .35s;
   }
 
+  /* ── Settings Page ── */
+  .settings-page {
+    flex: 1; display: flex; flex-direction: column;
+    height: calc(100vh - 64px); overflow: hidden;
+    background: var(--bg); transition: background .35s;
+  }
+  .settings-header {
+    padding: 28px 32px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    transition: background .35s, border-color .35s;
+    flex-shrink: 0;
+  }
+  .settings-body {
+    flex: 1; overflow-y: auto;
+    padding: 28px 32px;
+    display: flex; flex-direction: column; gap: 20px;
+  }
+
+  .settings-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    transition: background .35s, border-color .35s, box-shadow .2s;
+  }
+  .settings-section:hover { box-shadow: var(--shadow-sm); }
+
+  .settings-section-title {
+    display: flex; align-items: flex-start; gap: 14px;
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border);
+    transition: border-color .35s;
+  }
+  .settings-icon {
+    font-size: 1.3rem;
+    width: 42px; height: 42px;
+    background: var(--bg);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: background .35s;
+  }
+  .settings-section-title h3 { font-size: 0.95rem; font-weight: 700; color: var(--text); margin-bottom: 2px; transition: color .35s; }
+  .settings-section-title p  { font-size: 0.78rem; color: var(--muted); transition: color .35s; }
+
+  .settings-fields { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+
+  .settings-row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .settings-field { display: flex; flex-direction: column; gap: 7px; flex: 1; min-width: 200px; }
+  .settings-field.full { flex-basis: 100%; }
+  .settings-field label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); transition: color .35s; }
+  .settings-field input,
+  .settings-field select,
+  .settings-field textarea {
+    border: 1.5px solid var(--border);
+    border-radius: 9px;
+    padding: 9px 13px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.88rem;
+    background: var(--input-bg);
+    color: var(--text);
+    outline: none;
+    transition: border-color .2s, background .35s, color .35s;
+    resize: vertical;
+  }
+  .settings-field input:focus,
+  .settings-field select:focus,
+  .settings-field textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,142,247,.12); }
+
+  /* Toggle pill */
+  .toggle-pill { position: relative; display: inline-block; width: 42px; height: 24px; cursor: pointer; flex-shrink: 0; }
+  .toggle-pill input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .pill-track {
+    position: absolute; inset: 0; border-radius: 24px;
+    background: var(--border2); transition: background .3s;
+    display: flex; align-items: center; padding: 0 3px;
+  }
+  .toggle-pill input:checked + .pill-track { background: var(--accent); }
+  .pill-thumb {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25);
+    transition: transform .3s cubic-bezier(.4,0,.2,1);
+  }
+  .toggle-pill input:checked + .pill-track .pill-thumb { transform: translateX(18px); }
+
+  .settings-toggle-row { display: flex; align-items: center; justify-content: space-between; border: 1.5px solid var(--border); border-radius: 9px; padding: 9px 13px; background: var(--input-bg); transition: background .35s, border-color .35s; }
+  .settings-toggle-row span { font-size: 0.88rem; color: var(--text); transition: color .35s; }
+
+  /* Toggle list */
+  .toggle-list { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; transition: border-color .35s; }
+  .toggle-item {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    transition: background .15s, border-color .35s;
+  }
+  .toggle-item:last-child { border-bottom: none; }
+  .toggle-item:hover { background: var(--conv-hover); }
+  .toggle-item > div strong { font-size: 0.88rem; font-weight: 600; color: var(--text); display: block; margin-bottom: 2px; transition: color .35s; }
+  .toggle-item > div p { font-size: 0.76rem; color: var(--muted); transition: color .35s; }
+
+  /* Platform rows */
+  .platform-row {
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 0; border-bottom: 1px solid var(--border);
+    flex-wrap: wrap; transition: border-color .35s;
+  }
+  .platform-row:last-of-type { border-bottom: none; }
+  .platform-info { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 160px; }
+  .platform-icon {
+    width: 34px; height: 34px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.72rem; font-weight: 800; color: #fff;
+    flex-shrink: 0;
+  }
+  .platform-info strong { font-size: 0.88rem; font-weight: 700; color: var(--text); display: block; transition: color .35s; }
+  .platform-info p { font-size: 0.74rem; color: var(--muted); transition: color .35s; }
+  .connected-badge { font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+  .connected-badge.connected    { color: #38a169; }
+  .connected-badge.disconnected { color: var(--subtle); }
+
+  /* Logo upload */
+  .logo-upload { display: flex; align-items: center; gap: 14px; border: 1.5px solid var(--border); border-radius: 10px; padding: 12px 16px; background: var(--input-bg); transition: background .35s, border-color .35s; }
+  .logo-preview { width: 48px; height: 48px; border-radius: 10px; background: var(--bg); font-size: 1.6rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background .35s; }
+  .logo-upload-info { flex: 1; }
+  .logo-upload-info span { font-size: 0.88rem; font-weight: 600; color: var(--text); display: block; transition: color .35s; }
+  .logo-upload-info p  { font-size: 0.75rem; color: var(--muted); transition: color .35s; }
+
+  /* Buttons */
+  .settings-btn-outline {
+    padding: 8px 18px; border-radius: 8px; font-family: 'Poppins', sans-serif;
+    font-size: 0.82rem; font-weight: 600; cursor: pointer;
+    border: 1.5px solid var(--border); background: var(--input-bg); color: var(--text);
+    transition: border-color .2s, background .2s, color .35s;
+    white-space: nowrap;
+  }
+  .settings-btn-outline:hover { border-color: var(--accent); color: var(--accent); background: var(--conv-active); }
+  .settings-btn-outline.danger { border-color: rgba(229,62,62,.4); color: #e53e3e; }
+  .settings-btn-outline.danger:hover { border-color: #e53e3e; background: rgba(229,62,62,.08); }
+
+  .settings-btn-solid {
+    padding: 8px 18px; border-radius: 8px; font-family: 'Poppins', sans-serif;
+    font-size: 0.82rem; font-weight: 600; cursor: pointer;
+    border: none; background: var(--accent); color: #fff;
+    transition: opacity .2s, transform .15s;
+    white-space: nowrap;
+  }
+  .settings-btn-solid:hover { opacity: .88; transform: translateY(-1px); }
+
+  /* Save bar */
+  .settings-save-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 24px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    transition: background .35s, border-color .35s;
+  }
+  .settings-save-hint { font-size: 0.8rem; color: var(--muted); transition: color .35s; }
+
   /* ── Floating Mic Button ── */
   .fab-mic {
     position: fixed;
@@ -1052,6 +1211,312 @@
   </div>
 </div><!-- end page-orders -->
 
+<!-- Page: Settings -->
+<div id="page-settings" class="page-view" style="display:none;flex:1;min-width:0;overflow:hidden;">
+  <div class="settings-page">
+
+    <div class="settings-header">
+      <h1 class="orders-title">Settings</h1>
+      <p class="orders-date">Manage your store preferences and account</p>
+    </div>
+
+    <div class="settings-body">
+
+      <!-- 1. Store Profile -->
+      <div class="settings-section">
+        <div class="settings-section-title">
+          <span class="settings-icon">🏪</span>
+          <div>
+            <h3>Store Profile</h3>
+            <p>Your public store identity used on reports and messages</p>
+          </div>
+        </div>
+        <div class="settings-fields">
+          <div class="settings-row">
+            <div class="settings-field">
+              <label>Store Name</label>
+              <input type="text" placeholder="e.g. TechHub Lagos" />
+            </div>
+            <div class="settings-field">
+              <label>Owner / Contact Name</label>
+              <input type="text" placeholder="e.g. Chioma Okafor" />
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-field">
+              <label>Business Email</label>
+              <input type="email" placeholder="e.g. store@techhub.com" />
+            </div>
+            <div class="settings-field">
+              <label>Phone Number</label>
+              <input type="tel" placeholder="e.g. +234 812 000 0000" />
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-field full">
+              <label>Store Logo</label>
+              <div class="logo-upload">
+                <div class="logo-preview">🏪</div>
+                <div class="logo-upload-info">
+                  <span>Upload a logo</span>
+                  <p>PNG or JPG, max 2MB</p>
+                </div>
+                <button class="settings-btn-outline">Choose File</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Regional & Display -->
+      <div class="settings-section">
+        <div class="settings-section-title">
+          <span class="settings-icon">🌍</span>
+          <div>
+            <h3>Regional &amp; Display</h3>
+            <p>Currency, timezone, date format and appearance</p>
+          </div>
+        </div>
+        <div class="settings-fields">
+          <div class="settings-row">
+            <div class="settings-field">
+              <label>Currency</label>
+              <select>
+                <option>USD — US Dollar ($)</option>
+                <option>NGN — Nigerian Naira (₦)</option>
+                <option>GBP — British Pound (£)</option>
+                <option>EUR — Euro (€)</option>
+                <option>GHS — Ghanaian Cedi (₵)</option>
+                <option>KES — Kenyan Shilling (KSh)</option>
+              </select>
+            </div>
+            <div class="settings-field">
+              <label>Timezone</label>
+              <select>
+                <option>Africa/Lagos (GMT+1)</option>
+                <option>Africa/Accra (GMT+0)</option>
+                <option>Africa/Nairobi (GMT+3)</option>
+                <option>Europe/London (GMT+0)</option>
+                <option>America/New_York (GMT-5)</option>
+              </select>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-field">
+              <label>Date Format</label>
+              <select>
+                <option>MMM D, YYYY (Apr 1, 2026)</option>
+                <option>DD/MM/YYYY (01/04/2026)</option>
+                <option>MM/DD/YYYY (04/01/2026)</option>
+                <option>YYYY-MM-DD (2026-04-01)</option>
+              </select>
+            </div>
+            <div class="settings-field">
+              <label>Appearance</label>
+              <div class="settings-toggle-row">
+                <span>Dark Mode</span>
+                <label class="toggle-pill">
+                  <input type="checkbox" id="settingsDarkToggle" onchange="toggleThemeFromSettings(this)" />
+                  <span class="pill-track"><span class="pill-thumb"></span></span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Connected Platforms -->
+      <div class="settings-section">
+        <div class="settings-section-title">
+          <span class="settings-icon">🔌</span>
+          <div>
+            <h3>Connected Platforms</h3>
+            <p>Manage messaging channel integrations</p>
+          </div>
+        </div>
+        <div class="settings-fields">
+          <div class="platform-row">
+            <div class="platform-info">
+              <span class="platform-icon" style="background:#25d366">W</span>
+              <div><strong>WhatsApp</strong><p>Business API</p></div>
+            </div>
+            <span class="connected-badge connected">● Connected</span>
+            <label class="toggle-pill"><input type="checkbox" checked /><span class="pill-track"><span class="pill-thumb"></span></span></label>
+            <button class="settings-btn-outline danger">Disconnect</button>
+          </div>
+          <div class="platform-row">
+            <div class="platform-info">
+              <span class="platform-icon" style="background:#e1306c">IG</span>
+              <div><strong>Instagram</strong><p>Direct Messages</p></div>
+            </div>
+            <span class="connected-badge connected">● Connected</span>
+            <label class="toggle-pill"><input type="checkbox" checked /><span class="pill-track"><span class="pill-thumb"></span></span></label>
+            <button class="settings-btn-outline danger">Disconnect</button>
+          </div>
+          <div class="platform-row">
+            <div class="platform-info">
+              <span class="platform-icon" style="background:#1da1f2">X</span>
+              <div><strong>Twitter / X</strong><p>Direct Messages</p></div>
+            </div>
+            <span class="connected-badge disconnected">○ Not connected</span>
+            <label class="toggle-pill"><input type="checkbox" /><span class="pill-track"><span class="pill-thumb"></span></span></label>
+            <button class="settings-btn-outline">Connect</button>
+          </div>
+          <div class="settings-field full" style="margin-top:12px">
+            <label>Auto-reply message when busy</label>
+            <textarea placeholder="e.g. Hi! We're currently unavailable. We'll get back to you shortly 🙏" rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Notifications -->
+      <div class="settings-section">
+        <div class="settings-section-title">
+          <span class="settings-icon">🔔</span>
+          <div>
+            <h3>Notifications</h3>
+            <p>Choose what you get alerted about</p>
+          </div>
+        </div>
+        <div class="settings-fields">
+          <div class="toggle-list">
+            <div class="toggle-item">
+              <div><strong>New message received</strong><p>Alert when a customer sends a DM</p></div>
+              <label class="toggle-pill"><input type="checkbox" checked /><span class="pill-track"><span class="pill-thumb"></span></span></label>
+            </div>
+            <div class="toggle-item">
+              <div><strong>New order placed</strong><p>Alert when a sale is recorded</p></div>
+              <label class="toggle-pill"><input type="checkbox" checked /><span class="pill-track"><span class="pill-thumb"></span></span></label>
+            </div>
+            <div class="toggle-item">
+              <div><strong>Low stock alert</strong><p>Alert when product quantity is low</p></div>
+              <label class="toggle-pill"><input type="checkbox" checked /><span class="pill-track"><span class="pill-thumb"></span></span></label>
+            </div>
+            <div class="toggle-item">
+              <div><strong>Daily sales summary</strong><p>Get a summary report each morning</p></div>
+              <label class="toggle-pill"><input type="checkbox" /><span class="pill-track"><span class="pill-thumb"></span></span></label>
+            </div>
+            <div class="toggle-item">
+              <div><strong>Notification sound</strong><p>Play a sound for new alerts</p></div>
+              <label class="toggle-pill"><input type="checkbox" checked /><span class="pill-track"><span class="pill-thumb"></span></span></label>
+            </div>
+          </div>
+          <div class="settings-row" style="margin-top:4px">
+            <div class="settings-field">
+              <label>Low stock threshold (units)</label>
+              <input type="number" placeholder="e.g. 5" min="1" value="5" />
+            </div>
+            <div class="settings-field">
+              <label>Daily summary time</label>
+              <input type="time" value="08:00" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. AI Assistant -->
+      <div class="settings-section">
+        <div class="settings-section-title">
+          <span class="settings-icon">🤖</span>
+          <div>
+            <h3>AI Assistant</h3>
+            <p>Shape how the AI behaves with your customers</p>
+          </div>
+        </div>
+        <div class="settings-fields">
+          <div class="settings-row">
+            <div class="settings-field">
+              <label>Response Style</label>
+              <select>
+                <option>Friendly &amp; Casual</option>
+                <option>Formal &amp; Professional</option>
+                <option>Concise &amp; Direct</option>
+              </select>
+            </div>
+            <div class="settings-field">
+              <label>Voice Input Language</label>
+              <select>
+                <option>English (Global)</option>
+                <option>English (Nigerian Pidgin)</option>
+                <option>Yoruba</option>
+                <option>Igbo</option>
+                <option>Hausa</option>
+                <option>French</option>
+              </select>
+            </div>
+          </div>
+          <div class="toggle-list">
+            <div class="toggle-item">
+              <div><strong>Auto-suggest replies</strong><p>AI drafts replies to incoming messages for you to approve</p></div>
+              <label class="toggle-pill"><input type="checkbox" checked /><span class="pill-track"><span class="pill-thumb"></span></span></label>
+            </div>
+            <div class="toggle-item">
+              <div><strong>Save voice transcripts</strong><p>Keep a log of everything spoken to the AI mic</p></div>
+              <label class="toggle-pill"><input type="checkbox" /><span class="pill-track"><span class="pill-thumb"></span></span></label>
+            </div>
+            <div class="toggle-item">
+              <div><strong>Daily AI insights report</strong><p>AI generates a morning summary of sales trends</p></div>
+              <label class="toggle-pill"><input type="checkbox" checked /><span class="pill-track"><span class="pill-thumb"></span></span></label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. Data & Security -->
+      <div class="settings-section">
+        <div class="settings-section-title">
+          <span class="settings-icon">🔐</span>
+          <div>
+            <h3>Data &amp; Security</h3>
+            <p>Export data, manage password and active sessions</p>
+          </div>
+        </div>
+        <div class="settings-fields">
+          <div class="settings-row">
+            <div class="settings-field">
+              <label>Export Sales Data</label>
+              <button class="settings-btn-solid">⬇ Download CSV (All Time)</button>
+            </div>
+            <div class="settings-field">
+              <label>Export Orders</label>
+              <button class="settings-btn-solid">⬇ Download CSV (Today)</button>
+            </div>
+          </div>
+          <div class="toggle-list">
+            <div class="toggle-item">
+              <div><strong>Two-Factor Authentication</strong><p>Add an extra layer of sign-in security</p></div>
+              <label class="toggle-pill"><input type="checkbox" /><span class="pill-track"><span class="pill-thumb"></span></span></label>
+            </div>
+          </div>
+          <div class="settings-row" style="margin-top:4px">
+            <div class="settings-field">
+              <label>Change Password</label>
+              <button class="settings-btn-outline">Update Password</button>
+            </div>
+            <div class="settings-field">
+              <label>Active Sessions</label>
+              <button class="settings-btn-outline danger">Sign Out All Devices</button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-field full">
+              <label>Danger Zone</label>
+              <button class="settings-btn-outline danger" style="width:auto">🗑 Clear Today's Sales Data</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Save Bar -->
+      <div class="settings-save-bar">
+        <span class="settings-save-hint">Changes are saved automatically</span>
+        <button class="btn-add" style="width:auto;padding:10px 32px;margin:0">Save Settings</button>
+      </div>
+
+    </div>
+  </div>
+</div><!-- end page-settings -->
+
 </div><!-- end .app-body -->
 
 <!-- Floating Mic Button -->
@@ -1231,14 +1696,34 @@
   function setNav(el, page) {
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
     el.classList.add('active');
-    // Show/hide pages
     document.querySelectorAll('.page-view').forEach(p => p.style.display = 'none');
     const target = document.getElementById('page-' + page);
     if (target) {
       target.style.display = 'flex';
       if (page === 'orders') renderOrders();
+      if (page === 'settings') syncSettingsToggles();
     } else {
       document.getElementById('page-inventory').style.display = 'flex';
+    }
+  }
+
+  function syncSettingsToggles() {
+    const isDark = document.body.classList.contains('dark');
+    const t = document.getElementById('settingsDarkToggle');
+    if (t) t.checked = isDark;
+  }
+
+  function toggleThemeFromSettings(cb) {
+    const isDark = cb.checked;
+    document.body.classList.toggle('dark', isDark);
+    document.getElementById('toggleThumb').textContent = isDark ? '🌙' : '☀️';
+    const headerCb = document.getElementById('themeToggle');
+    headerCb.checked = !isDark;
+    localStorage.setItem('iflow_theme', isDark ? 'dark' : 'light');
+    const nepa = document.getElementById('nepaText');
+    if (!isDark) {
+      nepa.classList.add('show');
+      setTimeout(() => nepa.classList.remove('show'), 2500);
     }
   }
 

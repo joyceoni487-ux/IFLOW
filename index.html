@@ -713,7 +713,7 @@
   .settings-fields { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
 
   .settings-row { display: flex; gap: 16px; flex-wrap: wrap; }
-  .settings-field { display: flex; flex-direction: column; gap: 7px; flex: 1; min-width: 200px; }
+  .settings-field { display: flex; flex-direction: column; gap: 7px; flex: 1; min-width: 180px; }
   .settings-field.full { flex-basis: 100%; }
   .settings-field label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); transition: color .35s; }
   .settings-field input,
@@ -822,6 +822,63 @@
     transition: background .35s, border-color .35s;
   }
   .settings-save-hint { font-size: 0.8rem; color: var(--muted); transition: color .35s; }
+
+  /* ── Settings Responsiveness ── */
+
+  /* Fluid padding as viewport shrinks */
+  @media (max-width: 1100px) {
+    .settings-body        { padding: 20px 20px; }
+    .settings-header      { padding: 20px 20px 16px; }
+    .orders-header        { padding: 20px 20px 16px; }
+    .orders-table-wrap    { padding: 16px 20px 20px; }
+  }
+
+  /* Single-column fields below 860px */
+  @media (max-width: 860px) {
+    .settings-row         { flex-direction: column; gap: 14px; }
+    .settings-field       { min-width: unset; width: 100%; }
+    .orders-stats         { gap: 10px; }
+    .stat-card            { min-width: 90px; padding: 10px 14px; }
+    .stat-value           { font-size: 1.1rem; }
+  }
+
+  /* Compact section titles */
+  @media (max-width: 700px) {
+    .settings-section-title { padding: 16px 16px 14px; gap: 10px; }
+    .settings-fields        { padding: 16px 16px; gap: 14px; }
+    .settings-icon          { width: 36px; height: 36px; font-size: 1.1rem; border-radius: 8px; }
+    .settings-section-title h3 { font-size: 0.88rem; }
+    .settings-section-title p  { font-size: 0.73rem; }
+
+    .platform-row         { gap: 10px; }
+    .platform-info        { min-width: unset; }
+    .connected-badge      { display: none; }
+
+    .settings-save-bar    { flex-direction: column; gap: 12px; align-items: stretch; text-align: center; }
+    .settings-save-bar .btn-add { width: 100% !important; }
+
+    .logo-upload          { flex-wrap: wrap; gap: 10px; }
+    .logo-upload-info     { width: 100%; }
+
+    .orders-header        { flex-direction: column; align-items: flex-start; }
+    .orders-filters       { flex-wrap: wrap; }
+    .orders-search        { width: 100%; }
+  }
+
+  /* Full-width sidebar collapses automatically on small screens */
+  @media (max-width: 600px) {
+    .sidebar              { width: 56px; }
+    .sidebar .nav-label,
+    .sidebar .sidebar-label,
+    .sidebar .nav-badge   { opacity: 0; max-width: 0; }
+    .sidebar-toggle       { display: none; }
+    .settings-body        { padding: 14px 12px; gap: 14px; }
+    .settings-header      { padding: 14px 12px 12px; }
+    .orders-title         { font-size: 1.1rem; }
+    .toggle-item          { padding: 12px 12px; }
+    .toggle-item > div strong { font-size: 0.82rem; }
+    .toggle-item > div p  { font-size: 0.72rem; }
+  }
 
   /* ── Floating Mic Button ── */
   .fab-mic {

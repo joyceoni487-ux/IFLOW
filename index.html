@@ -789,7 +789,7 @@
 
   /* Logo upload */
   .logo-upload { display: flex; align-items: center; gap: 14px; border: 1.5px solid var(--border); border-radius: 10px; padding: 12px 16px; background: var(--input-bg); transition: background .35s, border-color .35s; }
-  .logo-preview { width: 48px; height: 48px; border-radius: 10px; background: var(--bg); font-size: 1.6rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background .35s; }
+  .logo-preview { width: 48px; height: 48px; border-radius: 10px; background: var(--bg); font-size: 1.6rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; transition: background .35s; }
   .logo-upload-info { flex: 1; }
   .logo-upload-info span { font-size: 0.88rem; font-weight: 600; color: var(--text); display: block; transition: color .35s; }
   .logo-upload-info p  { font-size: 0.75rem; color: var(--muted); transition: color .35s; }
@@ -1018,14 +1018,98 @@
     transition: background .15s;
   }
   .ai-close:hover { background: #e2e8f0; }
+
+  /* ── App Loader ── */
+  #appLoader {
+    position: fixed;
+    inset: 0;
+    background: #0b0d14;
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 0;
+    transition: opacity .6s ease;
+  }
+  #appLoader.fade-out { opacity: 0; pointer-events: none; }
+  .loader-brand {
+    font-size: 3rem;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: #e2e8f0;
+    margin-bottom: 36px;
+  }
+  .loader-brand span { color: #4f8ef7; }
+  .loader-dots {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+  .loader-dots span {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    animation: ldot 1.1s ease-in-out infinite;
+  }
+  .loader-dots span:nth-child(1) { background: #4f8ef7; }
+  .loader-dots span:nth-child(2) { background: #7b5ea7; animation-delay: .18s; }
+  .loader-dots span:nth-child(3) { background: #a78bfa; animation-delay: .36s; }
+  @keyframes ldot {
+    0%, 60%, 100% { transform: translateY(0); opacity: .35; }
+    30% { transform: translateY(-10px); opacity: 1; }
+  }
+  .loader-msg {
+    font-size: 0.8rem;
+    color: #4a5568;
+    letter-spacing: 1px;
+    min-height: 1.2em;
+    font-family: 'Poppins', sans-serif;
+  }
+
+  /* ── Header store avatar ── */
+  .header-store-avatar {
+    width: 34px; height: 34px;
+    border-radius: 8px;
+    background: rgba(79,142,247,.13);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+    overflow: hidden;
+    border: 1px solid rgba(79,142,247,.22);
+  }
+  .header-store-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+  /* ── Save toast ── */
+  #saveToast {
+    position: fixed;
+    bottom: 108px;
+    right: 32px;
+    background: #38a169;
+    color: #fff;
+    padding: 10px 22px;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    z-index: 1000;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity .3s, transform .3s;
+    pointer-events: none;
+  }
+  #saveToast.show { opacity: 1; transform: translateY(0); }
   </style>
 </head>
 <body>
 
 <header>
-  <div>
-    <div class="logo">i<span>Flow</span></div>
-    <div class="subtitle">Sales Tracker</div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <div class="header-store-avatar" id="headerLogoAvatar">🏪</div>
+    <div>
+      <div class="logo">i<span>Flow</span></div>
+      <div class="subtitle" id="headerStoreName">Sales Tracker</div>
+    </div>
   </div>
   <div class="header-right">
     <span class="nepa-text" id="nepaText">⚡ Up NEPA!</span>
@@ -1129,7 +1213,7 @@
   <div class="card">
     <div class="summary">
       <h2>Today's Sales</h2>
-      <div class="daily-total">Daily Total: $<span id="dailyTotal">0.00</span></div>
+      <div class="daily-total">Daily Total: <span id="dailyTotalCur">$</span><span id="dailyTotal">0.00</span></div>
     </div>
 
     <p class="inventory-heading">Inventory</p>
@@ -1216,7 +1300,7 @@
         </div>
         <div class="stat-card">
           <span class="stat-label">Total Revenue</span>
-          <span class="stat-value" style="color:var(--accent)">$1,284.60</span>
+          <span class="stat-value" id="ordersRevenue" style="color:var(--accent)">$1,284.60</span>
         </div>
         <div class="stat-card">
           <span class="stat-label">Completed</span>
@@ -1293,33 +1377,34 @@
           <div class="settings-row">
             <div class="settings-field">
               <label>Store Name</label>
-              <input type="text" placeholder="e.g. TechHub Lagos" />
+              <input type="text" id="settingsStoreName" placeholder="e.g. TechHub Lagos" />
             </div>
             <div class="settings-field">
               <label>Owner / Contact Name</label>
-              <input type="text" placeholder="e.g. Chioma Okafor" />
+              <input type="text" id="settingsOwnerName" placeholder="e.g. Chioma Okafor" />
             </div>
           </div>
           <div class="settings-row">
             <div class="settings-field">
               <label>Business Email</label>
-              <input type="email" placeholder="e.g. store@techhub.com" />
+              <input type="email" id="settingsEmail" placeholder="e.g. store@techhub.com" />
             </div>
             <div class="settings-field">
               <label>Phone Number</label>
-              <input type="tel" placeholder="e.g. +234 812 000 0000" />
+              <input type="tel" id="settingsPhone" placeholder="e.g. +234 812 000 0000" />
             </div>
           </div>
           <div class="settings-row">
             <div class="settings-field full">
               <label>Store Logo</label>
               <div class="logo-upload">
-                <div class="logo-preview">🏪</div>
+                <div class="logo-preview" id="settingsLogoPreview">🏪</div>
                 <div class="logo-upload-info">
-                  <span>Upload a logo</span>
+                  <span id="settingsLogoName">Upload a logo</span>
                   <p>PNG or JPG, max 2MB</p>
                 </div>
-                <button class="settings-btn-outline">Choose File</button>
+                <input type="file" id="settingsLogoFile" accept="image/*" style="display:none" onchange="handleLogoSelect(this)" />
+                <button class="settings-btn-outline" onclick="document.getElementById('settingsLogoFile').click()">Choose File</button>
               </div>
             </div>
           </div>
@@ -1339,13 +1424,13 @@
           <div class="settings-row">
             <div class="settings-field">
               <label>Currency</label>
-              <select>
-                <option>USD — US Dollar ($)</option>
-                <option>NGN — Nigerian Naira (₦)</option>
-                <option>GBP — British Pound (£)</option>
-                <option>EUR — Euro (€)</option>
-                <option>GHS — Ghanaian Cedi (₵)</option>
-                <option>KES — Kenyan Shilling (KSh)</option>
+              <select id="settingsCurrency" onchange="liveApplyCurrency()">
+                <option value="USD">USD — US Dollar ($)</option>
+                <option value="NGN">NGN — Nigerian Naira (₦)</option>
+                <option value="GBP">GBP — British Pound (£)</option>
+                <option value="EUR">EUR — Euro (€)</option>
+                <option value="GHS">GHS — Ghanaian Cedi (₵)</option>
+                <option value="KES">KES — Kenyan Shilling (KSh)</option>
               </select>
             </div>
             <div class="settings-field">
@@ -1568,7 +1653,7 @@
       <!-- Save Bar -->
       <div class="settings-save-bar">
         <span class="settings-save-hint">Changes are saved automatically</span>
-        <button class="btn-add" style="width:auto;padding:10px 32px;margin:0">Save Settings</button>
+        <button class="btn-add" style="width:auto;padding:10px 32px;margin:0" onclick="saveSettings()">Save Settings</button>
       </div>
 
     </div>
@@ -1608,6 +1693,77 @@
 <script>
   let sales = JSON.parse(localStorage.getItem('iflow_sales') || '[]');
 
+  const CURRENCY_SYMBOLS = { USD:'$', NGN:'₦', GBP:'£', EUR:'€', GHS:'₵', KES:'KSh' };
+
+  function getCurrency() {
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    return CURRENCY_SYMBOLS[s.currency] || '$';
+  }
+
+  function saveSettings() {
+    const storeName = (document.getElementById('settingsStoreName')?.value || '').trim();
+    const ownerName = (document.getElementById('settingsOwnerName')?.value || '').trim();
+    const email    = (document.getElementById('settingsEmail')?.value || '').trim();
+    const phone    = (document.getElementById('settingsPhone')?.value || '').trim();
+    const currency = document.getElementById('settingsCurrency')?.value || 'USD';
+    const settings = { storeName, ownerName, email, phone, currency };
+    localStorage.setItem('iflow_settings', JSON.stringify(settings));
+    applySettings(settings);
+    showToast('Settings saved ✓');
+  }
+
+  function applySettings(settings) {
+    // Store name in header
+    const nameEl = document.getElementById('headerStoreName');
+    if (nameEl) nameEl.textContent = settings.storeName || 'Sales Tracker';
+    // Logo in header
+    const logo = localStorage.getItem('iflow_logo');
+    const avatarEl = document.getElementById('headerLogoAvatar');
+    if (avatarEl && logo) {
+      avatarEl.innerHTML = `<img src="${logo}" />`;
+    }
+    // Refresh price displays
+    render();
+    updateTotal();
+    const ordersPage = document.getElementById('page-orders');
+    if (ordersPage && ordersPage.style.display !== 'none') renderOrders();
+  }
+
+  function liveApplyCurrency() {
+    // Save currency change immediately so getCurrency() picks it up
+    const existing = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    existing.currency = document.getElementById('settingsCurrency')?.value || 'USD';
+    localStorage.setItem('iflow_settings', JSON.stringify(existing));
+    render();
+    updateTotal();
+    const ordersPage = document.getElementById('page-orders');
+    if (ordersPage && ordersPage.style.display !== 'none') renderOrders();
+  }
+
+  function handleLogoSelect(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const data = e.target.result;
+      localStorage.setItem('iflow_logo', data);
+      const prev = document.getElementById('settingsLogoPreview');
+      if (prev) { prev.textContent = ''; prev.innerHTML = `<img src="${data}" style="width:100%;height:100%;object-fit:cover;border-radius:10px" />`; }
+      const nameEl = document.getElementById('settingsLogoName');
+      if (nameEl) nameEl.textContent = file.name;
+      const avatar = document.getElementById('headerLogoAvatar');
+      if (avatar) avatar.innerHTML = `<img src="${data}" />`;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('saveToast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
   function persist() {
     localStorage.setItem('iflow_sales', JSON.stringify(sales));
   }
@@ -1631,13 +1787,14 @@
   function updateTotal() {
     const total = sales.reduce((sum, s) => sum + s.quantity * s.price, 0);
     document.getElementById('dailyTotal').textContent = fmt(total);
+    document.getElementById('dailyTotalCur').textContent = getCurrency();
   }
 
   function updateSubtotal(i) {
     const row = document.querySelector(`tr[data-index="${i}"]`);
     if (!row) return;
     const sub = sales[i].quantity * sales[i].price;
-    row.querySelector('.cell-subtotal').textContent = '$' + fmt(sub);
+    row.querySelector('.cell-subtotal').textContent = getCurrency() + fmt(sub);
     updateTotal();
   }
 
@@ -1663,7 +1820,7 @@
         <td><input class="cell-input" value="${s ? escAttr(s.variant) : ''}" placeholder="" data-field="variant" data-index="${i}" /></td>
         <td><input class="cell-input" type="number" min="1" value="${s ? s.quantity : ''}" placeholder="" data-field="quantity" data-index="${i}" /></td>
         <td><input class="cell-input" type="number" min="0" step="0.01" value="${s ? s.price : ''}" placeholder="" data-field="price" data-index="${i}" /></td>
-        <td class="cell-subtotal">${sub !== null ? '$' + fmt(sub) : ''}</td>
+        <td class="cell-subtotal">${sub !== null ? getCurrency() + fmt(sub) : ''}</td>
         <td class="cell-action"><button class="btn-terminate" onclick="terminateRow(${i})" title="Clear row">&#9632;</button></td>
       `;
       body.appendChild(tr);
@@ -1769,6 +1926,19 @@
     const isDark = document.body.classList.contains('dark');
     const t = document.getElementById('settingsDarkToggle');
     if (t) t.checked = isDark;
+    // Repopulate profile + regional fields from saved settings
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    if (s.storeName) document.getElementById('settingsStoreName').value = s.storeName;
+    if (s.ownerName) document.getElementById('settingsOwnerName').value = s.ownerName;
+    if (s.email)     document.getElementById('settingsEmail').value     = s.email;
+    if (s.phone)     document.getElementById('settingsPhone').value     = s.phone;
+    if (s.currency)  document.getElementById('settingsCurrency').value  = s.currency;
+    // Restore logo preview
+    const logo = localStorage.getItem('iflow_logo');
+    if (logo) {
+      const prev = document.getElementById('settingsLogoPreview');
+      if (prev) prev.innerHTML = `<img src="${logo}" style="width:100%;height:100%;object-fit:cover;border-radius:10px" />`;
+    }
   }
 
   function toggleThemeFromSettings(cb) {
@@ -1803,6 +1973,10 @@
     document.getElementById('ordersDate').textContent =
       new Date().toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
 
+    const cur = getCurrency();
+    const totalRevenue = ordersData.reduce((s, o) => s + o.qty * o.price, 0);
+    document.getElementById('ordersRevenue').textContent = cur + totalRevenue.toFixed(2);
+
     const tbody = document.getElementById('ordersBody');
     tbody.innerHTML = ordersData.map((o, i) => {
       const sub = (o.qty * o.price).toFixed(2);
@@ -1815,15 +1989,15 @@
           <td style="padding:10px 14px;font-weight:600;color:var(--text)">${o.product}</td>
           <td style="padding:10px 14px"><span class="channel-badge">${o.variant}</span></td>
           <td class="cell-datetime" style="text-align:center">${o.qty}</td>
-          <td class="cell-datetime">$${o.price.toFixed(2)}</td>
-          <td class="cell-subtotal">$${sub}</td>
+          <td class="cell-datetime">${getCurrency()}${o.price.toFixed(2)}</td>
+          <td class="cell-subtotal">${getCurrency()}${sub}</td>
           <td style="padding:8px 12px"><span class="channel-badge">${o.channel}</span></td>
           <td style="padding:8px 12px"><span class="status-badge ${o.status}">${o.status.charAt(0).toUpperCase()+o.status.slice(1)}</span></td>
         </tr>`;
     }).join('');
   }
 
-  // Apply saved theme on load
+  // Apply saved theme + settings on load
   (function() {
     const saved = localStorage.getItem('iflow_theme') || 'dark';
     const isDark = saved === 'dark';
@@ -1831,6 +2005,18 @@
     const cb = document.getElementById('themeToggle');
     cb.checked = !isDark;
     document.getElementById('toggleThumb').textContent = isDark ? '🌙' : '☀️';
+
+    // Apply stored profile settings (store name, logo, currency)
+    const settings = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    const nameEl = document.getElementById('headerStoreName');
+    if (nameEl && settings.storeName) nameEl.textContent = settings.storeName;
+    const logo = localStorage.getItem('iflow_logo');
+    if (logo) {
+      const av = document.getElementById('headerLogoAvatar');
+      if (av) av.innerHTML = `<img src="${logo}" />`;
+    }
+    // Refresh currency in daily total
+    document.getElementById('dailyTotalCur').textContent = CURRENCY_SYMBOLS[settings.currency] || '$';
   })();
 
   function terminateRow(index) {
@@ -2015,6 +2201,36 @@
   }
 
   renderConvList();
+</script>
+
+<!-- Save Toast -->
+<div id="saveToast"></div>
+
+<!-- App Loader -->
+<div id="appLoader">
+  <div class="loader-brand">i<span>Flow</span></div>
+  <div class="loader-dots"><span></span><span></span><span></span></div>
+  <div class="loader-msg" id="loaderMsg"></div>
+</div>
+
+<script>
+// ── Loader ──
+(function() {
+  const msg = 'Initializing your workspace...';
+  const el = document.getElementById('loaderMsg');
+  let i = 0;
+  const typer = setInterval(() => {
+    if (i < msg.length) { el.textContent += msg[i++]; }
+    else {
+      clearInterval(typer);
+      setTimeout(() => {
+        const loader = document.getElementById('appLoader');
+        loader.classList.add('fade-out');
+        setTimeout(() => loader.remove(), 650);
+      }, 700);
+    }
+  }, 32);
+})();
 </script>
 </body>
 </html>

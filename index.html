@@ -1171,7 +1171,7 @@
 
   <!-- Entry Form -->
   <div class="card">
-    <h2>Record a Sale</h2>
+    <h2>Record a Product</h2>
     <div class="form-grid">
 
       <div class="field">
@@ -1184,12 +1184,6 @@
         <label for="productName">Product Name</label>
         <input id="productName" type="text"
           placeholder="e.g. Wireless Earbuds" />
-      </div>
-
-      <div class="field">
-        <label for="variant">Variant</label>
-        <input id="variant" type="text"
-          placeholder="e.g. Black / 64GB / Pro Max" />
       </div>
 
       <div class="field">
@@ -1206,7 +1200,7 @@
 
     </div>
     <div id="formError" class="error-msg">Please fill in all fields with valid values.</div>
-    <button class="btn-add" onclick="addSale()">+ Add Sale</button>
+    <button class="btn-add" onclick="addSale()">+ Add Product</button>
   </div>
 
   <!-- Sales Log -->
@@ -1224,8 +1218,8 @@
             <th>#</th>
             <th>Date</th>
             <th>Time</th>
+            <th>Customer</th>
             <th>Product</th>
-            <th>Variant</th>
             <th>Qty</th>
             <th>Unit Price</th>
             <th>Subtotal</th>
@@ -1816,8 +1810,8 @@
         <td class="row-num">${i + 1}</td>
         <td class="cell-datetime">${s ? fmtDate(s.timestamp) : ''}</td>
         <td class="cell-datetime">${s ? fmtTime(s.timestamp) : ''}</td>
+        <td><input class="cell-input" value="${s ? escAttr(s.customer) : ''}" placeholder="" data-field="customer" data-index="${i}" /></td>
         <td><input class="cell-input product" value="${s ? escAttr(s.product) : ''}" placeholder="" data-field="product" data-index="${i}" /></td>
-        <td><input class="cell-input" value="${s ? escAttr(s.variant) : ''}" placeholder="" data-field="variant" data-index="${i}" /></td>
         <td><input class="cell-input" type="number" min="1" value="${s ? s.quantity : ''}" placeholder="" data-field="quantity" data-index="${i}" /></td>
         <td><input class="cell-input" type="number" min="0" step="0.01" value="${s ? s.price : ''}" placeholder="" data-field="price" data-index="${i}" /></td>
         <td class="cell-subtotal">${sub !== null ? getCurrency() + fmt(sub) : ''}</td>
@@ -1840,7 +1834,7 @@
     // If typing into a blank row, stamp timestamp and show date/time immediately
     if (!sales[i]) {
       const ts = Date.now();
-      sales[i] = { product: '', variant: '', quantity: 1, price: 0, timestamp: ts };
+      sales[i] = { customer: '', product: '', quantity: 1, price: 0, timestamp: ts };
       const row = document.querySelector(`tr[data-index="${i}"]`);
       if (row) {
         row.querySelectorAll('.cell-datetime')[0].textContent = fmtDate(ts);
@@ -1867,9 +1861,8 @@
   });
 
   function addSale() {
-    const customer = document.getElementById('customerName').value.trim();
+    const customer  = document.getElementById('customerName').value.trim();
     const product  = document.getElementById('productName').value.trim();
-    const variant  = document.getElementById('variant').value.trim();
     const quantity = parseFloat(document.getElementById('quantity').value);
     const price    = parseFloat(document.getElementById('price').value);
     const errEl    = document.getElementById('formError');
@@ -1880,11 +1873,11 @@
     }
     errEl.style.display = 'none';
 
-    sales.push({ customer, product, variant, quantity, price, timestamp: Date.now() });
+    sales.push({ customer, product, quantity, price, timestamp: Date.now() });
     persist();
     render();
 
-    ['customerName', 'productName', 'variant', 'quantity', 'price'].forEach(id => {
+    ['customerName', 'productName', 'quantity', 'price'].forEach(id => {
       document.getElementById(id).value = '';
     });
     document.getElementById('customerName').focus();
@@ -2037,7 +2030,7 @@
 
   // Allow Enter key to submit
   document.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && ['productName','variant','quantity','price'].includes(e.target.id)) {
+    if (e.key === 'Enter' && ['customerName','productName','quantity','price'].includes(e.target.id)) {
       addSale();
     }
   });

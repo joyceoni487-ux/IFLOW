@@ -1199,6 +1199,22 @@
   }
   .header-store-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
+  /* ── Sheets sync indicator ── */
+  .summary-row { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:4px; }
+  .sync-bar { display:flex; align-items:center; gap:14px; }
+  .sync-indicator { display:flex; align-items:center; gap:6px; font-size:0.72rem; color:var(--muted); transition:color .35s; }
+  .sync-dot { width:7px; height:7px; border-radius:50%; background:var(--subtle); flex-shrink:0; transition:background .3s; }
+  .sync-dot.syncing { background:#f6ad55; animation:blink .8s ease-in-out infinite; }
+  .sync-dot.synced  { background:#38a169; }
+  .sync-dot.error   { background:#e53e3e; }
+  .open-sheets-btn {
+    font-size:0.72rem; color:var(--accent); text-decoration:none; white-space:nowrap;
+    background:transparent; border:1px solid rgba(79,142,247,.3); border-radius:6px;
+    padding:3px 9px; cursor:pointer; font-family:'Poppins',sans-serif;
+    transition:background .2s, border-color .2s;
+  }
+  .open-sheets-btn:hover { background:rgba(79,142,247,.1); border-color:var(--accent); }
+
   /* ── Save toast ── */
   #saveToast {
     position: fixed;
@@ -1329,10 +1345,20 @@
 
   <!-- Sales Log -->
   <div class="card">
-    <div class="summary">
-      <h2>Today's Sales</h2>
-      <div class="daily-total">Daily Total: <span id="dailyTotalCur">$</span><span id="dailyTotal">0.00</span></div>
-    </div>
+      <div class="summary-row">
+        <h2>Today's Sales</h2>
+        <div class="sync-bar">
+          <div class="sync-indicator">
+            <span class="sync-dot" id="syncDot"></span>
+            <span id="syncText">—</span>
+          </div>
+          <a class="open-sheets-btn" id="openSheetsBtn" href="#" target="_blank" style="display:none">↗ Open in Sheets</a>
+        </div>
+      </div>
+      <div class="summary" style="margin-top:10px">
+        <div></div>
+        <div class="daily-total">Daily Total: <span id="dailyTotalCur">$</span><span id="dailyTotal">0.00</span></div>
+      </div>
 
     <p class="inventory-heading">Inventory</p>
     <div class="table-wrap">
@@ -1971,6 +1997,12 @@
     sales[i][field] = (field === 'quantity' || field === 'price') ? +val : val;
     persist();
     updateSubtotal(i);
+    clearTimeout(SheetsAPI._debounce = SheetsAPI._debounce || {});
+    SheetsAPI._debounce[i] = SheetsAPI._debounce[i] || null;
+    clearTimeout(SheetsAPI._debounce[i]);
+    SheetsAPI._debounce[i] = setTimeout(() => {
+      if (sales[i]) SheetsAPI.withToken(() => SheetsAPI.updateRow(i, sales[i]));
+    }, 1200);
 
     // Add a new blank row if the last row now has data
     const tbody = document.getElementById('salesBody');
@@ -1999,15 +2031,183 @@
 
     // Use picked date if provided, otherwise now
     const timestamp = dateVal ? new Date(dateVal + 'T00:00:00').getTime() : Date.now();
-    sales.push({ product, quantity, price, timestamp });
+    const newSale = { product, quantity, price, timestamp };
+    sales.push(newSale);
     persist();
     render();
+    SheetsAPI.withToken(() => SheetsAPI.appendRow(newSale));
 
     ['saleDate', 'productName', 'quantity', 'price'].forEach(id => {
       document.getElementById(id).value = '';
     });
     document.getElementById('saleDate').focus();
   }
+
+  // ── Google Sheets Integration ──
+
+  function setSyncStatus(state, text) {
+    const dot = document.getElementById('syncDot');
+    const txt = document.getElementById('syncText');
+    if (dot) { dot.className = 'sync-dot ' + (state || ''); }
+    if (txt) txt.textContent = text || '';
+  }
+
+  const SheetsAPI = {
+    BASE: 'https://sheets.googleapis.com/v4/spreadsheets',
+    spreadsheetId: null,
+    salesSheetId: 0,
+    tokenClient: null,
+    accessToken: null,
+    tokenExpiry: 0,
+    pendingCbs: [],
+
+    init(clientId) {
+      if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
+        setTimeout(() => this.init(clientId), 300);
+        return;
+      }
+      this.tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: 'https://www.googleapis.com/auth/spreadsheets',
+        callback: (resp) => {
+          if (resp.error) { setSyncStatus('error', 'Auth error'); return; }
+          this.accessToken = resp.access_token;
+          this.tokenExpiry = Date.now() + (resp.expires_in - 60) * 1000;
+          const cbs = [...this.pendingCbs];
+          this.pendingCbs = [];
+          cbs.forEach(cb => cb());
+        }
+      });
+      this.withToken(() => this.loadAll());
+    },
+
+    withToken(cb) {
+      if (this.accessToken && Date.now() < this.tokenExpiry) {
+        cb();
+      } else {
+        this.pendingCbs.push(cb);
+        if (this.tokenClient) this.tokenClient.requestAccessToken({ prompt: '' });
+      }
+    },
+
+    async req(url, opts = {}) {
+      opts.headers = Object.assign({ 'Authorization': 'Bearer ' + this.accessToken }, opts.headers || {});
+      const r = await fetch(url, opts);
+      return r.json();
+    },
+
+    async ensureSheet() {
+      if (this.spreadsheetId) return this.spreadsheetId;
+      const cached = localStorage.getItem('iflow_sheet_id');
+      if (cached) {
+        this.spreadsheetId = cached;
+        const meta = await this.req(`${this.BASE}/${cached}?fields=sheets.properties`);
+        const s = (meta.sheets || []).find(s => s.properties.title === 'Sales');
+        this.salesSheetId = s ? s.properties.sheetId : 0;
+        const btn = document.getElementById('openSheetsBtn');
+        if (btn) { btn.href = `https://docs.google.com/spreadsheets/d/${cached}`; btn.style.display = ''; }
+        return cached;
+      }
+      setSyncStatus('syncing', 'Creating spreadsheet…');
+      const resp = await this.req(this.BASE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          properties: { title: 'iFlow — Sales Data' },
+          sheets: [{ properties: { title: 'Sales', sheetId: 0 } }]
+        })
+      });
+      this.spreadsheetId = resp.spreadsheetId;
+      this.salesSheetId = 0;
+      localStorage.setItem('iflow_sheet_id', this.spreadsheetId);
+      // Write header row
+      await this.req(
+        `${this.BASE}/${this.spreadsheetId}/values/Sales!A1:G1?valueInputOption=RAW`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ values: [['Date','Time','Product','Quantity','Unit Price','Subtotal','_ts']] })
+        }
+      );
+      const btn = document.getElementById('openSheetsBtn');
+      if (btn) { btn.href = `https://docs.google.com/spreadsheets/d/${this.spreadsheetId}`; btn.style.display = ''; }
+      return this.spreadsheetId;
+    },
+
+    rowVals(s) {
+      return [fmtDate(s.timestamp), fmtTime(s.timestamp), s.product, s.quantity, s.price, (s.quantity * s.price).toFixed(2), s.timestamp];
+    },
+
+    async loadAll() {
+      setSyncStatus('syncing', 'Loading…');
+      const id = await this.ensureSheet();
+      const data = await this.req(`${this.BASE}/${id}/values/Sales!A2:G`);
+      const rows = data.values || [];
+      if (rows.length > 0) {
+        sales = rows.filter(r => r[6]).map(r => ({
+          timestamp: parseInt(r[6]),
+          product:  r[2] || '',
+          quantity: parseFloat(r[3]) || 0,
+          price:    parseFloat(r[4]) || 0
+        }));
+        persist();
+        render();
+      } else if (sales.length > 0) {
+        // Migrate existing localStorage data up to Sheets
+        for (const s of sales) await this.appendRow(s);
+      }
+      setSyncStatus('synced', 'Synced');
+    },
+
+    async appendRow(s) {
+      const id = await this.ensureSheet();
+      setSyncStatus('syncing', 'Saving…');
+      await this.req(
+        `${this.BASE}/${id}/values/Sales!A:G:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ values: [this.rowVals(s)] })
+        }
+      );
+      setSyncStatus('synced', 'Saved');
+    },
+
+    async updateRow(rowIndex, s) {
+      const id = await this.ensureSheet();
+      const r = rowIndex + 2;
+      setSyncStatus('syncing', 'Updating…');
+      await this.req(
+        `${this.BASE}/${id}/values/Sales!A${r}:G${r}?valueInputOption=USER_ENTERED`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ values: [this.rowVals(s)] })
+        }
+      );
+      setSyncStatus('synced', 'Saved');
+    },
+
+    async deleteRow(rowIndex) {
+      const id = await this.ensureSheet();
+      setSyncStatus('syncing', 'Deleting…');
+      await this.req(
+        `${this.BASE}/${id}:batchUpdate`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            requests: [{
+              deleteDimension: {
+                range: { sheetId: this.salesSheetId, dimension: 'ROWS', startIndex: rowIndex + 1, endIndex: rowIndex + 2 }
+              }
+            }]
+          })
+        }
+      );
+      setSyncStatus('synced', 'Synced');
+    }
+  };
 
   // ── Theme toggle ──
   function toggleTheme(cb) {
@@ -2408,6 +2608,10 @@ function showApp(user) {
     } else {
       avatarEl.textContent = user.name.charAt(0).toUpperCase();
     }
+  }
+  // Init Google Sheets sync (only when real Client ID is used)
+  if (GOOGLE_CLIENT_ID !== 'YOUR_CLIENT_ID_HERE') {
+    SheetsAPI.init(GOOGLE_CLIENT_ID);
   }
 }
 

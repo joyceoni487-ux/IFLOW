@@ -1175,9 +1175,8 @@
     <div class="form-grid">
 
       <div class="field">
-        <label for="customerName">Customer Name</label>
-        <input id="customerName" type="text"
-          placeholder="e.g. Sarah Johnson" />
+        <label for="saleDate">Date</label>
+        <input id="saleDate" type="date" />
       </div>
 
       <div class="field">
@@ -1861,7 +1860,7 @@
   });
 
   function addSale() {
-    const customer  = document.getElementById('customerName').value.trim();
+    const dateVal  = document.getElementById('saleDate').value;
     const product  = document.getElementById('productName').value.trim();
     const quantity = parseFloat(document.getElementById('quantity').value);
     const price    = parseFloat(document.getElementById('price').value);
@@ -1873,14 +1872,16 @@
     }
     errEl.style.display = 'none';
 
-    sales.push({ customer, product, quantity, price, timestamp: Date.now() });
+    // Use picked date if provided, otherwise now
+    const timestamp = dateVal ? new Date(dateVal + 'T00:00:00').getTime() : Date.now();
+    sales.push({ product, quantity, price, timestamp });
     persist();
     render();
 
-    ['customerName', 'productName', 'quantity', 'price'].forEach(id => {
+    ['saleDate', 'productName', 'quantity', 'price'].forEach(id => {
       document.getElementById(id).value = '';
     });
-    document.getElementById('customerName').focus();
+    document.getElementById('saleDate').focus();
   }
 
   // ── Theme toggle ──
@@ -2030,12 +2031,15 @@
 
   // Allow Enter key to submit
   document.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && ['customerName','productName','quantity','price'].includes(e.target.id)) {
+    if (e.key === 'Enter' && ['saleDate','productName','quantity','price'].includes(e.target.id)) {
       addSale();
     }
   });
 
   render();
+
+  // Pre-fill date field with today
+  document.getElementById('saleDate').value = new Date().toISOString().slice(0, 10);
 
   // ── AI Panel ──
   let listening = false;

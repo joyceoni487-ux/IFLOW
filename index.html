@@ -2163,7 +2163,7 @@
         <td class="cell-datetime">${s ? fmtDate(s.timestamp) : ''}</td>
         <td class="cell-datetime">${s ? fmtTime(s.timestamp) : ''}</td>
         <td><input class="cell-input" value="${s ? escAttr(s.customer) : ''}" placeholder="" data-field="customer" data-index="${i}" /></td>
-        <td><input class="cell-input product" value="${s ? escAttr(s.product) : ''}" placeholder="" data-field="product" data-index="${i}" /></td>
+        <td><input class="cell-input product" value="${s ? escAttr(s.product) : ''}" placeholder="" data-field="product" data-index="${i}" data-prev-product="${s ? escAttr(s.product) : ''}" list="productsList" /></td>
         <td><input class="cell-input" type="number" min="1" value="${s ? s.quantity : ''}" placeholder="" data-field="quantity" data-index="${i}" data-val="${s ? s.quantity : ''}" /></td>
         <td><input class="cell-input" type="number" min="0" step="0.01" value="${s ? s.price : ''}" placeholder="" data-field="price" data-index="${i}" data-val="${s ? s.price : ''}" /></td>
         <td class="cell-subtotal" data-val="${sub !== null ? sub : ''}">${sub !== null ? getCurrency() + fmtComma(sub) : ''}</td>
@@ -2194,7 +2194,17 @@
       }
     }
 
-    if (field === 'quantity') { val = Math.max(1, parseFloat(val) || 1); }
+    if (field === 'quantity') {
+      val = Math.max(1, parseFloat(val) || 1);
+      // Cap quantity at available stock
+      const productName = sales[i]?.product || '';
+      const stockItem = productName ? findStockProduct(productName) : null;
+      if (stockItem && val > stockItem.stockQty) {
+        val = stockItem.stockQty;
+        inp.value = val;
+        showToast(`Only ${stockItem.stockQty} unit(s) of "${stockItem.name}" in stock.`);
+      }
+    }
     if (field === 'price')    { val = Math.max(0, parseFloat(val) || 0); }
     sales[i][field] = (field === 'quantity' || field === 'price') ? +val : val;
     inp.dataset.val = val;
@@ -2219,7 +2229,38 @@
     }
   });
 
-  // Normalize variant separators (/ , | and spaced hyphens) → \
+  // Validate product field in table when user leaves the cell
+  document.getElementById('salesBody').addEventListener('focusout', e => {
+    const inp = e.target;
+    if (!inp.classList.contains('cell-input') || inp.dataset.field !== 'product') return;
+    const val = inp.value.trim();
+    if (!val) return;
+    const i = parseInt(inp.dataset.index);
+    const normVal = normalizeProductName(val);
+    const match = findStockProduct(normVal);
+    if (!match) {
+      // Revert to previous valid value and warn
+      const prev = inp.dataset.prevProduct || '';
+      inp.value = prev;
+      if (sales[i]) { sales[i].product = prev; persist(); }
+      showToast(`"${normVal}" is not in Products & Stock — add it there first.`);
+    } else {
+      // Commit normalised name + anchor for future reverts
+      inp.value = normVal;
+      inp.dataset.prevProduct = normVal;
+      if (sales[i]) {
+        sales[i].product = normVal;
+        // Auto-fill price if the row has no price yet
+        if (!sales[i].price) {
+          sales[i].price = match.unitPrice;
+          const priceInp = inp.closest('tr')?.querySelector('[data-field="price"]');
+          if (priceInp) { priceInp.value = match.unitPrice; priceInp.dataset.val = match.unitPrice; }
+        }
+        persist();
+        SheetsAPI.withToken(() => SheetsAPI.updateRow(i, sales[i]));
+      }
+    }
+  });
   function normalizeProductName(name) {
     return name.replace(/\s*[\/,|]\s*/g, ' \\ ').replace(/\s+-\s+/g, ' \\ ').replace(/\s*\\\s*/g, ' \\ ').trim();
   }

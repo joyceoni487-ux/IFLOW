@@ -2206,7 +2206,8 @@
       const productName = sales[i]?.product || '';
       const stockItem = productName ? findStockProduct(productName) : null;
       if (stockItem && val > stockItem.stockQty) {
-        showToast(`⚠️ ${val} exceeds available stock (${stockItem.stockQty}) for "${stockItem.name}"`);
+        showToast(`⚠️ Only ${stockItem.stockQty} unit(s) of "${stockItem.name}" available`);
+        return; // don't save, focusout will handle the wipe
       }
     }
     if (field === 'price')    { val = Math.max(0, parseFloat(val) || 0); }
@@ -2242,10 +2243,21 @@
     const tr    = inp.closest('tr');
     const stayingInRow = tr && tr.contains(e.relatedTarget);
 
-    // ── Quantity: apply stock delta when committing ──
+    // ── Quantity: validate stock, apply delta when committing ──
     if (field === 'quantity' && sales[i]?.product) {
-      const prevQty = parseFloat(inp.dataset.committedQty) || 0;
       const newQty  = parseFloat(inp.value) || 0;
+      const stockItem = findStockProduct(sales[i].product);
+      if (stockItem && newQty > stockItem.stockQty) {
+        if (!stayingInRow) {
+          wipeRow(i, tr, sales[i].product, `Qty ${newQty} exceeds stock (${stockItem.stockQty}) for "${stockItem.name}" — row cleared.`);
+          return;
+        }
+        // Still in row — show error, revert to committed qty
+        inp.value = parseFloat(inp.dataset.committedQty) || 1;
+        showToast(`Only ${stockItem.stockQty} unit(s) of "${stockItem.name}" in stock.`);
+        return;
+      }
+      const prevQty = parseFloat(inp.dataset.committedQty) || 0;
       const delta = newQty - prevQty;
       if (delta !== 0) deductStock(sales[i].product, delta);
       inp.dataset.committedQty = newQty;
@@ -2369,12 +2381,13 @@
     const productName = document.getElementById('productName').value.trim();
     if (!productName || isNaN(qty) || qty <= 0) return;
     const match = findStockProduct(productName);
-    if (errEl.dataset.field === 'qty') {
+    if (match && qty > match.stockQty) {
+      errEl.textContent = `Only ${match.stockQty} unit(s) of "${match.name}" in stock. You entered ${qty}.`;
+      errEl.dataset.field = 'qty';
+      errEl.style.display = 'block';
+    } else if (errEl.dataset.field === 'qty') {
       errEl.style.display = 'none';
       delete errEl.dataset.field;
-    }
-    if (match && qty > match.stockQty) {
-      showToast(`⚠️ ${qty} exceeds available stock (${match.stockQty}) for "${match.name}"`);
     }
   }
 
@@ -2421,6 +2434,13 @@
     if (!stockMatch) {
       errEl.textContent = `"${product}" hasn't been saved in Products & Stock. Add it there first.`;
       errEl.dataset.field = 'product';
+      errEl.style.display = 'block';
+      return;
+    }
+    // Validate quantity doesn't exceed available stock
+    if (quantity > stockMatch.stockQty) {
+      errEl.textContent = `Only ${stockMatch.stockQty} unit(s) of "${stockMatch.name}" in stock. You entered ${quantity}.`;
+      errEl.dataset.field = 'qty';
       errEl.style.display = 'block';
       return;
     }

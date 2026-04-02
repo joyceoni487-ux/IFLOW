@@ -2183,7 +2183,10 @@
     const field = inp.dataset.field;
     let val = inp.value;
 
-    // If typing into a blank row, stamp timestamp and show date/time immediately
+    // Don't persist/create row for the product field — wait for focusout validation
+    if (field === 'product') return;
+
+    // If typing into a blank row (non-product field), stamp timestamp now
     if (!sales[i]) {
       const ts = Date.now();
       sales[i] = { customer: '', product: '', quantity: 1, price: 0, timestamp: ts };
@@ -2229,58 +2232,101 @@
     }
   });
 
-  // Validate product field in table when user leaves the cell
+  // ── Single focusout handler for entire sales table ──
   document.getElementById('salesBody').addEventListener('focusout', e => {
     const inp = e.target;
-    if (!inp.classList.contains('cell-input') || inp.dataset.field !== 'product') return;
-    const val = inp.value.trim();
-    if (!val) return;
-    const i = parseInt(inp.dataset.index);
-    const normVal = normalizeProductName(val);
-    const match = findStockProduct(normVal);
-    if (!match) {
-      // Revert to previous valid value and warn
-      const prev = inp.dataset.prevProduct || '';
-      inp.value = prev;
-      if (sales[i]) { sales[i].product = prev; persist(); }
-      showToast(`"${normVal}" is not in Products & Stock — add it there first.`);
-    } else {
-      // Commit normalised name + anchor for future reverts
-      const prevProduct = inp.dataset.prevProduct || '';
-      inp.value = normVal;
-      inp.dataset.prevProduct = normVal;
-      if (sales[i]) {
-        const qty = sales[i].quantity || 1;
-        // Restore stock for old product, deduct for new one (only when product actually changed)
-        if (normVal !== prevProduct) {
-          if (prevProduct) deductStock(prevProduct, -qty);
+    if (!inp.classList.contains('cell-input')) return;
+    const i     = parseInt(inp.dataset.index);
+    const field = inp.dataset.field;
+    const tr    = inp.closest('tr');
+    const stayingInRow = tr && tr.contains(e.relatedTarget);
+
+    // ── Quantity: apply stock delta when committing ──
+    if (field === 'quantity' && sales[i]?.product) {
+      const prevQty = parseFloat(inp.dataset.committedQty) || 0;
+      const newQty  = parseFloat(inp.value) || 0;
+      const delta = newQty - prevQty;
+      if (delta !== 0) deductStock(sales[i].product, delta);
+      inp.dataset.committedQty = newQty;
+    }
+
+    // ── Product: validate and commit, or wipe the row ──
+    if (field === 'product') {
+      const val     = inp.value.trim();
+      const normVal = val ? normalizeProductName(val) : '';
+      const match   = normVal ? findStockProduct(normVal) : null;
+      const prevProd = inp.dataset.prevProduct || '';
+
+      if (val && !match) {
+        // Invalid product — wipe the whole row immediately
+        wipeRow(i, tr, prevProd, `"${normVal}" is not in Products & Stock — row cleared.`);
+        return;
+      }
+      if (match) {
+        inp.value = normVal;
+        inp.dataset.prevProduct = normVal;
+        const qty = sales[i]?.quantity || 1;
+        // Adjust stock only when product actually changed
+        if (normVal !== prevProd) {
+          if (prevProd) deductStock(prevProd, -qty);
           deductStock(normVal, qty);
         }
-        sales[i].product = normVal;
-        // Auto-fill price if the row has no price yet
-        if (!sales[i].price) {
-          sales[i].price = match.unitPrice;
-          const priceInp = inp.closest('tr')?.querySelector('[data-field="price"]');
+        // Create or update the sales record
+        if (!sales[i]) {
+          const ts = Date.now();
+          sales[i] = { customer: '', product: normVal, quantity: 1, price: match.unitPrice, timestamp: ts };
+          tr?.querySelectorAll('.cell-datetime')[0] && (tr.querySelectorAll('.cell-datetime')[0].textContent = fmtDate(ts));
+          tr?.querySelectorAll('.cell-datetime')[1] && (tr.querySelectorAll('.cell-datetime')[1].textContent = fmtTime(ts));
+          const priceInp = tr?.querySelector('[data-field="price"]');
           if (priceInp) { priceInp.value = match.unitPrice; priceInp.dataset.val = match.unitPrice; }
+          const qtyInp = tr?.querySelector('[data-field="quantity"]');
+          if (qtyInp) { qtyInp.dataset.committedQty = 1; }
+        } else {
+          sales[i].product = normVal;
+          if (!sales[i].price) {
+            sales[i].price = match.unitPrice;
+            const priceInp = tr?.querySelector('[data-field="price"]');
+            if (priceInp) { priceInp.value = match.unitPrice; priceInp.dataset.val = match.unitPrice; }
+          }
         }
         persist();
         SheetsAPI.withToken(() => SheetsAPI.updateRow(i, sales[i]));
+        updateOrdersBadge();
+      }
+    }
+
+    // ── Any cell: when fully leaving the row, wipe if product is still invalid ──
+    if (!stayingInRow && sales[i]) {
+      const prod = sales[i].product || '';
+      if (!prod || !findStockProduct(prod)) {
+        const prevProd = tr?.querySelector('[data-field="product"]')?.dataset.prevProduct || '';
+        wipeRow(i, tr, prevProd, prod ? `"${prod}" is not in Products & Stock — row cleared.` : null);
       }
     }
   });
 
-  // Adjust stock when qty is committed in an existing table row
-  document.getElementById('salesBody').addEventListener('focusout', e => {
-    const inp = e.target;
-    if (!inp.classList.contains('cell-input') || inp.dataset.field !== 'quantity') return;
-    const i = parseInt(inp.dataset.index);
-    if (!sales[i]?.product) return;
-    const prevQty = parseFloat(inp.dataset.committedQty) || 0;
-    const newQty  = parseFloat(inp.value) || 0;
-    const delta = newQty - prevQty;
-    if (delta !== 0) deductStock(sales[i].product, delta);
-    inp.dataset.committedQty = newQty;
-  });
+  function wipeRow(i, tr, prevProduct, toastMsg) {
+    if (sales[i]) {
+      // Restore stock for the last committed valid product
+      const qty = sales[i].quantity || 1;
+      if (prevProduct) deductStock(prevProduct, -qty);
+      sales.splice(i, 1);
+      persist();
+    }
+    // Clear visuals without full re-render to avoid focus disruption
+    if (tr) {
+      tr.querySelectorAll('.cell-input').forEach(inp => {
+        inp.value = ''; inp.dataset.val = ''; inp.dataset.prevProduct = ''; inp.dataset.committedQty = '0';
+      });
+      tr.querySelectorAll('.cell-datetime').forEach(el => el.textContent = '');
+      const sub = tr.querySelector('.cell-subtotal');
+      if (sub) { sub.textContent = ''; sub.dataset.val = ''; }
+    }
+    updateOrdersBadge();
+    if (toastMsg) showToast(toastMsg);
+    // Deferred full render to keep indices correct
+    setTimeout(() => render(), 0);
+  }
   function normalizeProductName(name) {
     return name.replace(/\s*[\/,|]\s*/g, ' \\ ').replace(/\s+-\s+/g, ' \\ ').replace(/\s*\\\s*/g, ' \\ ').trim();
   }

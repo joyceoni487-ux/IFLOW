@@ -1377,14 +1377,14 @@
       <div class="field">
         <label for="productName">Product Name</label>
         <input id="productName" type="text" list="productsList"
-          placeholder="e.g. Wireless Earbuds" oninput="onSaleProductInput(this)" />
+          placeholder="e.g. Wireless Earbuds" oninput="onSaleProductInput(this)" onblur="validateSaleProduct(this)" />
         <datalist id="productsList"></datalist>
       </div>
 
       <div class="field">
         <label for="quantity">Quantity</label>
         <input id="quantity" type="number" min="1"
-          placeholder="e.g. 2" />
+          placeholder="e.g. 2" onblur="validateSaleQty(this)" />
       </div>
 
       <div class="field">
@@ -2219,17 +2219,54 @@
     }
   });
 
-  // Find product in stock by name (flexible match)
-  function findStockProduct(name) {
-    const n = name.toLowerCase().trim();
-    return products.find(p => p.name.toLowerCase().trim() === n) || null;
+  // Normalize variant separators (/ , | and spaced hyphens) → \
+  function normalizeProductName(name) {
+    return name.replace(/\s*[\/,|]\s*/g, ' \\ ').replace(/\s+-\s+/g, ' \\ ').replace(/\s*\\\s*/g, ' \\ ').trim();
   }
 
-  // Called when user types in product name field — auto-fill price
+  // Find product in stock by name (flexible match — ignores separator style)
+  function findStockProduct(name) {
+    const n = normalizeProductName(name.toLowerCase().trim());
+    return products.find(p => normalizeProductName(p.name.toLowerCase().trim()) === n) || null;
+  }
+
+  // Called when user types in product name field — auto-fill price & clear error
   function onSaleProductInput(input) {
     const match = findStockProduct(input.value);
     if (match) {
       document.getElementById('price').value = match.unitPrice;
+      const errEl = document.getElementById('formError');
+      if (errEl && errEl.dataset.field === 'product') { errEl.style.display = 'none'; }
+    }
+  }
+
+  // Called when user leaves the product name field
+  function validateSaleProduct(input) {
+    const errEl = document.getElementById('formError');
+    const val = input.value.trim();
+    if (!val) return;
+    if (!findStockProduct(val)) {
+      errEl.textContent = `"${val}" hasn't been saved in Products & Stock. Add it there first.`;
+      errEl.dataset.field = 'product';
+      errEl.style.display = 'block';
+    } else if (errEl.dataset.field === 'product') {
+      errEl.style.display = 'none';
+    }
+  }
+
+  // Called when user leaves the quantity field
+  function validateSaleQty(input) {
+    const errEl = document.getElementById('formError');
+    const qty = parseFloat(input.value);
+    const productName = document.getElementById('productName').value.trim();
+    if (!productName || isNaN(qty) || qty <= 0) return;
+    const match = findStockProduct(productName);
+    if (match && qty > match.stockQty) {
+      errEl.textContent = `Only ${match.stockQty} unit(s) of "${match.name}" in stock. You entered ${qty}.`;
+      errEl.dataset.field = 'qty';
+      errEl.style.display = 'block';
+    } else if (errEl.dataset.field === 'qty') {
+      errEl.style.display = 'none';
     }
   }
 
@@ -2270,12 +2307,22 @@
     }
 
     // Validate product exists in stock
-    if (products.length > 0 && !findStockProduct(product)) {
-      errEl.textContent = `"${product}" hasn't been recorded on the Stock sheet. Add it in Products & Stock first.`;
+    const stockMatch = findStockProduct(product);
+    if (!stockMatch) {
+      errEl.textContent = `"${product}" hasn't been saved in Products & Stock. Add it there first.`;
+      errEl.dataset.field = 'product';
+      errEl.style.display = 'block';
+      return;
+    }
+    // Validate quantity doesn't exceed available stock
+    if (quantity > stockMatch.stockQty) {
+      errEl.textContent = `Only ${stockMatch.stockQty} unit(s) of "${stockMatch.name}" in stock. You entered ${quantity}.`;
+      errEl.dataset.field = 'qty';
       errEl.style.display = 'block';
       return;
     }
     errEl.style.display = 'none';
+    delete errEl.dataset.field;
 
     // Use picked date if provided, otherwise now
     const timestamp = dateVal ? new Date(dateVal + 'T00:00:00').getTime() : Date.now();
@@ -2904,7 +2951,7 @@
   }
 
   function addProduct() {
-    const name      = document.getElementById('npName').value.trim();
+    const name      = normalizeProductName(document.getElementById('npName').value.trim());
     const type      = document.getElementById('npType').value.trim();
     const stockQty  = parseFloat(document.getElementById('npQty').value) || 0;
     const unitPrice = parseFloat(document.getElementById('npPrice').value) || 0;
@@ -2914,8 +2961,8 @@
     const code      = document.getElementById('npCode').value || generateProductCode(type);
     if (!name) { showToast('Product name is required'); return; }
 
-    // Check for existing product with same name (case-insensitive)
-    const existingIdx = products.findIndex(p => p.name.toLowerCase().trim() === name.toLowerCase().trim());
+    // Check for existing product with same name (case-insensitive, normalized)
+    const existingIdx = products.findIndex(p => normalizeProductName(p.name.toLowerCase().trim()) === normalizeProductName(name.toLowerCase().trim()));
     if (existingIdx !== -1) {
       // Update existing product's details, add new stock qty to existing qty
       const existing = products[existingIdx];

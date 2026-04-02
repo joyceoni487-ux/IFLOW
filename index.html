@@ -1516,15 +1516,18 @@
     <!-- Table -->
     <div class="orders-table-wrap">
       <div class="orders-table-header">
-        <p class="inventory-heading" style="margin:0">Sales Log</p>
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <p class="inventory-heading" style="margin:0">Sales Log</p>
+          <div class="sync-bar">
+            <div class="sync-indicator">
+              <span class="sync-dot" id="ordersSyncDot"></span>
+              <span id="ordersSyncText">—</span>
+            </div>
+            <a class="open-sheets-btn" id="openOrdersSheetBtn" href="#" target="_blank" style="display:none">↗ Open in Sheets</a>
+          </div>
+        </div>
         <div class="orders-filters">
           <input class="orders-search" id="ordersSearch" type="text" placeholder="Search products…" oninput="renderOrders()" />
-          <select class="orders-filter-select">
-            <option>All Status</option>
-            <option>Completed</option>
-            <option>Pending</option>
-            <option>Refunded</option>
-          </select>
         </div>
       </div>
 
@@ -1540,6 +1543,7 @@
               <th>Qty</th>
               <th>Unit Price</th>
               <th>Subtotal</th>
+              <th></th>
             </tr>
           </thead>
           <tbody id="ordersBody"></tbody>
@@ -2441,7 +2445,7 @@
     SheetsAPI.withToken(() => SheetsAPI.updateProduct(stockIdx, stockMatch));
     const _settings = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
     const _threshold = stockMatch.lowStockThreshold || parseInt(_settings.lowStockThreshold) || 5;
-    if (stockMatch.stockQty <= _threshold) { playWarningSound(); checkLowStock(); }
+    if (stockMatch.stockQty <= _threshold) { checkLowStock(); }
 
     // Use picked date if provided, otherwise now
     const timestamp = dateVal ? new Date(dateVal + 'T00:00:00').getTime() : Date.now();
@@ -2466,6 +2470,11 @@
     const txt = document.getElementById('syncText');
     if (dot) { dot.className = 'sync-dot ' + (state || ''); }
     if (txt) txt.textContent = text || '';
+    // Mirror to Orders page sync bar (same sheet)
+    const odot = document.getElementById('ordersSyncDot');
+    const otxt = document.getElementById('ordersSyncText');
+    if (odot) { odot.className = 'sync-dot ' + (state || ''); }
+    if (otxt) otxt.textContent = text || '';
   }
 
   function setProductSyncStatus(state, text) {
@@ -2529,6 +2538,8 @@
         this.salesSheetId = s ? s.properties.sheetId : 0;
         const btn = document.getElementById('openSheetsBtn');
         if (btn) { btn.href = `https://docs.google.com/spreadsheets/d/${cached}`; btn.style.display = ''; }
+        const obtn = document.getElementById('openOrdersSheetBtn');
+        if (obtn) { obtn.href = `https://docs.google.com/spreadsheets/d/${cached}`; obtn.style.display = ''; }
         return cached;
       }
       setSyncStatus('syncing', 'Creating spreadsheet…');
@@ -2554,6 +2565,8 @@
       );
       const btn = document.getElementById('openSheetsBtn');
       if (btn) { btn.href = `https://docs.google.com/spreadsheets/d/${this.spreadsheetId}`; btn.style.display = ''; }
+      const obtn = document.getElementById('openOrdersSheetBtn');
+      if (obtn) { obtn.href = `https://docs.google.com/spreadsheets/d/${this.spreadsheetId}`; obtn.style.display = ''; }
       return this.spreadsheetId;
     },
 
@@ -2821,11 +2834,12 @@
       tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem;">No entries yet — add products from the Inventory page.</td></tr>`;
       return;
     }
-    tbody.innerHTML = filtered.map((o, i) => {
+    tbody.innerHTML = filtered.map((o, idx) => {
       const sub = o.quantity * o.price;
+      const realIdx = sales.indexOf(o);
       return `
-        <tr>
-          <td class="row-num">${i + 1}</td>
+        <tr id="order-row-${realIdx}" style="transition:opacity .35s,background .35s">
+          <td class="row-num">${idx + 1}</td>
           <td class="cell-datetime">${fmtDate(o.timestamp)}</td>
           <td class="cell-datetime">${fmtTime(o.timestamp)}</td>
           <td style="padding:10px 14px;color:var(--muted)">${escHtml(o.customer || '—')}</td>
@@ -2833,8 +2847,28 @@
           <td class="cell-datetime" style="text-align:center">${o.quantity}</td>
           <td class="cell-datetime">${cur}${fmtComma(o.price)}</td>
           <td class="cell-subtotal" data-val="${sub}">${cur}${fmtComma(sub)}</td>
+          <td class="cell-action"><button class="btn-terminate" onclick="deleteOrder(${realIdx})" title="Delete entry">&#9632;</button></td>
         </tr>`;
     }).join('');
+  }
+
+  function deleteOrder(i) {
+    const row = document.getElementById('order-row-' + i);
+    if (row) {
+      row.style.background = 'rgba(229,62,62,.15)';
+      row.style.opacity = '0';
+    }
+    setTimeout(() => {
+      if (sales[i]) {
+        const { product, quantity } = sales[i];
+        if (product && quantity) deductStock(product, -quantity);
+        SheetsAPI.withToken(() => SheetsAPI.deleteRow(i));
+        sales.splice(i, 1);
+        persist();
+      }
+      renderOrders();
+      updateOrdersBadge();
+    }, 350);
   }
 
   // Apply saved theme + settings on load

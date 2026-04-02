@@ -1376,8 +1376,9 @@
 
       <div class="field">
         <label for="productName">Product Name</label>
-        <input id="productName" type="text"
-          placeholder="e.g. Wireless Earbuds" />
+        <input id="productName" type="text" list="productsList"
+          placeholder="e.g. Wireless Earbuds" oninput="onSaleProductInput(this)" />
+        <datalist id="productsList"></datalist>
       </div>
 
       <div class="field">
@@ -1389,7 +1390,7 @@
       <div class="field">
         <label for="price">Price per Unit ($)</label>
         <input id="price" type="number" min="0" step="0.01"
-          placeholder="e.g. 49.99" />
+          placeholder="Auto-filled from stock" />
       </div>
 
     </div>
@@ -1575,7 +1576,16 @@
 
     <div class="orders-table-wrap">
       <div class="orders-table-header">
-        <p class="inventory-heading" style="margin:0">Stock Records</p>
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <p class="inventory-heading" style="margin:0">Stock Records</p>
+          <div class="sync-bar">
+            <div class="sync-indicator">
+              <span class="sync-dot" id="productSyncDot"></span>
+              <span id="productSyncText">—</span>
+            </div>
+            <a class="open-sheets-btn" id="openProductsSheetBtn" href="#" target="_blank" style="display:none">↗ Open in Sheets</a>
+          </div>
+        </div>
         <div class="orders-filters">
           <input class="orders-search" id="productsSearch" type="text" placeholder="Search products…" oninput="renderProducts()" />
           <button class="btn-add" style="width:auto;padding:8px 20px;margin:0;font-size:0.82rem" onclick="toggleAddProductForm()">+ Add Product</button>
@@ -2209,6 +2219,42 @@
     }
   });
 
+  // Find product in stock by name (flexible match)
+  function findStockProduct(name) {
+    const n = name.toLowerCase().trim();
+    return products.find(p => p.name.toLowerCase().trim() === n) || null;
+  }
+
+  // Called when user types in product name field — auto-fill price
+  function onSaleProductInput(input) {
+    const match = findStockProduct(input.value);
+    if (match) {
+      document.getElementById('price').value = match.unitPrice;
+    }
+  }
+
+  // Rebuild datalist from current products array
+  function refreshProductsList() {
+    const dl = document.getElementById('productsList');
+    if (!dl) return;
+    dl.innerHTML = products.map(p => `<option value="${escAttr(p.name)}">`).join('');
+  }
+
+  // Deduct qty from matching stock product and sync
+  async function deductStock(productName, qty) {
+    const idx = products.findIndex(p => p.name.toLowerCase().trim() === productName.toLowerCase().trim());
+    if (idx === -1) return;
+    products[idx].stockQty = Math.max(0, products[idx].stockQty - qty);
+    renderProducts();
+    SheetsAPI.withToken(() => SheetsAPI.updateProduct(idx, products[idx]));
+    const settings = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    const threshold = products[idx].lowStockThreshold || parseInt(settings.lowStockThreshold) || 5;
+    if (products[idx].stockQty <= threshold) {
+      playWarningSound();
+      checkLowStock();
+    }
+  }
+
   function addSale() {
     const dateVal  = document.getElementById('saleDate').value;
     const customer = document.getElementById('customerName').value.trim();
@@ -2218,6 +2264,14 @@
     const errEl    = document.getElementById('formError');
 
     if (!product || isNaN(quantity) || quantity <= 0 || isNaN(price) || price < 0) {
+      errEl.textContent = 'Please fill in all fields with valid values.';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    // Validate product exists in stock
+    if (products.length > 0 && !findStockProduct(product)) {
+      errEl.textContent = `"${product}" hasn't been recorded on the Stock sheet. Add it in Products & Stock first.`;
       errEl.style.display = 'block';
       return;
     }
@@ -2230,6 +2284,7 @@
     persist();
     render();
     updateOrdersBadge();
+    deductStock(product, quantity);
     SheetsAPI.withToken(() => SheetsAPI.appendRow(newSale));
 
     ['saleDate', 'customerName', 'productName', 'quantity', 'price'].forEach(id => {
@@ -2244,6 +2299,13 @@
   function setSyncStatus(state, text) {
     const dot = document.getElementById('syncDot');
     const txt = document.getElementById('syncText');
+    if (dot) { dot.className = 'sync-dot ' + (state || ''); }
+    if (txt) txt.textContent = text || '';
+  }
+
+  function setProductSyncStatus(state, text) {
+    const dot = document.getElementById('productSyncDot');
+    const txt = document.getElementById('productSyncText');
     if (dot) { dot.className = 'sync-dot ' + (state || ''); }
     if (txt) txt.textContent = text || '';
   }
@@ -2360,6 +2422,7 @@
       // Load products too
       const prods = await this.loadProducts();
       products = prods;
+      refreshProductsList();
       renderProducts();
       checkLowStock();
       setSyncStatus('synced', 'Synced');
@@ -2414,25 +2477,41 @@
       setSyncStatus('synced', 'Synced');
     },
 
-    // ── Products sheet methods ──
-    productsSheetId: -1,
+    // ── Products sheet methods (separate Google Sheets document) ──
+    productsDocId: null,
+    productsMainSheetId: 0,
 
-    async ensureProductsSheet() {
-      const id = await this.ensureSheet();
-      if (this.productsSheetId >= 0) return id;
-      const meta = await this.req(`${this.BASE}/${id}?fields=sheets.properties`);
-      const existing = (meta.sheets||[]).find(s => s.properties.title === 'Products');
-      if (existing) { this.productsSheetId = existing.properties.sheetId; return id; }
-      const resp = await this.req(`${this.BASE}/${id}:batchUpdate`, {
+    async ensureProductsDoc() {
+      if (this.productsDocId) return this.productsDocId;
+      const cached = localStorage.getItem('iflow_products_sheet_id');
+      if (cached) {
+        this.productsDocId = cached;
+        const meta = await this.req(`${this.BASE}/${cached}?fields=sheets.properties`);
+        const s = (meta.sheets||[]).find(sh => sh.properties.title === 'Products');
+        this.productsMainSheetId = s?.properties?.sheetId ?? 0;
+        const btn = document.getElementById('openProductsSheetBtn');
+        if (btn) { btn.href = `https://docs.google.com/spreadsheets/d/${cached}`; btn.style.display = ''; }
+        return cached;
+      }
+      setProductSyncStatus('syncing', 'Creating Products spreadsheet…');
+      const resp = await this.req(this.BASE, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requests: [{ addSheet: { properties: { title: 'Products' } } }] })
+        body: JSON.stringify({
+          properties: { title: 'iFlow — Products & Stock' },
+          sheets: [{ properties: { title: 'Products', sheetId: 0 } }]
+        })
       });
-      this.productsSheetId = resp.replies[0].addSheet.properties.sheetId;
-      await this.req(`${this.BASE}/${id}/values/Products!A1:G1?valueInputOption=RAW`, {
+      this.productsDocId = resp.spreadsheetId;
+      this.productsMainSheetId = 0;
+      localStorage.setItem('iflow_products_sheet_id', this.productsDocId);
+      await this.req(`${this.BASE}/${this.productsDocId}/values/Products!A1:G1?valueInputOption=RAW`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ values: [['Code','Product Name','Type','Stock Qty','Unit Price','Low Stock Threshold','Date Added']] })
       });
-      return id;
+      const btn = document.getElementById('openProductsSheetBtn');
+      if (btn) { btn.href = `https://docs.google.com/spreadsheets/d/${this.productsDocId}`; btn.style.display = ''; }
+      setProductSyncStatus('synced', 'Synced');
+      return this.productsDocId;
     },
 
     productRowVals(p) {
@@ -2440,8 +2519,10 @@
     },
 
     async loadProducts() {
-      const id = await this.ensureProductsSheet();
+      setProductSyncStatus('syncing', 'Loading…');
+      const id = await this.ensureProductsDoc();
       const data = await this.req(`${this.BASE}/${id}/values/Products!A2:G`);
+      setProductSyncStatus('synced', 'Synced');
       return (data.values||[]).filter(r=>r[0]).map(r => ({
         code: r[0]||'', name: r[1]||'', type: r[2]||'',
         stockQty: parseFloat(r[3])||0, unitPrice: parseFloat(r[4])||0,
@@ -2450,19 +2531,34 @@
     },
 
     async appendProduct(p) {
-      const id = await this.ensureProductsSheet();
+      const id = await this.ensureProductsDoc();
+      setProductSyncStatus('syncing', 'Saving…');
       await this.req(`${this.BASE}/${id}/values/Products!A:G:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ values: [this.productRowVals(p)] })
       });
+      setProductSyncStatus('synced', 'Saved');
+    },
+
+    async updateProduct(rowIndex, p) {
+      const id = await this.ensureProductsDoc();
+      const r = rowIndex + 2;
+      setProductSyncStatus('syncing', 'Updating…');
+      await this.req(`${this.BASE}/${id}/values/Products!A${r}:G${r}?valueInputOption=USER_ENTERED`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values: [this.productRowVals(p)] })
+      });
+      setProductSyncStatus('synced', 'Saved');
     },
 
     async deleteProduct(rowIndex) {
-      const id = await this.ensureProductsSheet();
+      const id = await this.ensureProductsDoc();
+      setProductSyncStatus('syncing', 'Deleting…');
       await this.req(`${this.BASE}/${id}:batchUpdate`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requests: [{ deleteDimension: { range: { sheetId: this.productsSheetId, dimension: 'ROWS', startIndex: rowIndex+1, endIndex: rowIndex+2 } } }] })
+        body: JSON.stringify({ requests: [{ deleteDimension: { range: { sheetId: this.productsMainSheetId, dimension: 'ROWS', startIndex: rowIndex+1, endIndex: rowIndex+2 } } }] })
       });
+      setProductSyncStatus('synced', 'Synced');
     }
   };
 
@@ -2817,9 +2913,30 @@
     const threshold = parseInt(document.getElementById('npThreshold').value) || defThresh;
     const code      = document.getElementById('npCode').value || generateProductCode(type);
     if (!name) { showToast('Product name is required'); return; }
+
+    // Check for existing product with same name (case-insensitive)
+    const existingIdx = products.findIndex(p => p.name.toLowerCase().trim() === name.toLowerCase().trim());
+    if (existingIdx !== -1) {
+      // Update existing product's details, add new stock qty to existing qty
+      const existing = products[existingIdx];
+      existing.stockQty = existing.stockQty + stockQty;
+      existing.unitPrice = unitPrice || existing.unitPrice;
+      existing.type = type || existing.type;
+      existing.lowStockThreshold = threshold;
+      renderProducts();
+      refreshProductsList();
+      SheetsAPI.withToken(() => SheetsAPI.updateProduct(existingIdx, existing));
+      toggleAddProductForm();
+      showToast(`"${name}" stock updated (+${stockQty})`);
+      checkLowStock();
+      ['npName','npType','npQty','npPrice','npThreshold','npCode'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+      return;
+    }
+
     const p = { code, name, type, stockQty, unitPrice, lowStockThreshold: threshold, dateAdded: new Date().toLocaleDateString() };
     products.push(p);
     renderProducts();
+    refreshProductsList();
     SheetsAPI.withToken(() => SheetsAPI.appendProduct(p));
     toggleAddProductForm();
     ['npName','npType','npQty','npPrice','npThreshold','npCode'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });

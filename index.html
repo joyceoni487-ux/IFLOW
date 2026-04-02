@@ -1361,17 +1361,15 @@
 
   <!-- Entry Form -->
   <div class="card">
-    <h2>Record a Product</h2>
+    <div class="summary-row" style="margin-bottom:16px">
+      <h2 style="margin:0">Record a Product</h2>
+      <button class="open-sheets-btn" onclick="const n=document.querySelector('[onclick*=\'products\']');if(n)setNav(n,'products')" style="font-size:0.75rem">🗃️ View All Products</button>
+    </div>
     <div class="form-grid">
 
       <div class="field">
         <label for="saleDate">Date</label>
         <input id="saleDate" type="date" />
-      </div>
-
-      <div class="field">
-        <label for="customerName">Customer Name</label>
-        <input id="customerName" type="text" placeholder="e.g. Sarah Johnson" />
       </div>
 
       <div class="field">
@@ -1402,7 +1400,6 @@
   <div class="card">
       <div class="summary-row">
         <h2>Today's Sales</h2>
-        <button class="open-sheets-btn" onclick="const n=document.querySelector('[onclick*=\'products\']');if(n)setNav(n,'products')" style="font-size:0.75rem">🗃️ View All Products</button>
         <div class="sync-bar">
           <div class="sync-indicator">
             <span class="sync-dot" id="syncDot"></span>
@@ -2417,7 +2414,7 @@
 
   function addSale() {
     const dateVal  = document.getElementById('saleDate').value;
-    const customer = document.getElementById('customerName').value.trim();
+    const customer = '';
     const product  = normalizeProductName(document.getElementById('productName').value.trim());
     const quantity = parseFloat(document.getElementById('quantity').value);
     const price    = parseFloat(document.getElementById('price').value);
@@ -2466,11 +2463,11 @@
     updateOrdersBadge();
     SheetsAPI.withToken(() => SheetsAPI.appendRow(newSale));
 
-    ['saleDate', 'customerName', 'productName', 'quantity', 'price'].forEach(id => {
+    ['saleDate', 'productName', 'quantity', 'price'].forEach(id => {
       document.getElementById(id).value = '';
     });
     document.getElementById('saleDate').value = new Date().toISOString().slice(0, 10);
-    document.getElementById('customerName').focus();
+    document.getElementById('productName').focus();
   }
 
   // ── Google Sheets Integration ──
@@ -2924,7 +2921,7 @@
 
   // Allow Enter key to submit
   document.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && ['saleDate','customerName','productName','quantity','price'].includes(e.target.id)) {
+    if (e.key === 'Enter' && ['saleDate','productName','quantity','price'].includes(e.target.id)) {
       addSale();
     }
   });

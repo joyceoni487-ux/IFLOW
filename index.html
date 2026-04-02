@@ -1215,6 +1215,25 @@
   }
   .open-sheets-btn:hover { background:rgba(79,142,247,.1); border-color:var(--accent); }
 
+  /* ── Number tooltip ── */
+  #numTooltip {
+    position: fixed;
+    background: #1a1d27;
+    color: #e2e8f0;
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    pointer-events: none;
+    z-index: 9001;
+    opacity: 0;
+    transition: opacity .15s;
+    border: 1px solid rgba(79,142,247,.35);
+    white-space: nowrap;
+    box-shadow: 0 4px 16px rgba(0,0,0,.4);
+    letter-spacing: 0.3px;
+  }
+
   /* ── Save toast ── */
   #saveToast {
     position: fixed;
@@ -1918,6 +1937,30 @@
     return Number(n).toFixed(2);
   }
 
+  function fmtComma(n) {
+    const num = Number(n);
+    if (isNaN(num)) return '0.00';
+    return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function numToWords(num) {
+    const n = Math.abs(Math.floor(Number(num)));
+    if (isNaN(n) || n === 0) return 'Zero';
+    const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine',
+      'Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+    const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+    function h(x) {
+      if (!x) return '';
+      if (x < 20) return ones[x] + ' ';
+      if (x < 100) return tens[Math.floor(x/10)] + (x%10 ? ' '+ones[x%10] : '') + ' ';
+      if (x < 1e3) return ones[Math.floor(x/100)] + ' Hundred ' + h(x%100);
+      if (x < 1e6) return h(Math.floor(x/1e3)) + 'Thousand ' + h(x%1e3);
+      if (x < 1e9) return h(Math.floor(x/1e6)) + 'Million ' + h(x%1e6);
+      return h(Math.floor(x/1e9)) + 'Billion ' + h(x%1e9);
+    }
+    return (num < 0 ? 'Negative ' : '') + h(n).trim();
+  }
+
   function fmtDate(ts) {
     if (!ts) return '';
     const d = new Date(ts);
@@ -1932,7 +1975,9 @@
 
   function updateTotal() {
     const total = sales.reduce((sum, s) => sum + s.quantity * s.price, 0);
-    document.getElementById('dailyTotal').textContent = fmt(total);
+    const el = document.getElementById('dailyTotal');
+    el.textContent = fmtComma(total);
+    el.dataset.val = total;
     document.getElementById('dailyTotalCur').textContent = getCurrency();
   }
 
@@ -1940,7 +1985,9 @@
     const row = document.querySelector(`tr[data-index="${i}"]`);
     if (!row) return;
     const sub = sales[i].quantity * sales[i].price;
-    row.querySelector('.cell-subtotal').textContent = getCurrency() + fmt(sub);
+    const cell = row.querySelector('.cell-subtotal');
+    cell.textContent = getCurrency() + fmtComma(sub);
+    cell.dataset.val = sub;
     updateTotal();
   }
 
@@ -1964,9 +2011,9 @@
         <td class="cell-datetime">${s ? fmtTime(s.timestamp) : ''}</td>
         <td><input class="cell-input" value="${s ? escAttr(s.customer) : ''}" placeholder="" data-field="customer" data-index="${i}" /></td>
         <td><input class="cell-input product" value="${s ? escAttr(s.product) : ''}" placeholder="" data-field="product" data-index="${i}" /></td>
-        <td><input class="cell-input" type="number" min="1" value="${s ? s.quantity : ''}" placeholder="" data-field="quantity" data-index="${i}" /></td>
-        <td><input class="cell-input" type="number" min="0" step="0.01" value="${s ? s.price : ''}" placeholder="" data-field="price" data-index="${i}" /></td>
-        <td class="cell-subtotal">${sub !== null ? getCurrency() + fmt(sub) : ''}</td>
+        <td><input class="cell-input" type="number" min="1" value="${s ? s.quantity : ''}" placeholder="" data-field="quantity" data-index="${i}" data-val="${s ? s.quantity : ''}" /></td>
+        <td><input class="cell-input" type="number" min="0" step="0.01" value="${s ? s.price : ''}" placeholder="" data-field="price" data-index="${i}" data-val="${s ? s.price : ''}" /></td>
+        <td class="cell-subtotal" data-val="${sub !== null ? sub : ''}">${sub !== null ? getCurrency() + fmtComma(sub) : ''}</td>
         <td class="cell-action"><button class="btn-terminate" onclick="terminateRow(${i})" title="Clear row">&#9632;</button></td>
       `;
       body.appendChild(tr);
@@ -1997,6 +2044,7 @@
     if (field === 'quantity') { val = Math.max(1, parseFloat(val) || 1); }
     if (field === 'price')    { val = Math.max(0, parseFloat(val) || 0); }
     sales[i][field] = (field === 'quantity' || field === 'price') ? +val : val;
+    inp.dataset.val = val;
     persist();
     updateSubtotal(i);
     clearTimeout(SheetsAPI._debounce = SheetsAPI._debounce || {});
@@ -2532,6 +2580,48 @@
   }
 
   renderConvList();
+
+  // ── Number tooltip ──
+  (function() {
+    const tip = document.getElementById('numTooltip');
+
+    function showTip(e, val) {
+      const n = parseFloat(val);
+      if (isNaN(n) || val === '') return;
+      tip.textContent = numToWords(n);
+      tip.style.opacity = '1';
+      moveTip(e);
+    }
+    function moveTip(e) {
+      tip.style.left = (e.clientX + 14) + 'px';
+      tip.style.top  = (e.clientY - 36) + 'px';
+    }
+    function hideTip() { tip.style.opacity = '0'; }
+
+    // Delegate from salesBody — subtotals + number inputs
+    const salesBody = document.getElementById('salesBody');
+    salesBody.addEventListener('mouseover', e => {
+      const cell = e.target.closest('.cell-subtotal');
+      const inp  = e.target.closest('.cell-input[data-val]');
+      if (cell && cell.dataset.val) showTip(e, cell.dataset.val);
+      else if (inp && (inp.dataset.field === 'quantity' || inp.dataset.field === 'price') && inp.dataset.val) showTip(e, inp.dataset.val);
+    });
+    salesBody.addEventListener('mouseout', e => {
+      if (e.target.closest('.cell-subtotal') || e.target.closest('.cell-input')) hideTip();
+    });
+
+    // Daily total
+    const dtEl = document.getElementById('dailyTotal');
+    if (dtEl) {
+      dtEl.style.cursor = 'default';
+      dtEl.addEventListener('mouseover', e => showTip(e, dtEl.dataset.val || dtEl.textContent.replace(/,/g,'')));
+      dtEl.addEventListener('mouseout', hideTip);
+    }
+
+    document.addEventListener('mousemove', e => {
+      if (tip.style.opacity === '1') moveTip(e);
+    });
+  })();
 </script>
 
 <!-- Login Screen -->
@@ -2548,6 +2638,9 @@
 
 <!-- Save Toast -->
 <div id="saveToast"></div>
+
+<!-- Number Tooltip -->
+<div id="numTooltip"></div>
 
 <!-- App Loader -->
 <div id="appLoader">

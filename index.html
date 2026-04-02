@@ -2203,13 +2203,10 @@
 
     if (field === 'quantity') {
       val = Math.max(1, parseFloat(val) || 1);
-      // Cap quantity at available stock
       const productName = sales[i]?.product || '';
       const stockItem = productName ? findStockProduct(productName) : null;
       if (stockItem && val > stockItem.stockQty) {
-        val = stockItem.stockQty;
-        inp.value = val;
-        showToast(`Only ${stockItem.stockQty} unit(s) of "${stockItem.name}" in stock.`);
+        showToast(`⚠️ ${val} exceeds available stock (${stockItem.stockQty}) for "${stockItem.name}"`);
       }
     }
     if (field === 'price')    { val = Math.max(0, parseFloat(val) || 0); }
@@ -2372,12 +2369,12 @@
     const productName = document.getElementById('productName').value.trim();
     if (!productName || isNaN(qty) || qty <= 0) return;
     const match = findStockProduct(productName);
-    if (match && qty > match.stockQty) {
-      errEl.textContent = `Only ${match.stockQty} unit(s) of "${match.name}" in stock. You entered ${qty}.`;
-      errEl.dataset.field = 'qty';
-      errEl.style.display = 'block';
-    } else if (errEl.dataset.field === 'qty') {
+    if (errEl.dataset.field === 'qty') {
       errEl.style.display = 'none';
+      delete errEl.dataset.field;
+    }
+    if (match && qty > match.stockQty) {
+      showToast(`⚠️ ${qty} exceeds available stock (${match.stockQty}) for "${match.name}"`);
     }
   }
 
@@ -2427,19 +2424,12 @@
       errEl.style.display = 'block';
       return;
     }
-    // Validate quantity doesn't exceed available stock
-    if (quantity > stockMatch.stockQty) {
-      errEl.textContent = `Only ${stockMatch.stockQty} unit(s) of "${stockMatch.name}" in stock. You entered ${quantity}.`;
-      errEl.dataset.field = 'qty';
-      errEl.style.display = 'block';
-      return;
-    }
     errEl.style.display = 'none';
     delete errEl.dataset.field;
 
     // ── Deduct stock immediately (synchronous, using the match we already have) ──
     const stockIdx = products.indexOf(stockMatch);
-    stockMatch.stockQty = Math.max(0, stockMatch.stockQty - quantity);
+    stockMatch.stockQty = stockMatch.stockQty - quantity;
     localStorage.setItem('iflow_products', JSON.stringify(products));
     renderProducts();
     SheetsAPI.withToken(() => SheetsAPI.updateProduct(stockIdx, stockMatch));

@@ -2279,9 +2279,11 @@
 
   // Deduct qty from matching stock product and sync
   async function deductStock(productName, qty) {
-    const idx = products.findIndex(p => p.name.toLowerCase().trim() === productName.toLowerCase().trim());
+    const normName = normalizeProductName(productName.toLowerCase().trim());
+    const idx = products.findIndex(p => normalizeProductName(p.name.toLowerCase().trim()) === normName);
     if (idx === -1) return;
     products[idx].stockQty = Math.max(0, products[idx].stockQty - qty);
+    localStorage.setItem('iflow_products', JSON.stringify(products));
     renderProducts();
     SheetsAPI.withToken(() => SheetsAPI.updateProduct(idx, products[idx]));
     const settings = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
@@ -2295,7 +2297,7 @@
   function addSale() {
     const dateVal  = document.getElementById('saleDate').value;
     const customer = document.getElementById('customerName').value.trim();
-    const product  = document.getElementById('productName').value.trim();
+    const product  = normalizeProductName(document.getElementById('productName').value.trim());
     const quantity = parseFloat(document.getElementById('quantity').value);
     const price    = parseFloat(document.getElementById('price').value);
     const errEl    = document.getElementById('formError');
@@ -2469,6 +2471,7 @@
       // Load products too
       const prods = await this.loadProducts();
       products = prods;
+      localStorage.setItem('iflow_products', JSON.stringify(products));
       refreshProductsList();
       renderProducts();
       checkLowStock();
@@ -2928,7 +2931,7 @@
   renderConvList();
 
   // ── Products & Stock ──
-  let products = [];
+  let products = JSON.parse(localStorage.getItem('iflow_products') || '[]');
 
   function generateProductCode(type) {
     const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
@@ -2971,6 +2974,7 @@
       existing.type = type || existing.type;
       existing.lowStockThreshold = threshold;
       renderProducts();
+      localStorage.setItem('iflow_products', JSON.stringify(products));
       refreshProductsList();
       SheetsAPI.withToken(() => SheetsAPI.updateProduct(existingIdx, existing));
       toggleAddProductForm();
@@ -2982,6 +2986,7 @@
 
     const p = { code, name, type, stockQty, unitPrice, lowStockThreshold: threshold, dateAdded: new Date().toLocaleDateString() };
     products.push(p);
+    localStorage.setItem('iflow_products', JSON.stringify(products));
     renderProducts();
     refreshProductsList();
     SheetsAPI.withToken(() => SheetsAPI.appendProduct(p));
@@ -2994,6 +2999,7 @@
     if (products[index]) {
       SheetsAPI.withToken(() => SheetsAPI.deleteProduct(index));
       products.splice(index, 1);
+      localStorage.setItem('iflow_products', JSON.stringify(products));
     }
     renderProducts();
   }

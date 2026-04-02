@@ -2164,7 +2164,7 @@
         <td class="cell-datetime">${s ? fmtTime(s.timestamp) : ''}</td>
         <td><input class="cell-input" value="${s ? escAttr(s.customer) : ''}" placeholder="" data-field="customer" data-index="${i}" /></td>
         <td><input class="cell-input product" value="${s ? escAttr(s.product) : ''}" placeholder="" data-field="product" data-index="${i}" data-prev-product="${s ? escAttr(s.product) : ''}" list="productsList" /></td>
-        <td><input class="cell-input" type="number" min="1" value="${s ? s.quantity : ''}" placeholder="" data-field="quantity" data-index="${i}" data-val="${s ? s.quantity : ''}" /></td>
+        <td><input class="cell-input" type="number" min="1" value="${s ? s.quantity : ''}" placeholder="" data-field="quantity" data-index="${i}" data-val="${s ? s.quantity : ''}" data-committed-qty="${s ? s.quantity : '0'}" /></td>
         <td><input class="cell-input" type="number" min="0" step="0.01" value="${s ? s.price : ''}" placeholder="" data-field="price" data-index="${i}" data-val="${s ? s.price : ''}" /></td>
         <td class="cell-subtotal" data-val="${sub !== null ? sub : ''}">${sub !== null ? getCurrency() + fmtComma(sub) : ''}</td>
         <td class="cell-action"><button class="btn-terminate" onclick="terminateRow(${i})" title="Clear row">&#9632;</button></td>
@@ -2246,9 +2246,16 @@
       showToast(`"${normVal}" is not in Products & Stock — add it there first.`);
     } else {
       // Commit normalised name + anchor for future reverts
+      const prevProduct = inp.dataset.prevProduct || '';
       inp.value = normVal;
       inp.dataset.prevProduct = normVal;
       if (sales[i]) {
+        const qty = sales[i].quantity || 1;
+        // Restore stock for old product, deduct for new one (only when product actually changed)
+        if (normVal !== prevProduct) {
+          if (prevProduct) deductStock(prevProduct, -qty);
+          deductStock(normVal, qty);
+        }
         sales[i].product = normVal;
         // Auto-fill price if the row has no price yet
         if (!sales[i].price) {
@@ -2260,6 +2267,19 @@
         SheetsAPI.withToken(() => SheetsAPI.updateRow(i, sales[i]));
       }
     }
+  });
+
+  // Adjust stock when qty is committed in an existing table row
+  document.getElementById('salesBody').addEventListener('focusout', e => {
+    const inp = e.target;
+    if (!inp.classList.contains('cell-input') || inp.dataset.field !== 'quantity') return;
+    const i = parseInt(inp.dataset.index);
+    if (!sales[i]?.product) return;
+    const prevQty = parseFloat(inp.dataset.committedQty) || 0;
+    const newQty  = parseFloat(inp.value) || 0;
+    const delta = newQty - prevQty;
+    if (delta !== 0) deductStock(sales[i].product, delta);
+    inp.dataset.committedQty = newQty;
   });
   function normalizeProductName(name) {
     return name.replace(/\s*[\/,|]\s*/g, ' \\ ').replace(/\s+-\s+/g, ' \\ ').replace(/\s*\\\s*/g, ' \\ ').trim();
@@ -2786,6 +2806,8 @@
 
   function terminateRow(index) {
     if (sales[index]) {
+      const { product, quantity } = sales[index];
+      if (product && quantity) deductStock(product, -quantity); // restore stock
       SheetsAPI.withToken(() => SheetsAPI.deleteRow(index));
       sales.splice(index, 1);
       persist();

@@ -2259,32 +2259,59 @@
     }
   }
 
-  // ── Long-press context menu ──
+  // ── Long-press / double-click / double-tap context menu ──
   let _lpTimer = null;
-  let _lpRow = null;
+  let _lastTap = 0;
+
   function _lpStart(e) {
     const tr = e.target.closest && e.target.closest('tbody tr');
     if (!tr || e.target.closest('button') || e.target.closest('input')) return;
-    _lpRow = tr;
-    _lpTimer = setTimeout(() => openContextMenu(tr, e), 600);
+    _lpTimer = setTimeout(() => { _lpTimer = null; openContextMenu(tr, e); }, 600);
   }
-  function _lpCancel() { clearTimeout(_lpTimer); _lpTimer = null; }
+  function _lpCancel() { if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; } }
+
   document.addEventListener('mousedown', _lpStart);
   document.addEventListener('mouseup', _lpCancel);
   document.addEventListener('mousemove', _lpCancel);
-  document.addEventListener('touchstart', e => _lpStart(e.touches[0]), { passive: true });
-  document.addEventListener('touchend', _lpCancel);
+
+  // Double-click (desktop)
+  document.addEventListener('dblclick', e => {
+    const tr = e.target.closest && e.target.closest('tbody tr');
+    if (!tr || e.target.closest('button') || e.target.closest('input')) return;
+    openContextMenu(tr, e);
+  });
+
+  // Touch: long-press + double-tap
+  document.addEventListener('touchstart', e => {
+    const tr = e.target.closest && e.target.closest('tbody tr');
+    if (!tr || e.target.closest('button') || e.target.closest('input')) return;
+    const touch = e.touches[0];
+    _lpTimer = setTimeout(() => { _lpTimer = null; openContextMenu(tr, touch); }, 600);
+  }, { passive: true });
+  document.addEventListener('touchend', e => {
+    if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; return; } // cancelled = short tap
+    // Double-tap detection
+    const tr = e.target.closest && e.target.closest('tbody tr');
+    if (!tr || e.target.closest('button') || e.target.closest('input')) return;
+    const now = Date.now();
+    if (now - _lastTap < 320) {
+      e.preventDefault();
+      openContextMenu(tr, e.changedTouches[0]);
+    }
+    _lastTap = now;
+  });
   document.addEventListener('touchmove', _lpCancel, { passive: true });
 
   function openContextMenu(tr, evt) {
     const menu = document.getElementById('rowContextMenu');
-    const x = evt.clientX || (evt.touches && evt.touches[0].clientX) || 0;
-    const y = evt.clientY || (evt.touches && evt.touches[0].clientY) || 0;
+    const x = (evt.clientX ?? evt.pageX) || 0;
+    const y = (evt.clientY ?? evt.pageY) || 0;
     menu.style.left = Math.min(x, window.innerWidth - 190) + 'px';
-    menu.style.top  = Math.min(y, window.innerHeight - 130) + 'px';
+    menu.style.top  = Math.min(y + 8, window.innerHeight - 140) + 'px';
     menu.style.display = 'block';
     menu._row = tr;
-    setTimeout(() => document.addEventListener('click', _closeCtx, { once: true }), 10);
+    // Wait long enough so the mouseup/touchend click doesn't immediately close it
+    setTimeout(() => document.addEventListener('click', _closeCtx, { once: true }), 400);
   }
   function _closeCtx() { document.getElementById('rowContextMenu').style.display = 'none'; }
 
@@ -2552,16 +2579,8 @@
     // Don't persist/create row for the product field — wait for focusout validation
     if (field === 'product') return;
 
-    // If typing into a blank row (non-product field), stamp timestamp now
-    if (!sales[i]) {
-      const ts = Date.now();
-      sales[i] = { customer: '', product: '', quantity: 1, price: 0, timestamp: ts };
-      const row = document.querySelector(`tr[data-index="${i}"]`);
-      if (row) {
-        row.querySelectorAll('.cell-datetime')[0].textContent = fmtDate(ts);
-        row.querySelectorAll('.cell-datetime')[1].textContent = fmtTime(ts);
-      }
-    }
+    // Don't create a partial sale entry — only update if product has already been validated
+    if (!sales[i]) return;
 
     if (field === 'quantity') {
       val = Math.max(1, parseFloat(val) || 1);

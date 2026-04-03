@@ -3514,6 +3514,39 @@
     category: p.category || p.name,
     variant:  p.variant  !== undefined ? p.variant : ''
   }));
+  // Auto-detect variants from word prefixes in existing data and regroup
+  // e.g. "iPhone 13 Black" + "iPhone 13 White" → both get category "iPhone 13"
+  (function autoRegroup() {
+    let changed = false;
+    // Try comma-split first pass
+    products.forEach(p => {
+      const m = p.name.match(/^([^,\/\\|]{2,})[,\/\\|]\s*(.+)$/);
+      if (m && !p.variant) {
+        p.category = m[1].trim();
+        p.variant  = m[2].trim();
+        changed = true;
+      }
+    });
+    // Word-prefix second pass: find products that share 2+ leading words
+    for (let i = 0; i < products.length; i++) {
+      const aWords = products[i].name.split(/\s+/);
+      for (let j = i + 1; j < products.length; j++) {
+        const bWords = products[j].name.split(/\s+/);
+        let common = 0;
+        const min = Math.min(aWords.length, bWords.length) - 1;
+        for (let k = 0; k < min; k++) {
+          if (aWords[k].toLowerCase() === bWords[k].toLowerCase()) common++;
+          else break;
+        }
+        if (common >= 2) {
+          const cat = aWords.slice(0, common).join(' ');
+          if (products[i].category !== cat) { products[i].category = cat; if (!products[i].variant) products[i].variant = aWords.slice(common).join(' '); changed = true; }
+          if (products[j].category !== cat) { products[j].category = cat; if (!products[j].variant) products[j].variant = bWords.slice(common).join(' '); changed = true; }
+        }
+      }
+    }
+    if (changed) localStorage.setItem('iflow_products', JSON.stringify(products));
+  })();
 
   function generateProductCode(type) {
     const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
@@ -3526,7 +3559,8 @@
   // Smart category/variant parser
   function parseProductName(rawName) {
     const name = rawName.trim();
-    // Check existing categories longest-first, case-insensitive prefix match
+
+    // 1. Check existing category names longest-first (prefix match, case-insensitive)
     const cats = [...new Set(products.map(p => p.category || p.name))];
     cats.sort((a, b) => b.length - a.length);
     for (const cat of cats) {
@@ -3535,10 +3569,49 @@
         if (rest) return { category: cat, variant: rest };
       }
     }
-    // Fallback: split on first comma/slash/pipe
+
+    // 2. Split on first comma/slash/pipe separator
     const m = name.match(/^([^,\/\\|]{2,})[,\/\\|]\s*(.+)$/);
     if (m) return { category: m[1].trim(), variant: m[2].trim() };
+
+    // 3. Word-prefix match with existing product names (no separator needed)
+    //    e.g. "iPhone 13 White" groups with existing "iPhone 13 Black"
+    const nameWords = name.split(/\s+/);
+    for (let n = nameWords.length - 1; n >= 2; n--) {
+      const prefixLower = nameWords.slice(0, n).map(w => w.toLowerCase()).join(' ');
+      const sibling = products.find(p => {
+        const pw = (p.name || '').split(/\s+/);
+        return pw.length > n && pw.slice(0, n).map(w => w.toLowerCase()).join(' ') === prefixLower;
+      });
+      if (sibling) {
+        // Use properly-cased prefix from the sibling's name
+        const catName = sibling.name.split(/\s+/).slice(0, n).join(' ');
+        return { category: catName, variant: nameWords.slice(n).join(' ') };
+      }
+    }
+
     return { category: name, variant: '' };
+  }
+
+  // When a new variant is detected, retroactively re-categorise siblings
+  // that share the same word prefix but were previously stored as standalone products
+  function regroupSiblings(category) {
+    const catWords = category.toLowerCase().split(/\s+/);
+    const n = catWords.length;
+    let changed = false;
+    products.forEach(p => {
+      if (p.category === category) return; // already correct
+      const pWords = (p.name || '').split(/\s+/);
+      if (pWords.length > n && pWords.slice(0, n).map(w => w.toLowerCase()).join(' ') === catWords.join(' ')) {
+        p.category = category;
+        if (!p.variant) p.variant = pWords.slice(n).join(' ');
+        changed = true;
+      }
+    });
+    if (changed) {
+      localStorage.setItem('iflow_products', JSON.stringify(products));
+    }
+    return changed;
   }
 
   function onHomeProductInput(inp) {
@@ -3566,6 +3639,7 @@
 
     const { category, variant } = parseProductName(rawName);
     const displayName = variant ? `${category}, ${variant}` : category;
+    if (variant) regroupSiblings(category);
     const settings  = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
     const defThresh = parseInt(settings.lowStockThreshold) || 5;
     const code      = generateProductCode();
@@ -3611,6 +3685,7 @@
     const rawNpName = document.getElementById('npName').value.trim();
     const { category: npCat, variant: npVariant } = parseProductName(rawNpName);
     const npDisplayName = npVariant ? `${npCat}, ${npVariant}` : npCat;
+    if (npVariant) regroupSiblings(npCat);
     const name      = npDisplayName;
     const type      = document.getElementById('npType').value.trim();
     const stockQty  = parseFloat(document.getElementById('npQty').value) || 0;

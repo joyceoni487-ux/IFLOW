@@ -2060,7 +2060,7 @@
               <input type="text" id="settingsEjsKey" placeholder="e.g. user_AbCdEfGh" />
             </div>
           </div>
-          <p style="font-size:0.78rem;color:var(--muted);margin:4px 0 0">Set up a free account at <strong>emailjs.com</strong> — alerts go to the Business Email above. Template variables: <code>to_email</code>, <code>to_name</code>, <code>subject</code>, <code>message</code>, <code>store_name</code>.</p>
+          <p style="font-size:0.78rem;color:var(--muted);margin:4px 0 0">📬 <strong>Without EmailJS:</strong> alerts open your default email app (Gmail, Outlook, etc.) pre-filled — just click Send. <strong>With EmailJS:</strong> emails send automatically in the background — create a free account at <strong>emailjs.com</strong> and set credentials above. Template variables: <code>to_email</code>, <code>to_name</code>, <code>subject</code>, <code>message</code>, <code>store_name</code>.</p>
         </div>
       </div>
 
@@ -2242,21 +2242,34 @@
   }
 
   // ── Email alerts ──
+  const _emailThrottle = {};
   function sendEmailAlert(subject, body) {
     const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
     if (!s.email || !s.emailAlertsEnabled) return;
-    // Use EmailJS if configured, else fallback mailto
-    if (s.emailjsServiceId && s.emailjsTemplateId && s.emailjsPublicKey) {
-      if (typeof emailjs !== 'undefined') {
-        emailjs.send(s.emailjsServiceId, s.emailjsTemplateId, {
-          to_email: s.email, to_name: s.ownerName || 'Store Owner',
-          subject, message: body, store_name: s.storeName || 'iFlow Store'
-        }).catch(() => {});
-      }
+    // Throttle: same alert type at most once per 5 minutes
+    const key = subject.slice(0, 40);
+    const now = Date.now();
+    if (_emailThrottle[key] && now - _emailThrottle[key] < 5 * 60 * 1000) return;
+    _emailThrottle[key] = now;
+
+    if (s.emailjsServiceId && s.emailjsTemplateId && s.emailjsPublicKey && typeof emailjs !== 'undefined') {
+      // Automated silent send via EmailJS
+      emailjs.send(s.emailjsServiceId, s.emailjsTemplateId, {
+        to_email: s.email, to_name: s.ownerName || 'Store Owner',
+        subject, message: body, store_name: s.storeName || 'iFlow Store'
+      }).catch(() => _openMailto(s.email, subject, body)); // fallback if send fails
     } else {
-      // Non-intrusive in-app banner only when email is set but EmailJS not configured
-      showToast(`📧 Alert: ${subject}`);
+      // Open default email client with alert pre-filled — user just clicks Send
+      _openMailto(s.email, subject, body);
     }
+  }
+  function _openMailto(email, subject, body) {
+    const a = document.createElement('a');
+    a.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => document.body.removeChild(a), 1000);
   }
 
   // ── Long-press / double-click / double-tap context menu ──

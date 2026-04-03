@@ -1399,12 +1399,15 @@
   <div class="card">
       <div class="summary-row">
         <h2>Today's Sales</h2>
-        <div class="sync-bar">
-          <div class="sync-indicator">
-            <span class="sync-dot" id="syncDot"></span>
-            <span id="syncText">—</span>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <input class="orders-search" id="salesSearch" type="text" placeholder="Search product, date…" oninput="render()" style="width:180px" />
+          <div class="sync-bar">
+            <div class="sync-indicator">
+              <span class="sync-dot" id="syncDot"></span>
+              <span id="syncText">—</span>
+            </div>
+            <a class="open-sheets-btn" id="openSheetsBtn" href="#" target="_blank" style="display:none">↗ Open in Sheets</a>
           </div>
-          <a class="open-sheets-btn" id="openSheetsBtn" href="#" target="_blank" style="display:none">↗ Open in Sheets</a>
         </div>
       </div>
       <div class="summary" style="margin-top:10px">
@@ -2147,12 +2150,46 @@
   function render() {
     const body = document.getElementById('salesBody');
     body.innerHTML = '';
+    const query = (document.getElementById('salesSearch')?.value || '').toLowerCase().trim();
 
-    // Always render at least 5 blank rows so the grid never looks empty
-    const rows = sales.length > 0 ? sales : [];
+    if (query) {
+      // Search mode: render only matching rows, read-only display, keep real indices
+      const matched = sales.map((s, i) => ({ s, i })).filter(({ s }) =>
+        (s.product || '').toLowerCase().includes(query) ||
+        (s.customer || '').toLowerCase().includes(query) ||
+        fmtDate(s.timestamp).toLowerCase().includes(query) ||
+        fmtTime(s.timestamp).toLowerCase().includes(query) ||
+        String(s.quantity).includes(query) ||
+        String(s.price).includes(query)
+      );
+      if (matched.length === 0) {
+        body.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:28px;color:var(--muted);font-size:0.88rem;">No results for "${escHtml(query)}"</td></tr>`;
+      } else {
+        matched.forEach(({ s, i }) => {
+          const sub = s.quantity * s.price;
+          const tr = document.createElement('tr');
+          tr.dataset.index = i;
+          tr.innerHTML = `
+            <td class="row-num">${i + 1}</td>
+            <td class="cell-datetime">${fmtDate(s.timestamp)}</td>
+            <td class="cell-datetime">${fmtTime(s.timestamp)}</td>
+            <td><input class="cell-input" value="${escAttr(s.customer)}" data-field="customer" data-index="${i}" /></td>
+            <td><input class="cell-input product" value="${escAttr(s.product)}" data-field="product" data-index="${i}" data-prev-product="${escAttr(s.product)}" list="productsList" /></td>
+            <td><input class="cell-input" type="number" min="1" value="${s.quantity}" data-field="quantity" data-index="${i}" data-val="${s.quantity}" data-committed-qty="${s.quantity}" /></td>
+            <td><input class="cell-input" type="number" min="0" step="0.01" value="${s.price}" data-field="price" data-index="${i}" data-val="${s.price}" /></td>
+            <td class="cell-subtotal" data-val="${sub}">${getCurrency()}${fmtComma(sub)}</td>
+            <td class="cell-action"><button class="btn-terminate" onclick="terminateRow(${i})" title="Clear row">&#9632;</button></td>
+          `;
+          body.appendChild(tr);
+        });
+      }
+      updateTotal();
+      return;
+    }
+
+    // Normal mode: editable grid with blank rows
     const minRows = 5;
-    const totalRows = Math.max(rows.length, minRows);
-
+    const totalRows = Math.max(sales.length, minRows);
     for (let i = 0; i < totalRows; i++) {
       const s = sales[i];
       const sub = s ? s.quantity * s.price : null;
@@ -2171,7 +2208,6 @@
       `;
       body.appendChild(tr);
     }
-
     updateTotal();
   }
 
@@ -2821,7 +2857,14 @@
 
     const cur = getCurrency();
     const query = (document.getElementById('ordersSearch')?.value || '').toLowerCase();
-    const filtered = sales.filter(s => !query || (s.product || '').toLowerCase().includes(query));
+    const filtered = sales.filter(s => !query ||
+      (s.product  || '').toLowerCase().includes(query) ||
+      (s.customer || '').toLowerCase().includes(query) ||
+      fmtDate(s.timestamp).toLowerCase().includes(query) ||
+      fmtTime(s.timestamp).toLowerCase().includes(query) ||
+      String(s.quantity).includes(query) ||
+      String(s.price).includes(query)
+    );
 
     // Stat cards
     const totalRevenue = filtered.reduce((s, o) => s + o.quantity * o.price, 0);

@@ -2920,15 +2920,15 @@
 
   // Allow Enter key to submit
   document.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && ['saleDate','productName','quantity','price'].includes(e.target.id)) {
-      addSale();
+    if (e.key === 'Enter' && ['hpName','hpQty','hpPrice'].includes(e.target.id)) {
+      addProductFromHome();
     }
   });
 
   render();
 
-  // Pre-fill date field with today
-  document.getElementById('saleDate').value = new Date().toISOString().slice(0, 10);
+  // Pre-fill date field with today (sales table inline date if present)
+  const _sdEl = document.getElementById('saleDate'); if (_sdEl) _sdEl.value = new Date().toISOString().slice(0, 10);
 
   // ── AI Panel ──
   let listening = false;

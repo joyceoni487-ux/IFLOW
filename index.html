@@ -1238,6 +1238,16 @@
   /* ── Products page ── */
   .prod-code-cell { font-size:0.72rem; font-family:monospace; font-weight:700; color:var(--accent); letter-spacing:.5px; padding:6px 12px; background:rgba(79,142,247,.07); border-radius:6px; white-space:nowrap; }
   .low-stock-row td { background: rgba(229,62,62,.05) !important; }
+  .category-header-row { cursor:pointer; }
+  .category-header-row td { background:var(--surface2) !important; border-bottom:2px solid var(--border2) !important; }
+  .category-header-row:hover td { background:rgba(79,142,247,.06) !important; }
+  .btn-variants { background:rgba(79,142,247,.12); border:1px solid var(--accent); color:var(--accent); border-radius:6px; padding:4px 10px; font-size:0.74rem; font-weight:700; cursor:pointer; white-space:nowrap; transition:background .2s; }
+  .btn-variants:hover { background:rgba(79,142,247,.28); }
+  .variant-sub-table { width:100%; border-collapse:collapse; }
+  .variant-sub-table th { padding:6px 14px; text-align:left; font-size:0.72rem; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.5px; background:var(--surface2); border-bottom:1px solid var(--border2); }
+  .variant-sub-table td { padding:8px 14px; font-size:0.84rem; vertical-align:middle; }
+  .variant-row-low td { background:rgba(229,62,62,.05) !important; }
+  .hp-hint { font-size:0.74rem; color:var(--accent); margin-top:3px; min-height:1em; font-style:italic; }
 
   /* ── Number tooltip ── */
   #numTooltip {
@@ -1362,40 +1372,29 @@
   <!-- Entry Form -->
   <div class="card">
     <div class="summary-row" style="margin-bottom:16px">
-      <h2 style="margin:0">Record a Product</h2>
+      <h2 style="margin:0">Quick Add to Stock</h2>
       <button class="open-sheets-btn" onclick="const n=document.querySelector('[onclick*=\'products\']');if(n)setNav(n,'products')" style="font-size:0.75rem">🗃️ View All Products</button>
     </div>
     <div class="form-grid">
-
       <div class="field">
-        <label for="saleDate">Date</label>
-        <input id="saleDate" type="date" />
+        <label for="hpName">Product Name</label>
+        <input id="hpName" type="text" placeholder="e.g. iPhone 13, Black 128GB" oninput="onHomeProductInput(this)" autocomplete="off" />
+        <div class="hp-hint" id="hpHint"></div>
       </div>
-
       <div class="field">
-        <label for="productName">Product Name</label>
-        <input id="productName" type="text" list="productsList"
-          placeholder="e.g. Wireless Earbuds" oninput="onSaleProductInput(this)" onblur="validateSaleProduct(this)" />
-        <datalist id="productsList"></datalist>
+        <label for="hpQty">Stock Quantity</label>
+        <input id="hpQty" type="number" min="1" placeholder="e.g. 50" />
       </div>
-
       <div class="field">
-        <label for="quantity">Quantity</label>
-        <input id="quantity" type="number" min="1"
-          placeholder="e.g. 2" onblur="validateSaleQty(this)" />
+        <label for="hpPrice">Price per Unit</label>
+        <input id="hpPrice" type="number" min="0" step="0.01" placeholder="e.g. 999.99" />
       </div>
-
-      <div class="field">
-        <label for="price">Price per Unit ($)</label>
-        <input id="price" type="number" min="0" step="0.01"
-          placeholder="Auto-filled from stock" />
-      </div>
-
     </div>
-    <div id="formError" class="error-msg">Please fill in all fields with valid values.</div>
-    <button class="btn-add" onclick="addSale()">+ Add Product</button>
+    <div id="homeFormError" class="error-msg"></div>
+    <button class="btn-add" onclick="addProductFromHome()">+ Add to Stock</button>
   </div>
 
+<datalist id="productsList"></datalist>
   <!-- Sales Log -->
   <div class="card">
       <div class="summary-row">
@@ -3091,6 +3090,12 @@
 
   // ── Products & Stock ──
   let products = JSON.parse(localStorage.getItem('iflow_products') || '[]');
+  // Migrate old products: ensure category + variant fields exist
+  products = products.map(p => ({
+    ...p,
+    category: p.category || p.name,
+    variant:  p.variant  !== undefined ? p.variant : ''
+  }));
 
   function generateProductCode(type) {
     const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
@@ -3098,6 +3103,76 @@
     const typeCode = (type || 'GEN').replace(/[^A-Za-z]/g,'').substring(0,3).toUpperCase();
     const rand = Math.random().toString(36).substring(2,6).toUpperCase();
     return `${store}-${typeCode}-${rand}`;
+  }
+
+  // Smart category/variant parser
+  function parseProductName(rawName) {
+    const name = rawName.trim();
+    // Check existing categories longest-first, case-insensitive prefix match
+    const cats = [...new Set(products.map(p => p.category || p.name))];
+    cats.sort((a, b) => b.length - a.length);
+    for (const cat of cats) {
+      if (name.toLowerCase().startsWith(cat.toLowerCase()) && name.length > cat.length) {
+        const rest = name.slice(cat.length).replace(/^[\s,\/\\|]+/, '').trim();
+        if (rest) return { category: cat, variant: rest };
+      }
+    }
+    // Fallback: split on first comma/slash/pipe
+    const m = name.match(/^([^,\/\\|]{2,})[,\/\\|]\s*(.+)$/);
+    if (m) return { category: m[1].trim(), variant: m[2].trim() };
+    return { category: name, variant: '' };
+  }
+
+  function onHomeProductInput(inp) {
+    const hint = document.getElementById('hpHint');
+    if (!hint) return;
+    const raw = inp.value.trim();
+    if (!raw) { hint.textContent = ''; return; }
+    const { category, variant } = parseProductName(raw);
+    if (variant) {
+      hint.textContent = `Category: "${category}" · Variant: "${variant}"`;
+    } else {
+      const hasSubs = products.some(p => (p.category || p.name) === category && p.variant);
+      hint.textContent = hasSubs ? `Adding to category "${category}"` : `New product: "${category}"`;
+    }
+  }
+
+  function addProductFromHome() {
+    const rawName   = document.getElementById('hpName').value.trim();
+    const stockQty  = parseFloat(document.getElementById('hpQty').value) || 0;
+    const unitPrice = parseFloat(document.getElementById('hpPrice').value) || 0;
+    const errEl     = document.getElementById('homeFormError');
+    errEl.style.display = 'none';
+    if (!rawName) { errEl.textContent = 'Product name is required.'; errEl.style.display = 'block'; return; }
+    if (stockQty <= 0) { errEl.textContent = 'Stock quantity must be at least 1.'; errEl.style.display = 'block'; return; }
+
+    const { category, variant } = parseProductName(rawName);
+    const displayName = variant ? `${category}, ${variant}` : category;
+    const settings  = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    const defThresh = parseInt(settings.lowStockThreshold) || 5;
+    const code      = generateProductCode();
+
+    // Case-sensitive exact-name match → restock
+    const existingIdx = products.findIndex(p => p.name === displayName);
+    if (existingIdx !== -1) {
+      products[existingIdx].stockQty += stockQty;
+      if (unitPrice) products[existingIdx].unitPrice = unitPrice;
+      localStorage.setItem('iflow_products', JSON.stringify(products));
+      renderProducts(); refreshProductsList();
+      SheetsAPI.withToken(() => SheetsAPI.updateProduct(existingIdx, products[existingIdx]));
+      showToast(`"${displayName}" restocked (+${stockQty})`);
+    } else {
+      const p = { code, name: displayName, category, variant, type: '', stockQty, unitPrice, lowStockThreshold: defThresh, dateAdded: new Date().toLocaleDateString() };
+      products.push(p);
+      localStorage.setItem('iflow_products', JSON.stringify(products));
+      renderProducts(); refreshProductsList();
+      SheetsAPI.withToken(() => SheetsAPI.appendProduct(p));
+      showToast(`"${displayName}" added to stock`);
+    }
+    checkLowStock();
+    ['hpName','hpQty','hpPrice'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    document.getElementById('hpHint').textContent = '';
+    document.getElementById('hpName').focus();
   }
 
   function previewCode() {
@@ -3113,7 +3188,10 @@
   }
 
   function addProduct() {
-    const name      = normalizeProductName(document.getElementById('npName').value.trim());
+    const rawNpName = document.getElementById('npName').value.trim();
+    const { category: npCat, variant: npVariant } = parseProductName(rawNpName);
+    const npDisplayName = npVariant ? `${npCat}, ${npVariant}` : npCat;
+    const name      = npDisplayName;
     const type      = document.getElementById('npType').value.trim();
     const stockQty  = parseFloat(document.getElementById('npQty').value) || 0;
     const unitPrice = parseFloat(document.getElementById('npPrice').value) || 0;
@@ -3123,8 +3201,8 @@
     const code      = document.getElementById('npCode').value || generateProductCode(type);
     if (!name) { showToast('Product name is required'); return; }
 
-    // Check for existing product with same name (case-insensitive, normalized)
-    const existingIdx = products.findIndex(p => normalizeProductName(p.name.toLowerCase().trim()) === normalizeProductName(name.toLowerCase().trim()));
+    // Check for existing product with same name (case-sensitive exact match)
+    const existingIdx = products.findIndex(p => p.name === name);
     if (existingIdx !== -1) {
       // Update existing product's details, add new stock qty to existing qty
       const existing = products[existingIdx];
@@ -3132,6 +3210,8 @@
       existing.unitPrice = unitPrice || existing.unitPrice;
       existing.type = type || existing.type;
       existing.lowStockThreshold = threshold;
+      if (!existing.category) existing.category = existing.name;
+      if (existing.variant === undefined) existing.variant = '';
       renderProducts();
       localStorage.setItem('iflow_products', JSON.stringify(products));
       refreshProductsList();
@@ -3143,7 +3223,7 @@
       return;
     }
 
-    const p = { code, name, type, stockQty, unitPrice, lowStockThreshold: threshold, dateAdded: new Date().toLocaleDateString() };
+    const p = { code, name, category: npCat, variant: npVariant, type, stockQty, unitPrice, lowStockThreshold: threshold, dateAdded: new Date().toLocaleDateString() };
     products.push(p);
     localStorage.setItem('iflow_products', JSON.stringify(products));
     renderProducts();
@@ -3168,9 +3248,18 @@
       new Date().toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
     const cur = getCurrency();
     const query = (document.getElementById('productsSearch')?.value || '').toLowerCase();
-    const filtered = products.filter(p => !query || p.name.toLowerCase().includes(query) || p.code.toLowerCase().includes(query) || (p.type||'').toLowerCase().includes(query));
     const settings = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
     const defThresh = parseInt(settings.lowStockThreshold) || 5;
+
+    const filtered = products.filter(p =>
+      !query ||
+      (p.name||'').toLowerCase().includes(query) ||
+      (p.code||'').toLowerCase().includes(query) ||
+      (p.type||'').toLowerCase().includes(query) ||
+      (p.category||'').toLowerCase().includes(query) ||
+      (p.variant||'').toLowerCase().includes(query)
+    );
+
     const totalVal = filtered.reduce((s,p) => s + p.stockQty * p.unitPrice, 0);
     const lowCount = filtered.filter(p => p.stockQty <= (p.lowStockThreshold || defThresh)).length;
     document.getElementById('statTotalProducts').textContent = filtered.length;
@@ -3178,29 +3267,98 @@
     document.getElementById('statLowStockCount').textContent = lowCount;
     const badge = document.getElementById('lowStockBadge');
     if (badge) { badge.textContent = lowCount; badge.style.display = lowCount > 0 ? '' : 'none'; }
+
     const tbody = document.getElementById('productsBody');
     if (!tbody) return;
     if (filtered.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem;">No products yet — click "+ Add Product" to add stock.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem;">No products yet — use Quick Add or "+ Add Product" above.</td></tr>`;
       return;
     }
-    tbody.innerHTML = filtered.map((p, i) => {
-      const val = (p.stockQty * p.unitPrice).toFixed(2);
-      const isLow = p.stockQty <= (p.lowStockThreshold || defThresh);
-      return `<tr class="${isLow ? 'low-stock-row' : ''}">
-        <td class="row-num">${i+1}</td>
-        <td style="padding:8px 12px"><span class="prod-code-cell">${escHtml(p.code)}</span></td>
-        <td style="padding:10px 14px;font-weight:600;color:var(--text)">${escHtml(p.name)}</td>
-        <td style="padding:10px 14px;color:var(--muted)">${escHtml(p.type||'—')}</td>
-        <td class="cell-datetime" style="text-align:center;color:${isLow?'#e53e3e':'inherit'};font-weight:${isLow?700:400}">${p.stockQty}${isLow?' ⚠':''}
-        </td>
-        <td class="cell-datetime">${cur}${fmtComma(p.unitPrice)}</td>
-        <td class="cell-subtotal" data-val="${p.stockQty*p.unitPrice}">${cur}${fmtComma(p.stockQty*p.unitPrice)}</td>
-        <td class="cell-datetime">${p.lowStockThreshold||defThresh}</td>
-        <td class="cell-datetime">${escHtml(p.dateAdded||'')}</td>
-        <td class="cell-action"><button class="btn-terminate" onclick="terminateProduct(${i})" title="Remove">&#9632;</button></td>
-      </tr>`;
-    }).join('');
+
+    // Group by category
+    const groups = new Map();
+    filtered.forEach(p => {
+      const cat = p.category || p.name;
+      if (!groups.has(cat)) groups.set(cat, []);
+      groups.get(cat).push(p);
+    });
+
+    let rowNum = 1;
+    const rows = [];
+    groups.forEach((items, cat) => {
+      if (items.length === 1 && !items[0].variant) {
+        // ── Single product, no variant: render flat ──
+        const p = items[0];
+        const realIdx = products.indexOf(p);
+        const isLow = p.stockQty <= (p.lowStockThreshold || defThresh);
+        rows.push(`<tr class="${isLow ? 'low-stock-row' : ''}" style="transition:opacity .35s,background .35s" id="prod-row-${realIdx}">
+          <td class="row-num">${rowNum++}</td>
+          <td style="padding:8px 12px"><span class="prod-code-cell">${escHtml(p.code)}</span></td>
+          <td style="padding:10px 14px;font-weight:600;color:var(--text)">${escHtml(p.name)}</td>
+          <td style="padding:10px 14px;color:var(--muted)">${escHtml(p.type||'—')}</td>
+          <td class="cell-datetime" style="text-align:center;color:${isLow?'#e53e3e':'inherit'};font-weight:${isLow?700:400}">${p.stockQty}${isLow?' ⚠':''}</td>
+          <td class="cell-datetime">${cur}${fmtComma(p.unitPrice)}</td>
+          <td class="cell-subtotal" data-val="${p.stockQty*p.unitPrice}">${cur}${fmtComma(p.stockQty*p.unitPrice)}</td>
+          <td class="cell-datetime">${p.lowStockThreshold||defThresh}</td>
+          <td class="cell-datetime">${escHtml(p.dateAdded||'')}</td>
+          <td class="cell-action"><button class="btn-terminate" onclick="terminateProduct(${realIdx})" title="Remove">&#9632;</button></td>
+        </tr>`);
+      } else {
+        // ── Category with variants: group row + expandable sub-table ──
+        const totalStock = items.reduce((s,p) => s + p.stockQty, 0);
+        const anyLow = items.some(p => p.stockQty <= (p.lowStockThreshold || defThresh));
+        const catId = 'vg-' + cat.replace(/[^a-zA-Z0-9]/g,'_');
+        const variantRows = items.map(p => {
+          const realIdx = products.indexOf(p);
+          const isLow = p.stockQty <= (p.lowStockThreshold || defThresh);
+          return `<tr class="${isLow ? 'variant-row-low' : ''}">
+            <td><span class="prod-code-cell">${escHtml(p.code)}</span></td>
+            <td style="font-weight:600;color:var(--text)">${escHtml(p.variant || p.name)}</td>
+            <td style="color:${isLow?'#e53e3e':'inherit'};font-weight:${isLow?700:400}">${p.stockQty}${isLow?' ⚠':''}</td>
+            <td>${cur}${fmtComma(p.unitPrice)}</td>
+            <td style="color:var(--muted)">${p.lowStockThreshold||defThresh}</td>
+            <td style="color:var(--muted)">${escHtml(p.dateAdded||'')}</td>
+            <td class="cell-action"><button class="btn-terminate" onclick="terminateProduct(${realIdx})" title="Remove">&#9632;</button></td>
+          </tr>`;
+        }).join('');
+        rows.push(`
+          <tr class="category-header-row" onclick="toggleVariantGroup('${catId}')">
+            <td class="row-num">${rowNum++}</td>
+            <td style="padding:8px 12px" colspan="2">
+              <span style="font-weight:700;color:var(--text)">${escHtml(cat)}</span>
+              <span style="font-size:0.74rem;color:var(--muted);margin-left:8px">${items.length} variant${items.length>1?'s':''}</span>
+            </td>
+            <td style="padding:10px 14px;color:var(--muted)">—</td>
+            <td class="cell-datetime" style="text-align:center;color:${anyLow?'#e53e3e':'inherit'};font-weight:${anyLow?700:400}">${totalStock}${anyLow?' ⚠':''}</td>
+            <td class="cell-datetime">—</td>
+            <td class="cell-subtotal">—</td>
+            <td class="cell-datetime">—</td>
+            <td class="cell-datetime">—</td>
+            <td class="cell-action"><button class="btn-variants" onclick="event.stopPropagation();toggleVariantGroup('${catId}')">▼ variants</button></td>
+          </tr>
+          <tr id="${catId}" style="display:none">
+            <td colspan="10" style="padding:0;border-top:none">
+              <table class="variant-sub-table">
+                <thead><tr>
+                  <th>Code</th><th>Variant</th><th>Stock</th><th>Price</th><th>Low Stock At</th><th>Date Added</th><th></th>
+                </tr></thead>
+                <tbody>${variantRows}</tbody>
+              </table>
+            </td>
+          </tr>`);
+      }
+    });
+    tbody.innerHTML = rows.join('');
+  }
+
+  function toggleVariantGroup(catId) {
+    const row = document.getElementById(catId);
+    if (!row) return;
+    const isOpen = row.style.display !== 'none';
+    row.style.display = isOpen ? 'none' : '';
+    // Flip chevron text on the button
+    const btn = row.previousElementSibling?.querySelector('.btn-variants');
+    if (btn) btn.textContent = isOpen ? '▼ variants' : '▲ variants';
   }
 
   // ── Orders & Sales sidebar badge (sales in last 5 mins) ──

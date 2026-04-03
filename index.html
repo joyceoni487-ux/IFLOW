@@ -1243,11 +1243,27 @@
   .category-header-row:hover td { background:rgba(79,142,247,.06) !important; }
   .btn-variants { background:rgba(79,142,247,.12); border:1px solid var(--accent); color:var(--accent); border-radius:6px; padding:4px 10px; font-size:0.74rem; font-weight:700; cursor:pointer; white-space:nowrap; transition:background .2s; }
   .btn-variants:hover { background:rgba(79,142,247,.28); }
-  .variant-sub-table { width:100%; border-collapse:collapse; }
-  .variant-sub-table th { padding:6px 14px; text-align:left; font-size:0.72rem; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.5px; background:var(--surface2); border-bottom:1px solid var(--border2); }
-  .variant-sub-table td { padding:8px 14px; font-size:0.84rem; vertical-align:middle; }
-  .variant-row-low td { background:rgba(229,62,62,.05) !important; }
+  .variant-sub-table { width:calc(100% - 48px); margin:0 24px 12px; border-collapse:collapse; border-radius:10px; overflow:hidden; border:1px solid var(--border2); }
+  .variant-sub-table th { padding:6px 14px; text-align:left; font-size:0.7rem; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.5px; background:var(--surface2); border-bottom:1px solid var(--border2); }
+  .variant-sub-table td { padding:7px 14px; font-size:0.81rem; color:var(--muted); vertical-align:middle; background:rgba(79,142,247,.03); border-top:1px solid var(--border); }
+  .variant-sub-table tbody tr:hover td { background:rgba(79,142,247,.07); }
+  .variant-row-low td { background:rgba(229,62,62,.04) !important; }
   .hp-hint { font-size:0.74rem; color:var(--accent); margin-top:3px; min-height:1em; font-style:italic; }
+  .restored-flash { animation: restoredPulse 1s ease; }
+  @keyframes restoredPulse { 0%,100%{background:transparent} 40%{background:rgba(72,199,116,.25)} }
+  #rowContextMenu { position:fixed; z-index:9900; background:var(--surface); border:1px solid var(--border2); border-radius:10px; box-shadow:0 8px 32px rgba(0,0,0,.35); padding:6px 0; min-width:170px; display:none; }
+  .ctx-item { padding:10px 18px; font-size:0.86rem; color:var(--text); cursor:pointer; display:flex; align-items:center; gap:10px; transition:background .15s; }
+  .ctx-item:hover { background:var(--surface2); }
+  .ctx-item.danger { color:#e53e3e; }
+  .trash-page { padding:28px 32px; max-width:900px; }
+  .trash-entry { display:flex; align-items:center; gap:14px; padding:12px 16px; border-radius:10px; border:1px solid var(--border2); background:var(--surface); margin-bottom:8px; }
+  .trash-entry-info { flex:1; min-width:0; }
+  .trash-entry-name { font-weight:600; color:var(--text); font-size:0.9rem; }
+  .trash-entry-meta { font-size:0.75rem; color:var(--muted); margin-top:2px; }
+  .trash-restore-btn { background:rgba(72,199,116,.15); border:1px solid rgba(72,199,116,.4); color:#48c774; border-radius:7px; padding:6px 14px; font-size:0.8rem; font-weight:700; cursor:pointer; white-space:nowrap; transition:background .2s; }
+  .trash-restore-btn:hover { background:rgba(72,199,116,.3); }
+  .trash-delete-btn { background:none; border:none; color:var(--border2); font-size:1.1rem; cursor:pointer; padding:4px 8px; border-radius:6px; }
+  .trash-delete-btn:hover { color:#e53e3e; background:rgba(229,62,62,.1); }
 
   /* ── Number tooltip ── */
   #numTooltip {
@@ -1287,6 +1303,7 @@
   }
   #saveToast.show { opacity: 1; transform: translateY(0); }
   </style>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
 
@@ -1342,6 +1359,12 @@
 
     <div class="sidebar-divider"></div>
     <div class="sidebar-label">Account</div>
+
+    <div class="nav-item" onclick="setNav(this, 'trash')">
+      <div class="nav-icon">🗑️</div>
+      <span class="nav-label">Trash</span>
+      <span class="nav-badge" id="trashBadge" style="display:none">0</span>
+    </div>
 
     <div class="nav-item" onclick="setNav(this, 'settings')">
       <div class="nav-icon">⚙️</div>
@@ -1651,6 +1674,40 @@
     </div>
   </div>
 </div><!-- end page-products -->
+
+<!-- Confirm Delete Modal -->
+<div id="confirmModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9600;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border-radius:16px;padding:28px 28px 24px;max-width:360px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.45)">
+    <h3 id="confirmTitle" style="margin:0 0 8px;color:var(--text);font-size:1rem">Confirm Delete</h3>
+    <p id="confirmMsg" style="color:var(--muted);font-size:0.88rem;margin:0 0 10px">Are you sure you want to delete this item?</p>
+    <p style="color:var(--accent);font-size:0.78rem;margin:0 0 22px;background:rgba(79,142,247,.08);border-radius:8px;padding:8px 12px">🗑️ Tip: You can find and restore deleted items from the <strong>Trash</strong></p>
+    <div style="display:flex;gap:10px">
+      <button class="btn-add" style="flex:1;margin:0;background:#e53e3e;border-color:#e53e3e" id="confirmYesBtn">Delete</button>
+      <button class="settings-btn-outline" style="flex:1" id="confirmNoBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Row Context Menu -->
+<div id="rowContextMenu">
+  <div class="ctx-item" id="ctxEdit">✏️ Edit row</div>
+  <div class="ctx-item" id="ctxSelect">☑️ Select</div>
+  <div class="ctx-item danger" id="ctxDelete">🗑️ Delete</div>
+</div>
+
+<!-- Trash Page -->
+<div id="page-trash" class="page-view" style="display:none;flex:1;min-width:0;overflow:hidden;">
+  <div class="trash-page">
+    <div class="orders-header" style="margin-bottom:20px">
+      <div>
+        <h1 class="orders-title">Trash</h1>
+        <p class="orders-date" id="trashDate"></p>
+      </div>
+      <button class="settings-btn-outline" style="align-self:flex-start" onclick="emptyTrash()">🗑️ Empty Trash</button>
+    </div>
+    <div id="trashList"></div>
+  </div>
+</div>
 
 <!-- Low Stock Alert Overlay -->
 <div id="lowStockOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9500;align-items:center;justify-content:center;">
@@ -1970,6 +2027,43 @@
         </div>
       </div>
 
+      <!-- Email Alerts -->
+      <div class="settings-section">
+        <div class="settings-section-title">
+          <span class="settings-icon">📧</span>
+          <div>
+            <h3>Email Alerts</h3>
+            <p>Receive email notifications for low stock, new additions, and deletions</p>
+          </div>
+        </div>
+        <div class="settings-fields">
+          <div class="settings-row">
+            <div class="settings-field">
+              <label>Enable Email Alerts</label>
+              <select id="settingsEmailAlerts">
+                <option value="0">Disabled</option>
+                <option value="1">Enabled</option>
+              </select>
+            </div>
+            <div class="settings-field">
+              <label>EmailJS Service ID</label>
+              <input type="text" id="settingsEjsService" placeholder="e.g. service_abc123" />
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-field">
+              <label>EmailJS Template ID</label>
+              <input type="text" id="settingsEjsTemplate" placeholder="e.g. template_xyz789" />
+            </div>
+            <div class="settings-field">
+              <label>EmailJS Public Key</label>
+              <input type="text" id="settingsEjsKey" placeholder="e.g. user_AbCdEfGh" />
+            </div>
+          </div>
+          <p style="font-size:0.78rem;color:var(--muted);margin:4px 0 0">Set up a free account at <strong>emailjs.com</strong> — alerts go to the Business Email above. Template variables: <code>to_email</code>, <code>to_name</code>, <code>subject</code>, <code>message</code>, <code>store_name</code>.</p>
+        </div>
+      </div>
+
       <!-- Save Bar -->
       <div class="settings-save-bar">
         <span class="settings-save-hint">Changes are saved automatically</span>
@@ -2013,6 +2107,240 @@
 <script>
   let sales = JSON.parse(localStorage.getItem('iflow_sales') || '[]');
 
+  // ── Undo stack ──
+  const undoStack = { sales: [], products: [] };
+  function pushUndo(type) {
+    const arr = type === 'products' ? products : sales;
+    undoStack[type].push(JSON.stringify(arr));
+    if (undoStack[type].length > 30) undoStack[type].shift();
+  }
+  function undoAction() {
+    const activePage = document.querySelector('.page-view[style*="flex"]');
+    const pageId = activePage ? activePage.id : '';
+    if (pageId === 'page-products' && undoStack.products.length) {
+      products.length = 0;
+      JSON.parse(undoStack.products.pop()).forEach(p => products.push(p));
+      localStorage.setItem('iflow_products', JSON.stringify(products));
+      renderProducts(); refreshProductsList();
+      showToast('↩ Undo: products restored');
+    } else if (undoStack.sales.length) {
+      sales.length = 0;
+      JSON.parse(undoStack.sales.pop()).forEach(s => sales.push(s));
+      persist(); render(); updateOrdersBadge();
+      const ordersPage = document.getElementById('page-orders');
+      if (ordersPage && ordersPage.style.display !== 'none') renderOrders();
+      showToast('↩ Undo: sales restored');
+    } else {
+      showToast('Nothing to undo');
+    }
+  }
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      undoAction();
+    }
+  });
+
+  // ── Trash ──
+  let trash = JSON.parse(localStorage.getItem('iflow_trash') || '[]');
+  function updateTrashBadge() {
+    const b = document.getElementById('trashBadge');
+    if (b) { b.textContent = trash.length; b.style.display = trash.length ? '' : 'none'; }
+  }
+  function moveToTrash(type, data, originalIndex) {
+    trash.unshift({ type, data: JSON.parse(JSON.stringify(data)), originalIndex, deletedAt: Date.now() });
+    if (trash.length > 60) trash = trash.slice(0, 60);
+    localStorage.setItem('iflow_trash', JSON.stringify(trash));
+    updateTrashBadge();
+  }
+  function restoreFromTrash(idx) {
+    const item = trash[idx];
+    if (!item) return;
+    if (item.type === 'product') {
+      pushUndo('products');
+      products.splice(Math.min(item.originalIndex, products.length), 0, item.data);
+      localStorage.setItem('iflow_products', JSON.stringify(products));
+      renderProducts(); refreshProductsList();
+      showToast(`✅ "${item.data.name}" restored`);
+      sendEmailAlert(`Stock Restored: ${item.data.name}`, `"${item.data.name}" has been restored from trash. Stock: ${item.data.stockQty}. Time: ${new Date().toLocaleString()}`);
+    } else {
+      pushUndo('sales');
+      sales.splice(Math.min(item.originalIndex, sales.length), 0, item.data);
+      persist(); render(); updateOrdersBadge();
+      showToast(`✅ Sale for "${item.data.product}" restored`);
+    }
+    // Flash restored indicator for 5 mins on the sidebar icon
+    const icon = document.querySelector('[onclick*="trash"] .nav-icon');
+    if (icon) { icon.textContent = '♻️'; setTimeout(() => { icon.textContent = '🗑️'; }, 5 * 60 * 1000); }
+    trash.splice(idx, 1);
+    localStorage.setItem('iflow_trash', JSON.stringify(trash));
+    renderTrash(); updateTrashBadge();
+  }
+  function hardDeleteFromTrash(idx) {
+    trash.splice(idx, 1);
+    localStorage.setItem('iflow_trash', JSON.stringify(trash));
+    renderTrash(); updateTrashBadge();
+  }
+  function emptyTrash() {
+    if (!trash.length) { showToast('Trash is already empty'); return; }
+    trash = [];
+    localStorage.setItem('iflow_trash', JSON.stringify(trash));
+    renderTrash(); updateTrashBadge();
+    showToast('Trash emptied');
+  }
+  function renderTrash() {
+    document.getElementById('trashDate').textContent = new Date().toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+    const list = document.getElementById('trashList');
+    if (!trash.length) {
+      list.innerHTML = `<div style="text-align:center;padding:60px 20px;color:var(--muted)"><div style="font-size:3rem;margin-bottom:12px">🗑️</div><p>Trash is empty</p></div>`;
+      return;
+    }
+    list.innerHTML = trash.map((item, i) => {
+      const name = item.type === 'product' ? item.data.name : (item.data.product || 'Sale');
+      const meta = item.type === 'product'
+        ? `Product · Stock: ${item.data.stockQty} · ${new Date(item.deletedAt).toLocaleString()}`
+        : `Sale · Qty: ${item.data.quantity} · ${new Date(item.deletedAt).toLocaleString()}`;
+      return `<div class="trash-entry">
+        <div style="font-size:1.6rem">${item.type === 'product' ? '📦' : '🧾'}</div>
+        <div class="trash-entry-info">
+          <div class="trash-entry-name">${escHtml(name)}</div>
+          <div class="trash-entry-meta">${escHtml(meta)}</div>
+        </div>
+        <button class="trash-restore-btn" onclick="restoreFromTrash(${i})">↩ Restore</button>
+        <button class="trash-delete-btn" onclick="hardDeleteFromTrash(${i})" title="Permanently delete">&#9632;</button>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Confirm delete ──
+  let _confirmCb = null;
+  function showConfirm(title, msg, onYes) {
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmMsg').textContent = msg;
+    _confirmCb = onYes;
+    document.getElementById('confirmModal').style.display = 'flex';
+  }
+  document.getElementById('confirmYesBtn').addEventListener('click', () => {
+    document.getElementById('confirmModal').style.display = 'none';
+    if (_confirmCb) _confirmCb();
+    _confirmCb = null;
+  });
+  document.getElementById('confirmNoBtn').addEventListener('click', () => {
+    document.getElementById('confirmModal').style.display = 'none';
+    _confirmCb = null;
+  });
+  function confirmDeleteProduct(realIdx) {
+    const p = products[realIdx];
+    if (!p) return;
+    showConfirm('Delete Product', `Delete "${p.name}"?`, () => terminateProduct(realIdx));
+  }
+  function confirmDeleteRow(i) {
+    showConfirm('Delete Sale Entry', 'Remove this sale entry?', () => terminateRow(i));
+  }
+  function confirmDeleteOrder(i) {
+    showConfirm('Delete Order', 'Remove this order entry?', () => deleteOrder(i));
+  }
+
+  // ── Email alerts ──
+  function sendEmailAlert(subject, body) {
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    if (!s.email || !s.emailAlertsEnabled) return;
+    // Use EmailJS if configured, else fallback mailto
+    if (s.emailjsServiceId && s.emailjsTemplateId && s.emailjsPublicKey) {
+      if (typeof emailjs !== 'undefined') {
+        emailjs.send(s.emailjsServiceId, s.emailjsTemplateId, {
+          to_email: s.email, to_name: s.ownerName || 'Store Owner',
+          subject, message: body, store_name: s.storeName || 'iFlow Store'
+        }).catch(() => {});
+      }
+    } else {
+      // Non-intrusive in-app banner only when email is set but EmailJS not configured
+      showToast(`📧 Alert: ${subject}`);
+    }
+  }
+
+  // ── Long-press context menu ──
+  let _lpTimer = null;
+  let _lpRow = null;
+  function _lpStart(e) {
+    const tr = e.target.closest && e.target.closest('tbody tr');
+    if (!tr || e.target.closest('button') || e.target.closest('input')) return;
+    _lpRow = tr;
+    _lpTimer = setTimeout(() => openContextMenu(tr, e), 600);
+  }
+  function _lpCancel() { clearTimeout(_lpTimer); _lpTimer = null; }
+  document.addEventListener('mousedown', _lpStart);
+  document.addEventListener('mouseup', _lpCancel);
+  document.addEventListener('mousemove', _lpCancel);
+  document.addEventListener('touchstart', e => _lpStart(e.touches[0]), { passive: true });
+  document.addEventListener('touchend', _lpCancel);
+  document.addEventListener('touchmove', _lpCancel, { passive: true });
+
+  function openContextMenu(tr, evt) {
+    const menu = document.getElementById('rowContextMenu');
+    const x = evt.clientX || (evt.touches && evt.touches[0].clientX) || 0;
+    const y = evt.clientY || (evt.touches && evt.touches[0].clientY) || 0;
+    menu.style.left = Math.min(x, window.innerWidth - 190) + 'px';
+    menu.style.top  = Math.min(y, window.innerHeight - 130) + 'px';
+    menu.style.display = 'block';
+    menu._row = tr;
+    setTimeout(() => document.addEventListener('click', _closeCtx, { once: true }), 10);
+  }
+  function _closeCtx() { document.getElementById('rowContextMenu').style.display = 'none'; }
+
+  document.getElementById('ctxEdit').addEventListener('click', () => {
+    if (document.getElementById('rowContextMenu')._row) {
+      const inp = document.getElementById('rowContextMenu')._row.querySelector('input.cell-input');
+      if (inp) inp.focus();
+    }
+  });
+  document.getElementById('ctxSelect').addEventListener('click', () => {
+    const tr = document.getElementById('rowContextMenu')._row;
+    if (tr) tr.style.outline = tr.style.outline ? '' : '2px solid var(--accent)';
+  });
+  document.getElementById('ctxDelete').addEventListener('click', () => {
+    const tr = document.getElementById('rowContextMenu')._row;
+    if (!tr) return;
+    const idx = parseInt(tr.dataset.index);
+    const tbody = tr.closest('tbody');
+    if (tbody && tbody.id === 'salesBody') confirmDeleteRow(idx);
+    else if (tbody && tbody.id === 'ordersBody') confirmDeleteOrder(idx);
+    else if (tbody && tbody.id === 'productsBody') confirmDeleteProduct(idx);
+  });
+
+  // ── Arrow key navigation in cell inputs ──
+  document.addEventListener('keydown', e => {
+    const inp = e.target;
+    if (!inp.classList || !inp.classList.contains('cell-input')) return;
+    const tr = inp.closest('tr');
+    const tbody = tr && tr.closest('tbody');
+    if (!tbody) return;
+    const rows = [...tbody.querySelectorAll('tr')];
+    const inputs = [...tr.querySelectorAll('.cell-input')];
+    const rowIdx = rows.indexOf(tr);
+    const cellIdx = inputs.indexOf(inp);
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = rows[rowIdx + 1]?.querySelector(`[data-field="${inp.dataset.field}"]`) || rows[rowIdx + 1]?.querySelector('.cell-input');
+      if (next) next.focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prev = rows[rowIdx - 1]?.querySelector(`[data-field="${inp.dataset.field}"]`) || rows[rowIdx - 1]?.querySelector('.cell-input');
+      if (prev) prev.focus();
+    } else if (e.key === 'ArrowRight' && inp.selectionStart === inp.value.length) {
+      const next = inputs[cellIdx + 1];
+      if (next) { e.preventDefault(); next.focus(); }
+    } else if (e.key === 'ArrowLeft' && inp.selectionStart === 0) {
+      const prev = inputs[cellIdx - 1];
+      if (prev) { e.preventDefault(); prev.focus(); }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const next = inputs[cellIdx + 1] || rows[rowIdx + 1]?.querySelector('.cell-input');
+      if (next) next.focus();
+    }
+  });
+
   const CURRENCY_SYMBOLS = { USD:'$', NGN:'₦', GBP:'£', EUR:'€', GHS:'₵', KES:'KSh' };
 
   function getCurrency() {
@@ -2027,7 +2355,12 @@
     const phone    = (document.getElementById('settingsPhone')?.value || '').trim();
     const currency = document.getElementById('settingsCurrency')?.value || 'USD';
     const lowStockThreshold = parseInt(document.getElementById('settingsLowStock')?.value) || 5;
-    const settings = { storeName, ownerName, email, phone, currency, lowStockThreshold };
+    const emailAlertsEnabled = document.getElementById('settingsEmailAlerts')?.value === '1';
+    const emailjsServiceId  = (document.getElementById('settingsEjsService')?.value || '').trim();
+    const emailjsTemplateId = (document.getElementById('settingsEjsTemplate')?.value || '').trim();
+    const emailjsPublicKey  = (document.getElementById('settingsEjsKey')?.value || '').trim();
+    if (emailjsPublicKey && typeof emailjs !== 'undefined') emailjs.init(emailjsPublicKey);
+    const settings = { storeName, ownerName, email, phone, currency, lowStockThreshold, emailAlertsEnabled, emailjsServiceId, emailjsTemplateId, emailjsPublicKey };
     localStorage.setItem('iflow_settings', JSON.stringify(settings));
     applySettings(settings);
     showToast('Settings saved ✓');
@@ -2153,15 +2486,12 @@
     const query = (document.getElementById('salesSearch')?.value || '').toLowerCase().trim();
 
     if (query) {
-      // Search mode: render only matching rows, read-only display, keep real indices
-      const matched = sales.map((s, i) => ({ s, i })).filter(({ s }) =>
-        (s.product || '').toLowerCase().includes(query) ||
-        (s.customer || '').toLowerCase().includes(query) ||
-        fmtDate(s.timestamp).toLowerCase().includes(query) ||
-        fmtTime(s.timestamp).toLowerCase().includes(query) ||
-        String(s.quantity).includes(query) ||
-        String(s.price).includes(query)
-      );
+      // Search mode: tokenized match, read-only display, keep real indices
+      const toks = query.split(/\s+/).filter(Boolean);
+      const matched = sales.map((s, i) => ({ s, i })).filter(({ s }) => {
+        const hay = [s.product, s.customer, fmtDate(s.timestamp), fmtTime(s.timestamp), s.quantity, s.price].join(' ').toLowerCase();
+        return toks.every(t => hay.includes(t));
+      });
       if (matched.length === 0) {
         body.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:28px;color:var(--muted);font-size:0.88rem;">No results for "${escHtml(query)}"</td></tr>`;
       } else {
@@ -2178,7 +2508,7 @@
             <td><input class="cell-input" type="number" min="1" value="${s.quantity}" data-field="quantity" data-index="${i}" data-val="${s.quantity}" data-committed-qty="${s.quantity}" /></td>
             <td><input class="cell-input" type="number" min="0" step="0.01" value="${s.price}" data-field="price" data-index="${i}" data-val="${s.price}" /></td>
             <td class="cell-subtotal" data-val="${sub}">${getCurrency()}${fmtComma(sub)}</td>
-            <td class="cell-action"><button class="btn-terminate" onclick="terminateRow(${i})" title="Clear row">&#9632;</button></td>
+            <td class="cell-action"><button class="btn-terminate" onclick="confirmDeleteRow(${i})" title="Delete row">&#9632;</button></td>
           `;
           body.appendChild(tr);
         });
@@ -2204,7 +2534,7 @@
         <td><input class="cell-input" type="number" min="1" value="${s ? s.quantity : ''}" placeholder="" data-field="quantity" data-index="${i}" data-val="${s ? s.quantity : ''}" data-committed-qty="${s ? s.quantity : '0'}" /></td>
         <td><input class="cell-input" type="number" min="0" step="0.01" value="${s ? s.price : ''}" placeholder="" data-field="price" data-index="${i}" data-val="${s ? s.price : ''}" /></td>
         <td class="cell-subtotal" data-val="${sub !== null ? sub : ''}">${sub !== null ? getCurrency() + fmtComma(sub) : ''}</td>
-        <td class="cell-action"><button class="btn-terminate" onclick="terminateRow(${i})" title="Clear row">&#9632;</button></td>
+        <td class="cell-action"><button class="btn-terminate" onclick="confirmDeleteRow(${i})" title="Delete row">&#9632;</button></td>
       `;
       body.appendChild(tr);
     }
@@ -2491,6 +2821,7 @@
 
     // Use picked date if provided, otherwise now
     const timestamp = dateVal ? new Date(dateVal + 'T00:00:00').getTime() : Date.now();
+    pushUndo('sales');
     const newSale = { customer, product, quantity, price, timestamp };
     sales.push(newSale);
     persist();
@@ -2811,6 +3142,7 @@
       if (page === 'orders') renderOrders();
       if (page === 'settings') syncSettingsToggles();
       if (page === 'products') renderProducts();
+      if (page === 'trash') renderTrash();
     } else {
       document.getElementById('page-inventory').style.display = 'flex';
     }
@@ -2828,6 +3160,12 @@
     if (s.phone)     document.getElementById('settingsPhone').value     = s.phone;
     if (s.currency)           document.getElementById('settingsCurrency').value  = s.currency;
     if (s.lowStockThreshold) document.getElementById('settingsLowStock').value   = s.lowStockThreshold;
+    const eaEl = document.getElementById('settingsEmailAlerts');
+    if (eaEl) eaEl.value = s.emailAlertsEnabled ? '1' : '0';
+    if (s.emailjsServiceId)  { const el = document.getElementById('settingsEjsService');  if (el) el.value = s.emailjsServiceId; }
+    if (s.emailjsTemplateId) { const el = document.getElementById('settingsEjsTemplate'); if (el) el.value = s.emailjsTemplateId; }
+    if (s.emailjsPublicKey)  { const el = document.getElementById('settingsEjsKey');      if (el) el.value = s.emailjsPublicKey; }
+    if (s.emailjsPublicKey && typeof emailjs !== 'undefined') emailjs.init(s.emailjsPublicKey);
     // Restore logo preview
     const logo = localStorage.getItem('iflow_logo');
     if (logo) {
@@ -2857,14 +3195,12 @@
 
     const cur = getCurrency();
     const query = (document.getElementById('ordersSearch')?.value || '').toLowerCase();
-    const filtered = sales.filter(s => !query ||
-      (s.product  || '').toLowerCase().includes(query) ||
-      (s.customer || '').toLowerCase().includes(query) ||
-      fmtDate(s.timestamp).toLowerCase().includes(query) ||
-      fmtTime(s.timestamp).toLowerCase().includes(query) ||
-      String(s.quantity).includes(query) ||
-      String(s.price).includes(query)
-    );
+    const orderToks = query.split(/\s+/).filter(Boolean);
+    const filtered = sales.filter(s => {
+      if (!orderToks.length) return true;
+      const hay = [s.product, s.customer, fmtDate(s.timestamp), fmtTime(s.timestamp), s.quantity, s.price].join(' ').toLowerCase();
+      return orderToks.every(t => hay.includes(t));
+    });
 
     // Stat cards
     const totalRevenue = filtered.reduce((s, o) => s + o.quantity * o.price, 0);
@@ -2896,12 +3232,16 @@
           <td class="cell-datetime" style="text-align:center">${o.quantity}</td>
           <td class="cell-datetime">${cur}${fmtComma(o.price)}</td>
           <td class="cell-subtotal" data-val="${sub}">${cur}${fmtComma(sub)}</td>
-          <td class="cell-action"><button class="btn-terminate" onclick="deleteOrder(${realIdx})" title="Delete entry">&#9632;</button></td>
+          <td class="cell-action"><button class="btn-terminate" onclick="confirmDeleteOrder(${realIdx})" title="Delete entry">&#9632;</button></td>
         </tr>`;
     }).join('');
   }
 
   function deleteOrder(i) {
+    if (sales[i]) {
+      pushUndo('sales');
+      moveToTrash('sale', sales[i], i);
+    }
     const row = document.getElementById('order-row-' + i);
     if (row) {
       row.style.background = 'rgba(229,62,62,.15)';
@@ -2944,8 +3284,10 @@
 
   function terminateRow(index) {
     if (sales[index]) {
+      pushUndo('sales');
+      moveToTrash('sale', sales[index], index);
       const { product, quantity } = sales[index];
-      if (product && quantity) deductStock(product, -quantity); // restore stock
+      if (product && quantity) deductStock(product, -quantity);
       SheetsAPI.withToken(() => SheetsAPI.deleteRow(index));
       sales.splice(index, 1);
       persist();
@@ -2969,6 +3311,7 @@
   });
 
   render();
+  updateTrashBadge();
 
   // Pre-fill date field with today (sales table inline date if present)
   const _sdEl = document.getElementById('saleDate'); if (_sdEl) _sdEl.value = new Date().toISOString().slice(0, 10);
@@ -3205,8 +3548,10 @@
       SheetsAPI.withToken(() => SheetsAPI.updateProduct(existingIdx, products[existingIdx]));
       showToast(`"${displayName}" restocked (+${stockQty})`);
     } else {
+      pushUndo('products');
       const p = { code, name: displayName, category, variant, type: '', stockQty, unitPrice, lowStockThreshold: defThresh, dateAdded: new Date().toLocaleDateString() };
       products.push(p);
+      sendEmailAlert(`New Stock Added: ${displayName}`, `"${displayName}" was added to stock. Qty: ${stockQty}. Time: ${new Date().toLocaleString()}`);
       localStorage.setItem('iflow_products', JSON.stringify(products));
       renderProducts(); refreshProductsList();
       SheetsAPI.withToken(() => SheetsAPI.appendProduct(p));
@@ -3266,8 +3611,10 @@
       return;
     }
 
+    pushUndo('products');
     const p = { code, name, category: npCat, variant: npVariant, type, stockQty, unitPrice, lowStockThreshold: threshold, dateAdded: new Date().toLocaleDateString() };
     products.push(p);
+    sendEmailAlert(`New Stock Added: ${name}`, `"${name}" was added to stock. Qty: ${stockQty}. Time: ${new Date().toLocaleString()}`);
     localStorage.setItem('iflow_products', JSON.stringify(products));
     renderProducts();
     refreshProductsList();
@@ -3279,6 +3626,10 @@
 
   function terminateProduct(index) {
     if (products[index]) {
+      pushUndo('products');
+      moveToTrash('product', products[index], index);
+      sendEmailAlert(`Product Deleted: ${products[index].name}`,
+        `"${products[index].name}" was deleted from stock. Time: ${new Date().toLocaleString()}`);
       SheetsAPI.withToken(() => SheetsAPI.deleteProduct(index));
       products.splice(index, 1);
       localStorage.setItem('iflow_products', JSON.stringify(products));
@@ -3294,14 +3645,12 @@
     const settings = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
     const defThresh = parseInt(settings.lowStockThreshold) || 5;
 
-    const filtered = products.filter(p =>
-      !query ||
-      (p.name||'').toLowerCase().includes(query) ||
-      (p.code||'').toLowerCase().includes(query) ||
-      (p.type||'').toLowerCase().includes(query) ||
-      (p.category||'').toLowerCase().includes(query) ||
-      (p.variant||'').toLowerCase().includes(query)
-    );
+    const tokens = query.split(/\s+/).filter(Boolean);
+    const filtered = products.filter(p => {
+      if (!tokens.length) return true;
+      const hay = [p.name, p.code, p.type, p.category, p.variant].join(' ').toLowerCase();
+      return tokens.every(tok => hay.includes(tok));
+    });
 
     const totalVal = filtered.reduce((s,p) => s + p.stockQty * p.unitPrice, 0);
     const lowCount = filtered.filter(p => p.stockQty <= (p.lowStockThreshold || defThresh)).length;
@@ -3344,13 +3693,18 @@
           <td class="cell-subtotal" data-val="${p.stockQty*p.unitPrice}">${cur}${fmtComma(p.stockQty*p.unitPrice)}</td>
           <td class="cell-datetime">${p.lowStockThreshold||defThresh}</td>
           <td class="cell-datetime">${escHtml(p.dateAdded||'')}</td>
-          <td class="cell-action"><button class="btn-terminate" onclick="terminateProduct(${realIdx})" title="Remove">&#9632;</button></td>
+          <td class="cell-action"><button class="btn-terminate" onclick="confirmDeleteProduct(${realIdx})" title="Remove">&#9632;</button></td>
         </tr>`);
       } else {
         // ── Category with variants: group row + expandable sub-table ──
         const totalStock = items.reduce((s,p) => s + p.stockQty, 0);
         const anyLow = items.some(p => p.stockQty <= (p.lowStockThreshold || defThresh));
         const catId = 'vg-' + cat.replace(/[^a-zA-Z0-9]/g,'_');
+        // Last updated = newest dateAdded among variants
+        const lastUpdated = items
+          .map(p => p.lastUpdated || p.dateAdded || '')
+          .filter(Boolean)
+          .sort((a,b) => new Date(b) - new Date(a))[0] || '—';
         const variantRows = items.map(p => {
           const realIdx = products.indexOf(p);
           const isLow = p.stockQty <= (p.lowStockThreshold || defThresh);
@@ -3359,9 +3713,9 @@
             <td style="font-weight:600;color:var(--text)">${escHtml(p.variant || p.name)}</td>
             <td style="color:${isLow?'#e53e3e':'inherit'};font-weight:${isLow?700:400}">${p.stockQty}${isLow?' ⚠':''}</td>
             <td>${cur}${fmtComma(p.unitPrice)}</td>
-            <td style="color:var(--muted)">${p.lowStockThreshold||defThresh}</td>
-            <td style="color:var(--muted)">${escHtml(p.dateAdded||'')}</td>
-            <td class="cell-action"><button class="btn-terminate" onclick="terminateProduct(${realIdx})" title="Remove">&#9632;</button></td>
+            <td>${p.lowStockThreshold||defThresh}</td>
+            <td>${escHtml(p.dateAdded||'')}</td>
+            <td class="cell-action"><button class="btn-terminate" onclick="confirmDeleteProduct(${realIdx})" title="Remove">&#9632;</button></td>
           </tr>`;
         }).join('');
         rows.push(`
@@ -3376,11 +3730,11 @@
             <td class="cell-datetime">—</td>
             <td class="cell-subtotal">—</td>
             <td class="cell-datetime">—</td>
-            <td class="cell-datetime">—</td>
+            <td class="cell-datetime" title="Last updated"><span style="font-size:0.7rem;opacity:.6">🕒</span> ${escHtml(lastUpdated)}</td>
             <td class="cell-action"><button class="btn-variants" onclick="event.stopPropagation();toggleVariantGroup('${catId}')">▼ variants</button></td>
           </tr>
           <tr id="${catId}" style="display:none">
-            <td colspan="10" style="padding:0;border-top:none">
+            <td colspan="10" style="padding:8px 0 4px;border-top:none;background:var(--surface2)">
               <table class="variant-sub-table">
                 <thead><tr>
                   <th>Code</th><th>Variant</th><th>Stock</th><th>Price</th><th>Low Stock At</th><th>Date Added</th><th></th>
@@ -3428,6 +3782,9 @@
       </div>`).join('');
     document.getElementById('lowStockOverlay').style.display = 'flex';
     playWarningSound();
+    const lowNames = lowItems.map(p => `${p.name} (${p.stockQty} left)`).join(', ');
+    sendEmailAlert('⚠️ Low Stock Alert — ' + (settings.storeName || 'iFlow'),
+      `Low stock detected at ${new Date().toLocaleString()}:\n${lowNames}\nPlease restock soon.`);
     const email = settings.email;
     if (email) sendLowStockEmail(lowItems, email);
   }

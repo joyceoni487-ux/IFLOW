@@ -2107,6 +2107,19 @@
 <script>
   let sales = JSON.parse(localStorage.getItem('iflow_sales') || '[]');
 
+  // ── Draft rows: pending (uncommitted) sales entries ──
+  let _draftRows  = {};   // { rowIndex: { product, quantity, price, customer } }
+  let _wipeTimers = {};   // { rowIndex: timeoutId }
+
+  function showWarning(msg) {
+    const t = document.getElementById('saveToast');
+    const prev = t.style.background;
+    t.style.background = '#c0392b';
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => { t.classList.remove('show'); t.style.background = prev; }, 4000);
+  }
+
   // ── Undo stack ──
   const undoStack = { sales: [], products: [] };
   function pushUndo(type) {
@@ -2592,8 +2605,14 @@
     // Don't persist/create row for the product field — wait for focusout validation
     if (field === 'product') return;
 
-    // Don't create a partial sale entry — only update if product has already been validated
-    if (!sales[i]) return;
+    // For uncommitted rows, buffer into _draftRows instead of sales[]
+    if (!sales[i]) {
+      if (!_draftRows[i]) _draftRows[i] = {};
+      if (field === 'quantity') _draftRows[i].quantity = Math.max(1, parseFloat(val) || 1);
+      else if (field === 'price') _draftRows[i].price = Math.max(0, parseFloat(val) || 0);
+      else if (field === 'customer') _draftRows[i].customer = val;
+      return;
+    }
 
     if (field === 'quantity') {
       val = Math.max(1, parseFloat(val) || 1);
@@ -2628,6 +2647,17 @@
     }
   });
 
+  // ── Cancel wipe timer when user returns to a row ──
+  document.getElementById('salesBody').addEventListener('focusin', e => {
+    const inp = e.target;
+    if (!inp.classList.contains('cell-input')) return;
+    const i = parseInt(inp.dataset.index);
+    if (_wipeTimers[i]) {
+      clearTimeout(_wipeTimers[i]);
+      delete _wipeTimers[i];
+    }
+  });
+
   // ── Single focusout handler for entire sales table ──
   document.getElementById('salesBody').addEventListener('focusout', e => {
     const inp = e.target;
@@ -2637,7 +2667,86 @@
     const tr    = inp.closest('tr');
     const stayingInRow = tr && tr.contains(e.relatedTarget);
 
-    // ── Quantity: validate stock, apply delta when committing ──
+    // ── Uncommitted (draft) row handling ──
+    if (!sales[i]) {
+      if (!_draftRows[i]) _draftRows[i] = {};
+
+      // Product field: validate and buffer into draft
+      if (field === 'product') {
+        const val     = inp.value.trim();
+        const normVal = val ? normalizeProductName(val) : '';
+        const match   = normVal ? findStockProduct(normVal) : null;
+
+        if (val && !match) {
+          showWarning(`⚠️ "${val}" not found in Products & Stock — check product name.`);
+          inp.value = '';
+          delete _draftRows[i].product;
+          return;
+        }
+        if (match) {
+          inp.value = normVal;
+          inp.dataset.prevProduct = normVal;
+          _draftRows[i].product = normVal;
+          // Auto-fill price if not already entered
+          if (_draftRows[i].price === undefined) {
+            _draftRows[i].price = match.unitPrice;
+            const priceInp = tr?.querySelector('[data-field="price"]');
+            if (priceInp) { priceInp.value = match.unitPrice; }
+          }
+        }
+      }
+
+      // When cursor fully leaves the row, decide: commit or warn
+      if (!stayingInRow) {
+        const draft = _draftRows[i] || {};
+        const hasAnyInput = draft.product || draft.quantity || draft.customer ||
+                            tr?.querySelector('[data-field="product"]')?.value.trim();
+
+        if (!hasAnyInput) return; // blank row, ignore
+
+        const product  = draft.product;
+        const quantity = draft.quantity !== undefined ? draft.quantity : parseFloat(tr?.querySelector('[data-field="quantity"]')?.value) || 0;
+        const price    = draft.price    !== undefined ? draft.price    : parseFloat(tr?.querySelector('[data-field="price"]')?.value);
+        const customer = draft.customer !== undefined ? draft.customer : (tr?.querySelector('[data-field="customer"]')?.value.trim() || '');
+        const match    = product ? findStockProduct(product) : null;
+
+        // Check stock before committing
+        if (product && match && quantity > 0) {
+          if (quantity > match.stockQty) {
+            showWarning(`⚠️ Only ${match.stockQty} unit(s) of "${match.name}" in stock — row not saved.`);
+            _scheduleWipe(i, tr);
+            return;
+          }
+          // All required fields present — commit the sale
+          const ts = Date.now();
+          sales[i] = {
+            customer: customer || '',
+            product,
+            quantity,
+            price: isNaN(price) ? match.unitPrice : price,
+            timestamp: ts
+          };
+          deductStock(product, quantity);
+          persist();
+          SheetsAPI.withToken(() => SheetsAPI.updateRow(i, sales[i]));
+          updateOrdersBadge();
+          delete _draftRows[i];
+          clearTimeout(_wipeTimers[i]);
+          delete _wipeTimers[i];
+          setTimeout(() => render(), 0);
+        } else {
+          // Incomplete entry — warn and start 1-minute wipe timer
+          const missing = [];
+          if (!product)      missing.push('product');
+          if (!(quantity>0)) missing.push('quantity');
+          showWarning(`⚠️ Incomplete entry — missing: ${missing.join(', ')}. Row clears in 1 min.`);
+          _scheduleWipe(i, tr);
+        }
+      }
+      return; // don't fall through to committed-row logic
+    }
+
+    // ── Committed row: quantity validation ──
     if (field === 'quantity' && sales[i]?.product) {
       const newQty  = parseFloat(inp.value) || 0;
       const stockItem = findStockProduct(sales[i].product);
@@ -2646,7 +2755,6 @@
           wipeRow(i, tr, sales[i].product, `Qty ${newQty} exceeds stock (${stockItem.stockQty}) for "${stockItem.name}" — row cleared.`);
           return;
         }
-        // Still in row — show error, revert to committed qty
         inp.value = parseFloat(inp.dataset.committedQty) || 1;
         showToast(`Only ${stockItem.stockQty} unit(s) of "${stockItem.name}" in stock.`);
         return;
@@ -2657,7 +2765,7 @@
       inp.dataset.committedQty = newQty;
     }
 
-    // ── Product: validate and commit, or wipe the row ──
+    // ── Committed row: product change ──
     if (field === 'product') {
       const val     = inp.value.trim();
       const normVal = val ? normalizeProductName(val) : '';
@@ -2665,7 +2773,6 @@
       const prevProd = inp.dataset.prevProduct || '';
 
       if (val && !match) {
-        // Invalid product — wipe the whole row immediately
         wipeRow(i, tr, prevProd, `"${normVal}" is not in Products & Stock — row cleared.`);
         return;
       }
@@ -2673,28 +2780,15 @@
         inp.value = normVal;
         inp.dataset.prevProduct = normVal;
         const qty = sales[i]?.quantity || 1;
-        // Adjust stock only when product actually changed
         if (normVal !== prevProd) {
           if (prevProd) deductStock(prevProd, -qty);
           deductStock(normVal, qty);
         }
-        // Create or update the sales record
-        if (!sales[i]) {
-          const ts = Date.now();
-          sales[i] = { customer: '', product: normVal, quantity: 1, price: match.unitPrice, timestamp: ts };
-          tr?.querySelectorAll('.cell-datetime')[0] && (tr.querySelectorAll('.cell-datetime')[0].textContent = fmtDate(ts));
-          tr?.querySelectorAll('.cell-datetime')[1] && (tr.querySelectorAll('.cell-datetime')[1].textContent = fmtTime(ts));
+        sales[i].product = normVal;
+        if (!sales[i].price) {
+          sales[i].price = match.unitPrice;
           const priceInp = tr?.querySelector('[data-field="price"]');
           if (priceInp) { priceInp.value = match.unitPrice; priceInp.dataset.val = match.unitPrice; }
-          const qtyInp = tr?.querySelector('[data-field="quantity"]');
-          if (qtyInp) { qtyInp.dataset.committedQty = 1; }
-        } else {
-          sales[i].product = normVal;
-          if (!sales[i].price) {
-            sales[i].price = match.unitPrice;
-            const priceInp = tr?.querySelector('[data-field="price"]');
-            if (priceInp) { priceInp.value = match.unitPrice; priceInp.dataset.val = match.unitPrice; }
-          }
         }
         persist();
         SheetsAPI.withToken(() => SheetsAPI.updateRow(i, sales[i]));
@@ -2702,7 +2796,7 @@
       }
     }
 
-    // ── Any cell: when fully leaving the row, wipe if product is still invalid ──
+    // ── Committed row: wipe if product is missing/invalid when leaving row ──
     if (!stayingInRow && sales[i]) {
       const prod = sales[i].product || '';
       if (!prod || !findStockProduct(prod)) {
@@ -2711,6 +2805,21 @@
       }
     }
   });
+
+  function _scheduleWipe(i, tr) {
+    clearTimeout(_wipeTimers[i]);
+    _wipeTimers[i] = setTimeout(() => {
+      delete _draftRows[i];
+      delete _wipeTimers[i];
+      if (tr && tr.isConnected) {
+        tr.querySelectorAll('.cell-input').forEach(inp => {
+          inp.value = ''; inp.dataset.val = ''; inp.dataset.prevProduct = ''; inp.dataset.committedQty = '0';
+        });
+      } else {
+        setTimeout(() => render(), 0);
+      }
+    }, 60000);
+  }
 
   function wipeRow(i, tr, prevProduct, toastMsg) {
     if (sales[i]) {

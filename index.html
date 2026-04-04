@@ -1304,6 +1304,8 @@
   #saveToast.show { opacity: 1; transform: translateY(0); }
   </style>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 
@@ -1867,14 +1869,31 @@
           </div>
         </div>
         <div class="settings-fields">
-          <div class="platform-row">
+          <div class="platform-row" style="flex-wrap:wrap;gap:10px">
             <div class="platform-info">
               <span class="platform-icon" style="background:#25d366">W</span>
-              <div><strong>WhatsApp</strong><p>Business API</p></div>
+              <div><strong>WhatsApp</strong><p>Click-to-chat / Business API</p></div>
             </div>
-            <span class="connected-badge connected">● Connected</span>
-            <label class="toggle-pill"><input type="checkbox" checked /><span class="pill-track"><span class="pill-thumb"></span></span></label>
-            <button class="settings-btn-outline danger">Disconnect</button>
+            <span class="connected-badge" id="waBadge" style="background:var(--surface2);color:var(--muted)">○ Not set up</span>
+          </div>
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:8px;display:flex;flex-direction:column;gap:12px">
+            <div class="settings-field" style="margin:0">
+              <label>WhatsApp Business Number</label>
+              <div style="display:flex;gap:8px">
+                <input type="tel" id="settingsWaNumber" placeholder="e.g. +2348120000000" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:0.85rem" />
+                <button class="settings-btn-outline" onclick="saveWaNumber()">Save</button>
+              </div>
+              <p style="font-size:0.75rem;color:var(--muted);margin:4px 0 0">Include country code (e.g. +234…). Enables click-to-chat links when contacting customers.</p>
+            </div>
+            <div style="border-top:1px solid var(--border);padding-top:12px">
+              <p style="font-size:0.82rem;font-weight:600;color:var(--text);margin:0 0 4px">Full Business API (automated messages)</p>
+              <p style="font-size:0.75rem;color:var(--muted);margin:0 0 8px">For automated order confirmations and alerts via WhatsApp, you need a Meta Business account + Twilio or 360dialog as the messaging provider. Paste your API credentials below:</p>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <input type="text" id="settingsWaApiToken" placeholder="API Token / Auth token" style="flex:1;min-width:160px;padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:0.8rem" />
+                <button class="settings-btn-outline" onclick="saveWaApiToken()">Save Token</button>
+              </div>
+              <p style="font-size:0.72rem;color:var(--muted);margin:6px 0 0">The token is stored locally in your browser. iFlow never sends it to any server.</p>
+            </div>
           </div>
           <div class="platform-row">
             <div class="platform-info">
@@ -2006,12 +2025,23 @@
         <div class="settings-fields">
           <div class="settings-row">
             <div class="settings-field">
-              <label>Export Sales Data</label>
-              <button class="settings-btn-solid">⬇ Download CSV (All Time)</button>
+              <label>Sales Report PDF</label>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="settings-btn-solid" onclick="downloadReport('today')">📊 Today</button>
+                <button class="settings-btn-solid" onclick="downloadReport('week')">📊 This Week</button>
+                <button class="settings-btn-solid" onclick="downloadReport('month')">📊 This Month</button>
+                <button class="settings-btn-solid" onclick="downloadReport('all')">📊 All Time</button>
+              </div>
             </div>
+          </div>
+          <div class="settings-row" style="margin-top:4px">
             <div class="settings-field">
-              <label>Export Orders</label>
-              <button class="settings-btn-solid">⬇ Download CSV (Today)</button>
+              <label>Trash Delete Password</label>
+              <div style="display:flex;gap:8px">
+                <input type="password" id="settingsTrashPw" placeholder="Set a password…" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:0.85rem" />
+                <button class="settings-btn-outline" onclick="saveTrashPassword()">Set</button>
+              </div>
+              <p style="font-size:0.75rem;color:var(--muted);margin:4px 0 0">Required to permanently delete items from Trash. Stored as a secure hash.</p>
             </div>
           </div>
           <div class="toggle-list">
@@ -2085,6 +2115,39 @@
     </div>
   </div>
 </div><!-- end page-settings -->
+
+<!-- Page: Subscription -->
+<div id="page-subscription" class="page-view" style="display:none;flex:1;min-width:0;overflow:hidden;align-items:center;justify-content:center;">
+  <div style="text-align:center;padding:60px 40px;max-width:480px">
+    <div style="font-size:4rem;margin-bottom:20px">🚀</div>
+    <h1 style="font-size:2rem;font-weight:800;color:var(--text);margin-bottom:12px">Coming Soon</h1>
+    <p style="color:var(--muted);font-size:1rem;line-height:1.6;margin-bottom:24px">
+      Subscription plans with advanced features — unlimited products, team access, cloud sync, and more — are on the way.
+    </p>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:24px;text-align:left;display:flex;flex-direction:column;gap:12px;margin-bottom:28px">
+      <div style="display:flex;align-items:center;gap:10px;color:var(--text);font-size:0.9rem"><span style="font-size:1.2rem">✅</span> Unlimited products &amp; variants</div>
+      <div style="display:flex;align-items:center;gap:10px;color:var(--text);font-size:0.9rem"><span style="font-size:1.2rem">✅</span> Multi-user team access</div>
+      <div style="display:flex;align-items:center;gap:10px;color:var(--text);font-size:0.9rem"><span style="font-size:1.2rem">✅</span> Automated WhatsApp &amp; SMS notifications</div>
+      <div style="display:flex;align-items:center;gap:10px;color:var(--text);font-size:0.9rem"><span style="font-size:1.2rem">✅</span> Advanced analytics &amp; profit tracking</div>
+      <div style="display:flex;align-items:center;gap:10px;color:var(--text);font-size:0.9rem"><span style="font-size:1.2rem">✅</span> Cloud backup &amp; cross-device sync</div>
+    </div>
+    <p style="color:var(--muted);font-size:0.82rem">Want early access? Leave your email in Settings → Store Profile and we'll reach out.</p>
+  </div>
+</div>
+
+<!-- Password Gate Modal (for permanent trash delete) -->
+<div id="pwGateModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9700;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border-radius:18px;padding:32px 28px;width:320px;box-shadow:0 12px 40px rgba(0,0,0,.3)">
+    <h3 style="margin:0 0 6px;font-size:1.05rem;font-weight:700;color:var(--text)" id="pwGateTitle">🔐 Confirm Deletion</h3>
+    <p style="margin:0 0 18px;font-size:0.82rem;color:var(--muted)" id="pwGateMsg">Enter your trash delete password to permanently remove this item.</p>
+    <input type="password" id="pwGateInput" placeholder="Enter password…" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:0.9rem;box-sizing:border-box;margin-bottom:6px" />
+    <div id="pwGateError" style="color:#e53e3e;font-size:0.78rem;min-height:18px;margin-bottom:10px"></div>
+    <div style="display:flex;gap:10px">
+      <button class="btn-add" style="flex:1;margin:0;padding:10px" id="pwGateConfirm">Confirm</button>
+      <button class="settings-btn-outline" style="flex:1;padding:10px" onclick="closePwGate()">Cancel</button>
+    </div>
+  </div>
+</div>
 
 </div><!-- end .app-body -->
 
@@ -2202,16 +2265,34 @@
     renderTrash(); updateTrashBadge();
   }
   function hardDeleteFromTrash(idx) {
-    trash.splice(idx, 1);
-    localStorage.setItem('iflow_trash', JSON.stringify(trash));
-    renderTrash(); updateTrashBadge();
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    if (s.trashPwHash) {
+      openPwGate('🔐 Permanent Delete', 'Enter your trash delete password to permanently remove this item.', () => {
+        trash.splice(idx, 1);
+        localStorage.setItem('iflow_trash', JSON.stringify(trash));
+        renderTrash(); updateTrashBadge();
+        showToast('Item permanently deleted');
+      });
+    } else {
+      trash.splice(idx, 1);
+      localStorage.setItem('iflow_trash', JSON.stringify(trash));
+      renderTrash(); updateTrashBadge();
+    }
   }
   function emptyTrash() {
     if (!trash.length) { showToast('Trash is already empty'); return; }
-    trash = [];
-    localStorage.setItem('iflow_trash', JSON.stringify(trash));
-    renderTrash(); updateTrashBadge();
-    showToast('Trash emptied');
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    const doEmpty = () => {
+      trash = [];
+      localStorage.setItem('iflow_trash', JSON.stringify(trash));
+      renderTrash(); updateTrashBadge();
+      showToast('Trash emptied');
+    };
+    if (s.trashPwHash) {
+      openPwGate('🔐 Empty Trash', 'Enter your trash delete password to permanently delete all items.', doEmpty);
+    } else {
+      doEmpty();
+    }
   }
   function renderTrash() {
     document.getElementById('trashDate').textContent = new Date().toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
@@ -2438,20 +2519,254 @@
   }
 
   function applySettings(settings) {
-    // Store name in header
     const nameEl = document.getElementById('headerStoreName');
     if (nameEl) nameEl.textContent = settings.storeName || 'Sales Tracker';
-    // Logo in header
     const logo = localStorage.getItem('iflow_logo');
     const avatarEl = document.getElementById('headerLogoAvatar');
-    if (avatarEl && logo) {
-      avatarEl.innerHTML = `<img src="${logo}" />`;
-    }
-    // Refresh price displays
+    if (avatarEl && logo) avatarEl.innerHTML = `<img src="${logo}" />`;
     render();
     updateTotal();
     const ordersPage = document.getElementById('page-orders');
     if (ordersPage && ordersPage.style.display !== 'none') renderOrders();
+  }
+
+  // ── WhatsApp settings ──
+  function saveWaNumber() {
+    const num = (document.getElementById('settingsWaNumber')?.value || '').trim();
+    if (!num) { showToast('Enter a WhatsApp number first'); return; }
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    s.waNumber = num;
+    localStorage.setItem('iflow_settings', JSON.stringify(s));
+    _updateWaBadge(num);
+    showToast('WhatsApp number saved ✓');
+  }
+  function saveWaApiToken() {
+    const tok = (document.getElementById('settingsWaApiToken')?.value || '').trim();
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    s.waApiToken = tok;
+    localStorage.setItem('iflow_settings', JSON.stringify(s));
+    showToast(tok ? 'WhatsApp API token saved ✓' : 'Token cleared');
+  }
+  function _updateWaBadge(num) {
+    const b = document.getElementById('waBadge');
+    if (!b) return;
+    if (num) { b.textContent = '● Connected'; b.style.color = '#25d366'; b.style.background = '#f0fff4'; }
+    else { b.textContent = '○ Not set up'; b.style.color = 'var(--muted)'; b.style.background = 'var(--surface2)'; }
+  }
+  function openWhatsApp(phone, message) {
+    const clean = (phone || '').replace(/\D/g,'');
+    const url = `https://wa.me/${clean}${message ? '?text=' + encodeURIComponent(message) : ''}`;
+    window.open(url, '_blank');
+  }
+
+  // ── Trash password (SHA-256 hash stored in localStorage) ──
+  async function _hashPw(pw) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+  }
+  async function saveTrashPassword() {
+    const pw = (document.getElementById('settingsTrashPw')?.value || '').trim();
+    if (!pw) { showToast('Enter a password first'); return; }
+    const hash = await _hashPw(pw);
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    s.trashPwHash = hash;
+    localStorage.setItem('iflow_settings', JSON.stringify(s));
+    document.getElementById('settingsTrashPw').value = '';
+    showToast('Trash password set ✓');
+  }
+
+  // Password gate modal
+  let _pwGateCb = null;
+  function openPwGate(title, msg, onSuccess) {
+    document.getElementById('pwGateTitle').textContent = title || '🔐 Confirm Deletion';
+    document.getElementById('pwGateMsg').textContent = msg || 'Enter your trash delete password.';
+    document.getElementById('pwGateInput').value = '';
+    document.getElementById('pwGateError').textContent = '';
+    _pwGateCb = onSuccess;
+    document.getElementById('pwGateModal').style.display = 'flex';
+    setTimeout(() => document.getElementById('pwGateInput').focus(), 80);
+  }
+  function closePwGate() {
+    document.getElementById('pwGateModal').style.display = 'none';
+    _pwGateCb = null;
+  }
+  document.getElementById('pwGateConfirm').addEventListener('click', async () => {
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    if (!s.trashPwHash) {
+      // No password set — allow without gate
+      closePwGate();
+      if (_pwGateCb) { const cb = _pwGateCb; _pwGateCb = null; cb(); }
+      return;
+    }
+    const pw = document.getElementById('pwGateInput').value;
+    const hash = await _hashPw(pw);
+    if (hash === s.trashPwHash) {
+      closePwGate();
+      if (_pwGateCb) { const cb = _pwGateCb; _pwGateCb = null; cb(); }
+    } else {
+      document.getElementById('pwGateError').textContent = '✗ Incorrect password. Try again.';
+      document.getElementById('pwGateInput').select();
+    }
+  });
+  document.getElementById('pwGateInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('pwGateConfirm').click();
+  });
+
+  // ── PDF Report with charts ──
+  async function downloadReport(period) {
+    const cur = getCurrency();
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    const storeName = s.storeName || 'iFlow Store';
+    const now = new Date();
+
+    // Filter sales by period
+    let filtered = sales;
+    let periodLabel = 'All Time';
+    if (period === 'today') {
+      const d = now.toLocaleDateString();
+      filtered = sales.filter(s => new Date(s.timestamp).toLocaleDateString() === d);
+      periodLabel = 'Today — ' + now.toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+    } else if (period === 'week') {
+      const weekAgo = now - 7 * 864e5;
+      filtered = sales.filter(s => s.timestamp >= weekAgo);
+      periodLabel = 'This Week (last 7 days)';
+    } else if (period === 'month') {
+      filtered = sales.filter(s => {
+        const d = new Date(s.timestamp);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      });
+      periodLabel = now.toLocaleDateString(undefined, { month:'long', year:'numeric' });
+    }
+
+    if (!filtered.length) { showToast('No sales data for this period'); return; }
+
+    // Build day-by-day revenue data
+    const dayMap = {};
+    filtered.forEach(s => {
+      const d = new Date(s.timestamp).toLocaleDateString(undefined, { month:'short', day:'numeric' });
+      dayMap[d] = (dayMap[d] || 0) + s.quantity * s.price;
+    });
+    const dayLabels = Object.keys(dayMap);
+    const dayValues = Object.values(dayMap);
+
+    // Build product revenue data (top 8)
+    const prodMap = {};
+    filtered.forEach(s => { prodMap[s.product] = (prodMap[s.product] || 0) + s.quantity * s.price; });
+    const prodEntries = Object.entries(prodMap).sort((a,b) => b[1]-a[1]).slice(0, 8);
+    const prodLabels = prodEntries.map(e => e[0]);
+    const prodValues = prodEntries.map(e => e[1]);
+
+    const totalRev  = filtered.reduce((sum,s) => sum + s.quantity * s.price, 0);
+    const totalQty  = filtered.reduce((sum,s) => sum + s.quantity, 0);
+    const totalProfit = filtered.reduce((sum, s) => {
+      const prod = products.find(p => p.name === s.product);
+      return sum + (prod?.costPrice !== undefined ? (s.price - prod.costPrice) * s.quantity : 0);
+    }, 0);
+
+    // Render bar chart off-screen
+    const barCanvas = document.createElement('canvas');
+    barCanvas.width = 900; barCanvas.height = 380;
+    barCanvas.style.position = 'fixed'; barCanvas.style.left = '-9999px';
+    document.body.appendChild(barCanvas);
+    const barChart = new Chart(barCanvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: dayLabels,
+        datasets: [{ label: 'Revenue', data: dayValues, backgroundColor: 'rgba(99,102,241,0.75)', borderRadius: 6 }]
+      },
+      options: {
+        responsive: false, animation: false,
+        plugins: { legend: { display: false }, title: { display: true, text: 'Revenue by Day', font: { size: 14 } } },
+        scales: { y: { beginAtZero: true, ticks: { callback: v => cur + v.toLocaleString() } } }
+      }
+    });
+
+    // Render doughnut chart off-screen
+    const donutCanvas = document.createElement('canvas');
+    donutCanvas.width = 440; donutCanvas.height = 380;
+    donutCanvas.style.position = 'fixed'; donutCanvas.style.left = '-9999px';
+    document.body.appendChild(donutCanvas);
+    const palette = ['#6366f1','#f59e0b','#10b981','#ef4444','#3b82f6','#8b5cf6','#ec4899','#14b8a6'];
+    const donutChart = new Chart(donutCanvas.getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: prodLabels,
+        datasets: [{ data: prodValues, backgroundColor: palette.slice(0, prodLabels.length), borderWidth: 2 }]
+      },
+      options: {
+        responsive: false, animation: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12 } },
+          title: { display: true, text: 'Revenue by Product', font: { size: 14 } }
+        }
+      }
+    });
+
+    // Brief pause for Chart.js to finish rendering
+    await new Promise(r => setTimeout(r, 120));
+
+    const barImg   = barCanvas.toDataURL('image/png');
+    const donutImg = donutCanvas.toDataURL('image/png');
+    barChart.destroy(); donutChart.destroy();
+    document.body.removeChild(barCanvas); document.body.removeChild(donutCanvas);
+
+    // Build PDF (A4 landscape: 297 x 210 mm)
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const W = 297, H = 210;
+
+    // Header bar
+    doc.setFillColor(99, 102, 241);
+    doc.rect(0, 0, W, 22, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14); doc.setTextColor(255, 255, 255);
+    doc.text(storeName + ' — Sales Report', 12, 14);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(periodLabel, W - 12, 14, { align: 'right' });
+
+    // Summary stats row
+    doc.setTextColor(50, 50, 50);
+    doc.setFillColor(245, 245, 255);
+    doc.roundedRect(10, 26, 85, 20, 3, 3, 'F');
+    doc.roundedRect(101, 26, 85, 20, 3, 3, 'F');
+    doc.roundedRect(192, 26, 95, 20, 3, 3, 'F');
+
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(100,100,100);
+    doc.text('TOTAL REVENUE', 15, 32);
+    doc.text('UNITS SOLD', 106, 32);
+    doc.text('EST. PROFIT', 197, 32);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(30,30,30);
+    doc.text(cur + fmtComma(totalRev), 15, 42);
+    doc.text(String(totalQty) + ' units', 106, 42);
+    doc.setTextColor(totalProfit >= 0 ? 16 : 220, totalProfit >= 0 ? 185 : 38, totalProfit >= 0 ? 129 : 38);
+    doc.text(cur + fmtComma(totalProfit), 197, 42);
+
+    // Charts
+    doc.addImage(barImg,   'PNG', 10,  50, 175, 80);
+    doc.addImage(donutImg, 'PNG', 190, 50, 97,  80);
+
+    // Top products table
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(50,50,50);
+    doc.text('Top Products', 10, 138);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+    let ty = 144;
+    prodEntries.forEach(([name, rev], idx) => {
+      doc.setFillColor(idx % 2 === 0 ? 248 : 255, 248, 255);
+      doc.rect(10, ty - 4, 277, 7, 'F');
+      doc.setTextColor(50,50,50);
+      doc.text(String(idx + 1) + '. ' + (name.length > 45 ? name.slice(0, 42) + '…' : name), 13, ty);
+      doc.text(cur + fmtComma(rev), 270, ty, { align: 'right' });
+      ty += 8;
+      if (ty > 200) return;
+    });
+
+    // Footer
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(160,160,160);
+    doc.text('Generated by iFlow · ' + now.toLocaleString(), W / 2, H - 4, { align: 'center' });
+
+    doc.save(`iFlow_Report_${period}_${now.toISOString().slice(0,10)}.pdf`);
+    showToast('PDF report downloaded ✓');
   }
 
   function liveApplyCurrency() {
@@ -3323,6 +3638,10 @@
     if (s.emailjsTemplateId) { const el = document.getElementById('settingsEjsTemplate'); if (el) el.value = s.emailjsTemplateId; }
     if (s.emailjsPublicKey)  { const el = document.getElementById('settingsEjsKey');      if (el) el.value = s.emailjsPublicKey; }
     if (s.emailjsPublicKey && typeof emailjs !== 'undefined') emailjs.init(s.emailjsPublicKey);
+    // WhatsApp
+    if (s.waNumber) { const el = document.getElementById('settingsWaNumber'); if (el) el.value = s.waNumber; }
+    if (s.waApiToken) { const el = document.getElementById('settingsWaApiToken'); if (el) el.value = s.waApiToken; }
+    _updateWaBadge(s.waNumber);
     // Restore logo preview
     const logo = localStorage.getItem('iflow_logo');
     if (logo) {

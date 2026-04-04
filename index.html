@@ -3533,16 +3533,16 @@
       for (let j = i + 1; j < products.length; j++) {
         const bWords = products[j].name.split(/\s+/);
         let common = 0;
-        const min = Math.min(aWords.length, bWords.length) - 1;
-        for (let k = 0; k < min; k++) {
+        const checkLen = Math.min(aWords.length, bWords.length);
+        for (let k = 0; k < checkLen; k++) {
           if (aWords[k].toLowerCase() === bWords[k].toLowerCase()) common++;
           else break;
         }
-        if (common >= 2) {
-          const cat = aWords.slice(0, common).join(' ');
-          if (products[i].category !== cat) { products[i].category = cat; if (!products[i].variant) products[i].variant = aWords.slice(common).join(' '); changed = true; }
-          if (products[j].category !== cat) { products[j].category = cat; if (!products[j].variant) products[j].variant = bWords.slice(common).join(' '); changed = true; }
-        }
+        if (common < 2) continue;
+        if (aWords.length === common && bWords.length === common) continue;
+        const cat = aWords.slice(0, common).join(' ');
+        if (products[i].category !== cat) { products[i].category = cat; if (!products[i].variant) products[i].variant = aWords.slice(common).join(' '); changed = true; }
+        if (products[j].category !== cat) { products[j].category = cat; if (!products[j].variant) products[j].variant = bWords.slice(common).join(' '); changed = true; }
       }
     }
     if (changed) localStorage.setItem('iflow_products', JSON.stringify(products));

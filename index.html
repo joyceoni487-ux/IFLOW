@@ -135,7 +135,7 @@
     .theme-toggle input:checked + .toggle-track .toggle-thumb { transform: translateX(22px); }
 
     .app-body { display: flex; align-items: flex-start; height: calc(100vh - 64px); overflow: hidden; }
-    .container { width: 820px; min-width: 560px; flex-shrink: 0; margin: 28px 0; padding: 0 28px; overflow-y: auto; height: 100%; }
+    .container { width: 820px; min-width: 560px; flex-shrink: 0; margin: 28px 0; padding: 0 28px 80px; overflow-y: auto; height: 100%; }
 
     /* ── Entry Card ── */
     .card {
@@ -1412,6 +1412,10 @@
         <label for="hpPrice">Price per Unit</label>
         <input id="hpPrice" type="number" min="0" step="0.01" placeholder="e.g. 999.99" />
       </div>
+      <div class="field">
+        <label for="hpCostPrice">Cost Price</label>
+        <input id="hpCostPrice" type="number" min="0" step="0.01" placeholder="e.g. 600.00" />
+      </div>
     </div>
     <div id="homeFormError" class="error-msg"></div>
     <button class="btn-add" onclick="addProductFromHome()">+ Add to Stock</button>
@@ -1597,6 +1601,10 @@
           <span class="stat-label">Low Stock Items</span>
           <span class="stat-value" id="statLowStockCount" style="color:#e53e3e">0</span>
         </div>
+        <div class="stat-card">
+          <span class="stat-label">Est. Profit</span>
+          <span class="stat-value" id="statProfit" style="color:#38a169">$0.00</span>
+        </div>
       </div>
     </div>
 
@@ -1636,6 +1644,10 @@
           <div class="field">
             <label>Unit Price</label>
             <input type="number" id="npPrice" min="0" step="0.01" placeholder="e.g. 999.99" />
+          </div>
+          <div class="field">
+            <label>Cost Price</label>
+            <input type="number" id="npCostPrice" min="0" step="0.01" placeholder="e.g. 600.00" />
           </div>
           <div class="field">
             <label>Low Stock Threshold</label>
@@ -2389,8 +2401,14 @@
       if (prev) { e.preventDefault(); prev.focus(); }
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      const next = inputs[cellIdx + 1] || rows[rowIdx + 1]?.querySelector('.cell-input');
-      if (next) next.focus();
+      const nextInRow = inputs[cellIdx + 1];
+      if (nextInRow) {
+        // More fields to fill in this row — move forward
+        nextInRow.focus();
+      } else {
+        // Last field: blur triggers the commit-or-warn focusout logic
+        inp.blur();
+      }
     }
   });
 
@@ -2570,9 +2588,9 @@
       return;
     }
 
-    // Normal mode: editable grid with blank rows
-    const minRows = 5;
-    const totalRows = Math.max(sales.length, minRows);
+    // Normal mode: editable grid with blank rows — always keep 3 buffer rows below last entry
+    const bufferRows = 3;
+    const totalRows = Math.max(sales.length + bufferRows, 8);
     for (let i = 0; i < totalRows; i++) {
       const s = sales[i];
       const sub = s ? s.quantity * s.price : null;
@@ -2639,11 +2657,9 @@
     const tbody = document.getElementById('salesBody');
     const lastRow = tbody.lastElementChild;
     const lastIndex = parseInt(lastRow.dataset.index);
-    if (lastIndex < sales.length) {
-      const minRows = 5;
-      if (tbody.children.length <= sales.length || tbody.children.length < minRows) {
-        render();
-      }
+    // Keep at least 3 buffer rows below last committed sale
+    if (tbody.children.length < sales.length + 3) {
+      render();
     }
   });
 
@@ -3446,7 +3462,7 @@
 
   // Allow Enter key to submit
   document.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && ['hpName','hpQty','hpPrice'].includes(e.target.id)) {
+    if (e.key === 'Enter' && ['hpName','hpQty','hpPrice','hpCostPrice'].includes(e.target.id)) {
       addProductFromHome();
     }
   });
@@ -3738,9 +3754,11 @@
   }
 
   function addProductFromHome() {
-    const rawName   = document.getElementById('hpName').value.trim();
-    const stockQty  = parseFloat(document.getElementById('hpQty').value) || 0;
-    const unitPrice = parseFloat(document.getElementById('hpPrice').value) || 0;
+    const rawName    = document.getElementById('hpName').value.trim();
+    const stockQty   = parseFloat(document.getElementById('hpQty').value) || 0;
+    const unitPrice  = parseFloat(document.getElementById('hpPrice').value) || 0;
+    const costPriceH = document.getElementById('hpCostPrice').value;
+    const costPrice  = costPriceH !== '' ? parseFloat(costPriceH) : undefined;
     const errEl     = document.getElementById('homeFormError');
     errEl.style.display = 'none';
     if (!rawName) { errEl.textContent = 'Product name is required.'; errEl.style.display = 'block'; return; }
@@ -3758,13 +3776,14 @@
     if (existingIdx !== -1) {
       products[existingIdx].stockQty += stockQty;
       if (unitPrice) products[existingIdx].unitPrice = unitPrice;
+      if (costPrice !== undefined) products[existingIdx].costPrice = costPrice;
       localStorage.setItem('iflow_products', JSON.stringify(products));
       renderProducts(); refreshProductsList();
       SheetsAPI.withToken(() => SheetsAPI.updateProduct(existingIdx, products[existingIdx]));
       showToast(`"${displayName}" restocked (+${stockQty})`);
     } else {
       pushUndo('products');
-      const p = { code, name: displayName, category, variant, type: '', stockQty, unitPrice, lowStockThreshold: defThresh, dateAdded: new Date().toLocaleDateString() };
+      const p = { code, name: displayName, category, variant, type: '', stockQty, unitPrice, costPrice, lowStockThreshold: defThresh, dateAdded: new Date().toLocaleDateString() };
       products.push(p);
       sendEmailAlert(`New Stock Added: ${displayName}`, `"${displayName}" was added to stock. Qty: ${stockQty}. Time: ${new Date().toLocaleString()}`);
       localStorage.setItem('iflow_products', JSON.stringify(products));
@@ -3773,7 +3792,7 @@
       showToast(`"${displayName}" added to stock`);
     }
     checkLowStock();
-    ['hpName','hpQty','hpPrice'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    ['hpName','hpQty','hpPrice','hpCostPrice'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     document.getElementById('hpHint').textContent = '';
     document.getElementById('hpName').focus();
   }
@@ -3797,9 +3816,11 @@
     if (npVariant) regroupSiblings(npCat);
     const name      = npDisplayName;
     const type      = document.getElementById('npType').value.trim();
-    const stockQty  = parseFloat(document.getElementById('npQty').value) || 0;
-    const unitPrice = parseFloat(document.getElementById('npPrice').value) || 0;
-    const settings  = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    const stockQty   = parseFloat(document.getElementById('npQty').value) || 0;
+    const unitPrice  = parseFloat(document.getElementById('npPrice').value) || 0;
+    const costPriceV = document.getElementById('npCostPrice').value;
+    const costPrice  = costPriceV !== '' ? parseFloat(costPriceV) : undefined;
+    const settings   = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
     const defThresh = parseInt(settings.lowStockThreshold) || 5;
     const threshold = parseInt(document.getElementById('npThreshold').value) || defThresh;
     const code      = document.getElementById('npCode').value || generateProductCode(type);
@@ -3812,6 +3833,7 @@
       const existing = products[existingIdx];
       existing.stockQty = existing.stockQty + stockQty;
       existing.unitPrice = unitPrice || existing.unitPrice;
+      if (costPrice !== undefined) existing.costPrice = costPrice;
       existing.type = type || existing.type;
       existing.lowStockThreshold = threshold;
       if (!existing.category) existing.category = existing.name;
@@ -3823,12 +3845,12 @@
       toggleAddProductForm();
       showToast(`"${name}" stock updated (+${stockQty})`);
       checkLowStock();
-      ['npName','npType','npQty','npPrice','npThreshold','npCode'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+      ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
       return;
     }
 
     pushUndo('products');
-    const p = { code, name, category: npCat, variant: npVariant, type, stockQty, unitPrice, lowStockThreshold: threshold, dateAdded: new Date().toLocaleDateString() };
+    const p = { code, name, category: npCat, variant: npVariant, type, stockQty, unitPrice, costPrice, lowStockThreshold: threshold, dateAdded: new Date().toLocaleDateString() };
     products.push(p);
     sendEmailAlert(`New Stock Added: ${name}`, `"${name}" was added to stock. Qty: ${stockQty}. Time: ${new Date().toLocaleString()}`);
     localStorage.setItem('iflow_products', JSON.stringify(products));
@@ -3870,6 +3892,19 @@
 
     const totalVal = filtered.reduce((s,p) => s + p.stockQty * p.unitPrice, 0);
     const lowCount = filtered.filter(p => p.stockQty <= (p.lowStockThreshold || defThresh)).length;
+
+    // Profit = sum of (salePrice - costPrice) * qty for all sales where product has a costPrice
+    const profitTotal = sales.reduce((sum, s) => {
+      const prod = products.find(p => p.name === s.product);
+      if (!prod || prod.costPrice === undefined) return sum;
+      return sum + (s.price - prod.costPrice) * s.quantity;
+    }, 0);
+    const profitEl = document.getElementById('statProfit');
+    if (profitEl) {
+      profitEl.textContent = cur + fmtComma(profitTotal);
+      profitEl.style.color = profitTotal >= 0 ? '#38a169' : '#e53e3e';
+    }
+
     document.getElementById('statTotalProducts').textContent = filtered.length;
     document.getElementById('statStockValue').textContent = cur + fmtComma(totalVal);
     document.getElementById('statLowStockCount').textContent = lowCount;

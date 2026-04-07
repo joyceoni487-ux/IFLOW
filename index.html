@@ -1252,6 +1252,9 @@
   .restored-flash { animation: restoredPulse 1s ease; }
   @keyframes restoredPulse { 0%,100%{background:transparent} 40%{background:rgba(72,199,116,.25)} }
   #rowContextMenu { position:fixed; z-index:9900; background:var(--surface); border:1px solid var(--border2); border-radius:10px; box-shadow:0 8px 32px rgba(0,0,0,.35); padding:6px 0; min-width:170px; display:none; }
+  tr.row-selected td { background:rgba(99,102,241,.13) !important; }
+  tr.row-selected { outline:2px solid var(--accent); outline-offset:-2px; }
+  #selectionBar { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--surface); border:1.5px solid var(--border2); border-radius:14px; padding:12px 20px; box-shadow:0 8px 40px rgba(0,0,0,.3); display:none; align-items:center; gap:16px; z-index:9800; white-space:nowrap; }
   .ctx-item { padding:10px 18px; font-size:0.86rem; color:var(--text); cursor:pointer; display:flex; align-items:center; gap:10px; transition:background .15s; }
   .ctx-item:hover { background:var(--surface2); }
   .ctx-item.danger { color:#e53e3e; }
@@ -1440,7 +1443,7 @@
         </div>
       </div>
       <div class="summary" style="margin-top:10px">
-        <div></div>
+        <div style="font-size:0.82rem;color:var(--muted)" id="todayProfitWrap" style="display:none">Today's Profit: <span id="todayProfitCur" style="color:var(--muted)">$</span><span id="todayProfit" style="font-weight:700;color:#38a169">—</span></div>
         <div class="daily-total">Daily Total: <span id="dailyTotalCur">$</span><span id="dailyTotal">0.00</span></div>
       </div>
 
@@ -1705,8 +1708,15 @@
 <!-- Row Context Menu -->
 <div id="rowContextMenu">
   <div class="ctx-item" id="ctxEdit">✏️ Edit row</div>
-  <div class="ctx-item" id="ctxSelect">☑️ Select</div>
+  <div class="ctx-item" id="ctxSelect">☑️ Select &amp; multi-delete</div>
   <div class="ctx-item danger" id="ctxDelete">🗑️ Delete</div>
+</div>
+
+<!-- Multi-select action bar -->
+<div id="selectionBar">
+  <span id="selectionCount" style="font-weight:700;color:var(--text);min-width:90px">0 selected</span>
+  <button class="btn-add" style="margin:0;padding:8px 18px;font-size:0.82rem;background:#ef4444;border-color:#ef4444" onclick="deleteSelectedRows()">🗑 Delete Selected</button>
+  <button class="settings-btn-outline" style="padding:8px 18px;font-size:0.82rem" onclick="cancelSelection()">✕ Cancel</button>
 </div>
 
 <!-- Trash Page -->
@@ -2075,7 +2085,7 @@
           <span class="settings-icon">📧</span>
           <div>
             <h3>Email Alerts</h3>
-            <p>Receive email notifications for low stock, new additions, and deletions</p>
+            <p>Receive email notifications for low stock, new stock additions, and sales events</p>
           </div>
         </div>
         <div class="settings-fields">
@@ -2087,22 +2097,47 @@
                 <option value="1">Enabled</option>
               </select>
             </div>
-            <div class="settings-field">
-              <label>EmailJS Service ID</label>
-              <input type="text" id="settingsEjsService" placeholder="e.g. service_abc123" />
+          </div>
+
+          <!-- Gmail API (recommended) -->
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px">
+            <p style="font-size:0.85rem;font-weight:700;color:var(--text);margin:0 0 4px">🟢 Option A — Gmail API (recommended, sends automatically)</p>
+            <p style="font-size:0.75rem;color:var(--muted);margin:0 0 12px">Paste your OAuth 2.0 Client ID from Google Cloud Console, then click Connect. Emails send silently in the background. Token is stored locally — never sent to any server.</p>
+            <div class="settings-row" style="margin-bottom:10px">
+              <div class="settings-field full">
+                <label>Google OAuth Client ID</label>
+                <input type="text" id="settingsGoogleClientId" placeholder="e.g. 123456789-abc.apps.googleusercontent.com" />
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+              <button class="settings-btn-solid" onclick="connectGmail()">🔗 Connect Gmail</button>
+              <span id="gmailStatus" style="font-size:0.82rem;color:var(--muted)">○ Not connected</span>
+              <button class="settings-btn-outline danger" onclick="disconnectGmail()" id="gmailDisconnectBtn" style="display:none;font-size:0.78rem;padding:6px 12px">Disconnect</button>
+            </div>
+            <p style="font-size:0.72rem;color:var(--muted);margin:8px 0 0">After clicking Connect, a Google sign-in popup will appear asking for permission to send email on your behalf. You only need to do this once.</p>
+          </div>
+
+          <!-- EmailJS fallback -->
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px">
+            <p style="font-size:0.85rem;font-weight:700;color:var(--text);margin:0 0 4px">🔵 Option B — EmailJS (requires free account at emailjs.com)</p>
+            <div class="settings-row" style="margin-top:10px">
+              <div class="settings-field">
+                <label>EmailJS Service ID</label>
+                <input type="text" id="settingsEjsService" placeholder="e.g. service_abc123" />
+              </div>
+              <div class="settings-field">
+                <label>EmailJS Template ID</label>
+                <input type="text" id="settingsEjsTemplate" placeholder="e.g. template_xyz789" />
+              </div>
+            </div>
+            <div class="settings-row">
+              <div class="settings-field">
+                <label>EmailJS Public Key</label>
+                <input type="text" id="settingsEjsKey" placeholder="e.g. user_AbCdEfGh" />
+              </div>
             </div>
           </div>
-          <div class="settings-row">
-            <div class="settings-field">
-              <label>EmailJS Template ID</label>
-              <input type="text" id="settingsEjsTemplate" placeholder="e.g. template_xyz789" />
-            </div>
-            <div class="settings-field">
-              <label>EmailJS Public Key</label>
-              <input type="text" id="settingsEjsKey" placeholder="e.g. user_AbCdEfGh" />
-            </div>
-          </div>
-          <p style="font-size:0.78rem;color:var(--muted);margin:4px 0 0">📬 <strong>Without EmailJS:</strong> alerts open your default email app (Gmail, Outlook, etc.) pre-filled — just click Send. <strong>With EmailJS:</strong> emails send automatically in the background — create a free account at <strong>emailjs.com</strong> and set credentials above. Template variables: <code>to_email</code>, <code>to_name</code>, <code>subject</code>, <code>message</code>, <code>store_name</code>.</p>
+          <p style="font-size:0.75rem;color:var(--muted);margin:8px 0 0">If neither is configured, alerts open your default email app pre-filled so you can click Send manually.</p>
         </div>
       </div>
 
@@ -2352,20 +2387,22 @@
   function sendEmailAlert(subject, body) {
     const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
     if (!s.email || !s.emailAlertsEnabled) return;
-    // Throttle: same alert type at most once per 5 minutes
     const key = subject.slice(0, 40);
     const now = Date.now();
     if (_emailThrottle[key] && now - _emailThrottle[key] < 5 * 60 * 1000) return;
     _emailThrottle[key] = now;
 
-    if (s.emailjsServiceId && s.emailjsTemplateId && s.emailjsPublicKey && typeof emailjs !== 'undefined') {
-      // Automated silent send via EmailJS
+    // Priority: Gmail API → EmailJS → mailto fallback
+    if (s.gmailToken && Date.now() < (s.gmailExpiry || 0)) {
+      _sendViaGmail(s.email, subject, body).then(ok => {
+        if (!ok) _openMailto(s.email, subject, body);
+      });
+    } else if (s.emailjsServiceId && s.emailjsTemplateId && s.emailjsPublicKey && typeof emailjs !== 'undefined') {
       emailjs.send(s.emailjsServiceId, s.emailjsTemplateId, {
         to_email: s.email, to_name: s.ownerName || 'Store Owner',
         subject, message: body, store_name: s.storeName || 'iFlow Store'
-      }).catch(() => _openMailto(s.email, subject, body)); // fallback if send fails
+      }).catch(() => _openMailto(s.email, subject, body));
     } else {
-      // Open default email client with alert pre-filled — user just clicks Send
       _openMailto(s.email, subject, body);
     }
   }
@@ -2382,41 +2419,116 @@
   let _lpTimer = null;
   let _lastTap = 0;
 
+  // ── Multi-select state ──
+  let _selectMode = false;
+  const _selectedRows = new Set();
+
+  function enterSelectMode(tr) {
+    _selectMode = true;
+    document.getElementById('selectionBar').style.display = 'flex';
+    _toggleRowSel(tr);
+  }
+  function _toggleRowSel(tr) {
+    if (!tr) return;
+    if (_selectedRows.has(tr)) { _selectedRows.delete(tr); tr.classList.remove('row-selected'); }
+    else { _selectedRows.add(tr); tr.classList.add('row-selected'); }
+    const n = _selectedRows.size;
+    document.getElementById('selectionCount').textContent = n + ' row' + (n !== 1 ? 's' : '') + ' selected';
+    if (n === 0) cancelSelection();
+  }
+  function cancelSelection() {
+    _selectMode = false;
+    _selectedRows.forEach(tr => tr.classList.remove('row-selected'));
+    _selectedRows.clear();
+    document.getElementById('selectionBar').style.display = 'none';
+  }
+  function deleteSelectedRows() {
+    const n = _selectedRows.size;
+    if (!n) return;
+    showConfirm('Delete ' + n + ' item' + (n > 1 ? 's' : ''), 'Permanently remove ' + n + ' selected row' + (n > 1 ? 's' : '') + '?', () => {
+      // Group rows by their table body
+      const byBody = {};
+      _selectedRows.forEach(tr => {
+        const bid = tr.closest('tbody')?.id || 'unknown';
+        if (!byBody[bid]) byBody[bid] = [];
+        byBody[bid].push(parseInt(tr.dataset.index));
+      });
+
+      if (byBody.salesBody) {
+        const indices = byBody.salesBody.filter(i => !isNaN(i) && sales[i]).sort((a,b) => b-a);
+        pushUndo('sales');
+        indices.forEach(i => {
+          const {product, quantity} = sales[i];
+          moveToTrash('sale', sales[i], i);
+          if (product && quantity) deductStock(product, -quantity);
+          sales.splice(i, 1);
+        });
+        persist(); _refreshProfitStat(); render();
+      }
+      if (byBody.productsBody) {
+        const indices = byBody.productsBody.filter(i => !isNaN(i) && products[i]).sort((a,b) => b-a);
+        pushUndo('products');
+        indices.forEach(i => { moveToTrash('product', products[i], i); products.splice(i, 1); });
+        localStorage.setItem('iflow_products', JSON.stringify(products));
+        renderProducts(); refreshProductsList();
+      }
+      cancelSelection();
+      updateTrashBadge();
+    });
+  }
+
+  // ── Long-press → enter select mode | double-click → context menu ──
   function _lpStart(e) {
     const tr = e.target.closest && e.target.closest('tbody tr');
     if (!tr || e.target.closest('button') || e.target.closest('input')) return;
-    _lpTimer = setTimeout(() => { _lpTimer = null; openContextMenu(tr, e); }, 600);
+    _lpTimer = setTimeout(() => {
+      _lpTimer = null;
+      if (_selectMode) { _toggleRowSel(tr); }
+      else { enterSelectMode(tr); }
+    }, 600);
   }
   function _lpCancel() { if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; } }
 
   document.addEventListener('mousedown', _lpStart);
-  document.addEventListener('mouseup', _lpCancel);
+  document.addEventListener('mouseup',   _lpCancel);
   document.addEventListener('mousemove', _lpCancel);
 
-  // Double-click (desktop)
+  // In select mode, normal clicks toggle rows instead of editing
+  document.addEventListener('click', e => {
+    if (!_selectMode) return;
+    const tr = e.target.closest && e.target.closest('tbody tr');
+    if (!tr || e.target.closest('button')) return;
+    e.preventDefault(); e.stopPropagation();
+    _toggleRowSel(tr);
+  }, true); // capture phase so it runs before focusout handlers
+
+  // Double-click → single-row context menu (works outside select mode)
   document.addEventListener('dblclick', e => {
+    if (_selectMode) return;
     const tr = e.target.closest && e.target.closest('tbody tr');
     if (!tr || e.target.closest('button') || e.target.closest('input')) return;
     openContextMenu(tr, e);
   });
 
-  // Touch: long-press + double-tap
+  // Touch long-press + double-tap
   document.addEventListener('touchstart', e => {
     const tr = e.target.closest && e.target.closest('tbody tr');
     if (!tr || e.target.closest('button') || e.target.closest('input')) return;
     const touch = e.touches[0];
-    _lpTimer = setTimeout(() => { _lpTimer = null; openContextMenu(tr, touch); }, 600);
+    _lpTimer = setTimeout(() => {
+      _lpTimer = null;
+      if (_selectMode) { _toggleRowSel(tr); }
+      else { enterSelectMode(tr); }
+    }, 600);
   }, { passive: true });
   document.addEventListener('touchend', e => {
-    if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; return; } // cancelled = short tap
-    // Double-tap detection
+    if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; return; }
     const tr = e.target.closest && e.target.closest('tbody tr');
     if (!tr || e.target.closest('button') || e.target.closest('input')) return;
+    if (_selectMode) { e.preventDefault(); _toggleRowSel(tr); return; }
+    // Double-tap → context menu
     const now = Date.now();
-    if (now - _lastTap < 320) {
-      e.preventDefault();
-      openContextMenu(tr, e.changedTouches[0]);
-    }
+    if (now - _lastTap < 320) { e.preventDefault(); openContextMenu(tr, e.changedTouches[0]); }
     _lastTap = now;
   });
   document.addEventListener('touchmove', _lpCancel, { passive: true });
@@ -2429,33 +2541,30 @@
     menu.style.top  = Math.min(y + 8, window.innerHeight - 140) + 'px';
     menu.style.display = 'block';
     menu._row = tr;
-    // Wait long enough so the mouseup/touchend click doesn't immediately close it
     setTimeout(() => document.addEventListener('click', _closeCtx, { once: true }), 400);
   }
   function _closeCtx() { document.getElementById('rowContextMenu').style.display = 'none'; }
 
   document.getElementById('ctxEdit').addEventListener('click', () => {
     const tr = document.getElementById('rowContextMenu')._row;
-    _closeCtx(); // close menu first so focus isn't stolen back
-    if (tr) {
-      // Delay one tick so the menu is gone before focus is set
-      setTimeout(() => {
-        const inp = tr.querySelector('input.cell-input');
-        if (inp) inp.focus();
-        else {
-          // Products table — make first editable cell stand out
-          const td = tr.querySelector('td:nth-child(3)');
-          if (td) { td.style.outline = '2px solid var(--accent)'; setTimeout(() => td.style.outline = '', 1500); }
-        }
-      }, 20);
-    }
+    _closeCtx();
+    if (tr) setTimeout(() => {
+      const inp = tr.querySelector('input.cell-input');
+      if (inp) inp.focus();
+      else {
+        const td = tr.querySelector('td:nth-child(3)');
+        if (td) { td.style.outline = '2px solid var(--accent)'; setTimeout(() => td.style.outline = '', 1500); }
+      }
+    }, 20);
   });
   document.getElementById('ctxSelect').addEventListener('click', () => {
     const tr = document.getElementById('rowContextMenu')._row;
-    if (tr) tr.style.outline = tr.style.outline ? '' : '2px solid var(--accent)';
+    _closeCtx();
+    if (tr) { if (!_selectMode) enterSelectMode(tr); else _toggleRowSel(tr); }
   });
   document.getElementById('ctxDelete').addEventListener('click', () => {
     const tr = document.getElementById('rowContextMenu')._row;
+    _closeCtx();
     if (!tr) return;
     const idx = parseInt(tr.dataset.index);
     const tbody = tr.closest('tbody');
@@ -2586,6 +2695,80 @@
     window.open(url, '_blank');
   }
 
+  // ── Gmail API (Google OAuth2 token client) ──
+  function connectGmail() {
+    const clientId = (document.getElementById('settingsGoogleClientId')?.value || '').trim();
+    if (!clientId) { showToast('Paste your Google OAuth Client ID first'); return; }
+    // Save client ID
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    s.googleClientId = clientId;
+    localStorage.setItem('iflow_settings', JSON.stringify(s));
+
+    if (typeof google === 'undefined' || !google.accounts?.oauth2) {
+      showToast('Google auth library not loaded — check internet connection'); return;
+    }
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: 'https://www.googleapis.com/auth/gmail.send',
+      callback: resp => {
+        if (resp.error) { showToast('Gmail connection failed: ' + resp.error); return; }
+        const s2 = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+        s2.gmailToken = resp.access_token;
+        s2.gmailExpiry = Date.now() + resp.expires_in * 1000;
+        localStorage.setItem('iflow_settings', JSON.stringify(s2));
+        _updateGmailStatus(true);
+        showToast('Gmail connected ✓ — email alerts will now send automatically');
+      }
+    });
+    client.requestAccessToken();
+  }
+  function disconnectGmail() {
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    delete s.gmailToken; delete s.gmailExpiry;
+    localStorage.setItem('iflow_settings', JSON.stringify(s));
+    _updateGmailStatus(false);
+    showToast('Gmail disconnected');
+  }
+  function _updateGmailStatus(connected) {
+    const el = document.getElementById('gmailStatus');
+    const btn = document.getElementById('gmailDisconnectBtn');
+    if (el) { el.textContent = connected ? '● Connected — emails send automatically' : '○ Not connected'; el.style.color = connected ? '#38a169' : 'var(--muted)'; }
+    if (btn) btn.style.display = connected ? '' : 'none';
+  }
+  async function _sendViaGmail(to, subject, body) {
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    if (!s.gmailToken || Date.now() > (s.gmailExpiry || 0)) return false;
+    const from = s.email || '';
+    const raw = [
+      'From: ' + (s.storeName || 'iFlow') + (from ? ' <' + from + '>' : ''),
+      'To: ' + to,
+      'Subject: ' + subject,
+      'MIME-Version: 1.0',
+      'Content-Type: text/plain; charset=UTF-8',
+      '',
+      body
+    ].join('\r\n');
+    // base64url encode
+    const encoded = btoa(unescape(encodeURIComponent(raw)))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    try {
+      const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + s.gmailToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ raw: encoded })
+      });
+      if (res.status === 401) {
+        // Token expired — clear it and fall back
+        const s2 = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+        delete s2.gmailToken; delete s2.gmailExpiry;
+        localStorage.setItem('iflow_settings', JSON.stringify(s2));
+        _updateGmailStatus(false);
+        return false;
+      }
+      return res.ok;
+    } catch(e) { return false; }
+  }
+
   // ── Trash password (SHA-256 hash stored in localStorage) ──
   async function _hashPw(pw) {
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
@@ -2594,7 +2777,9 @@
   async function saveTrashPassword() {
     const pw = (document.getElementById('settingsTrashPw')?.value || '').trim();
     if (!pw) { showToast('Enter a password first'); return; }
-    const hash = await _hashPw(pw);
+    let hash;
+    try { hash = await _hashPw(pw); }
+    catch(e) { hash = 'plain:' + pw; } // fallback for non-secure contexts
     const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
     s.trashPwHash = hash;
     localStorage.setItem('iflow_settings', JSON.stringify(s));
@@ -2619,20 +2804,32 @@
   }
   document.getElementById('pwGateConfirm').addEventListener('click', async () => {
     const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    // Capture callback BEFORE closePwGate() nullifies it
+    const cb = _pwGateCb;
     if (!s.trashPwHash) {
-      // No password set — allow without gate
       closePwGate();
-      if (_pwGateCb) { const cb = _pwGateCb; _pwGateCb = null; cb(); }
+      if (cb) cb();
       return;
     }
     const pw = document.getElementById('pwGateInput').value;
-    const hash = await _hashPw(pw);
-    if (hash === s.trashPwHash) {
-      closePwGate();
-      if (_pwGateCb) { const cb = _pwGateCb; _pwGateCb = null; cb(); }
-    } else {
-      document.getElementById('pwGateError').textContent = '✗ Incorrect password. Try again.';
-      document.getElementById('pwGateInput').select();
+    if (!pw) { document.getElementById('pwGateError').textContent = '✗ Enter your password.'; return; }
+    try {
+      const hash = await _hashPw(pw);
+      if (hash === s.trashPwHash) {
+        closePwGate();
+        if (cb) cb();
+      } else {
+        document.getElementById('pwGateError').textContent = '✗ Incorrect password. Try again.';
+        document.getElementById('pwGateInput').select();
+      }
+    } catch(err) {
+      // crypto.subtle unavailable (non-secure context) — compare plaintext as last resort
+      const stored = s.trashPwHash;
+      if (stored.startsWith('plain:') && stored.slice(6) === pw) {
+        closePwGate(); if (cb) cb();
+      } else {
+        document.getElementById('pwGateError').textContent = '✗ Incorrect password.';
+      }
     }
   });
   document.getElementById('pwGateInput').addEventListener('keydown', e => {
@@ -2876,11 +3073,35 @@
   }
 
   function updateTotal() {
+    const cur = getCurrency();
     const total = sales.reduce((sum, s) => sum + s.quantity * s.price, 0);
     const el = document.getElementById('dailyTotal');
-    el.textContent = fmtComma(total);
-    el.dataset.val = total;
-    document.getElementById('dailyTotalCur').textContent = getCurrency();
+    if (el) { el.textContent = fmtComma(total); el.dataset.val = total; }
+    const curEl = document.getElementById('dailyTotalCur');
+    if (curEl) curEl.textContent = cur;
+
+    // Today's profit — only show when at least one product has a cost price
+    const todayStr = new Date().toLocaleDateString();
+    let profitKnown = false;
+    const todayProfit = sales.reduce((sum, s) => {
+      if (new Date(s.timestamp).toLocaleDateString() !== todayStr) return sum;
+      const prod = products.find(p => p.name === s.product);
+      if (!prod || prod.costPrice === undefined) return sum;
+      profitKnown = true;
+      return sum + (s.price - prod.costPrice) * s.quantity;
+    }, 0);
+    const profWrap = document.getElementById('todayProfitWrap');
+    const profEl   = document.getElementById('todayProfit');
+    const profCur  = document.getElementById('todayProfitCur');
+    if (profWrap && profEl) {
+      profWrap.style.display = profitKnown ? '' : 'none';
+      if (profitKnown) {
+        if (profCur) profCur.textContent = cur;
+        profEl.textContent = fmtComma(todayProfit);
+        profEl.style.color = todayProfit >= 0 ? '#38a169' : '#e53e3e';
+      }
+    }
+    _refreshProfitStat();
   }
 
   function updateSubtotal(i) {
@@ -3666,6 +3887,9 @@
     if (s.emailjsTemplateId) { const el = document.getElementById('settingsEjsTemplate'); if (el) el.value = s.emailjsTemplateId; }
     if (s.emailjsPublicKey)  { const el = document.getElementById('settingsEjsKey');      if (el) el.value = s.emailjsPublicKey; }
     if (s.emailjsPublicKey && typeof emailjs !== 'undefined') emailjs.init(s.emailjsPublicKey);
+    // Gmail
+    if (s.googleClientId) { const el = document.getElementById('settingsGoogleClientId'); if (el) el.value = s.googleClientId; }
+    _updateGmailStatus(!!(s.gmailToken && Date.now() < (s.gmailExpiry || 0)));
     // WhatsApp
     if (s.waNumber) { const el = document.getElementById('settingsWaNumber'); if (el) el.value = s.waNumber; }
     if (s.waApiToken) { const el = document.getElementById('settingsWaApiToken'); if (el) el.value = s.waApiToken; }

@@ -2480,7 +2480,10 @@
   // ── Long-press → enter select mode | double-click → context menu ──
   function _lpStart(e) {
     const tr = e.target.closest && e.target.closest('tbody tr');
-    if (!tr || e.target.closest('button') || e.target.closest('input')) return;
+    // Only allow select mode on actual data rows (those with data-index).
+    // Category-header rows and expand rows have no data-index — long-pressing
+    // them must not accidentally enter select mode.
+    if (!tr || !tr.dataset.index || e.target.closest('button') || e.target.closest('input')) return;
     _lpTimer = setTimeout(() => {
       _lpTimer = null;
       if (_selectMode) { _toggleRowSel(tr); }
@@ -2493,14 +2496,19 @@
   document.addEventListener('mouseup',   _lpCancel);
   document.addEventListener('mousemove', _lpCancel);
 
-  // In select mode, normal clicks toggle rows instead of editing
+  // In select mode, normal clicks toggle rows instead of editing.
+  // Only intercept rows that have data-index (actual data rows) — never
+  // category-header rows or expand-rows which have no data-index.
   document.addEventListener('click', e => {
     if (!_selectMode) return;
     const tr = e.target.closest && e.target.closest('tbody tr');
-    if (!tr || e.target.closest('button')) return;
+    if (!tr || !tr.dataset.index || e.target.closest('button')) return;
     e.preventDefault(); e.stopPropagation();
     _toggleRowSel(tr);
   }, true); // capture phase so it runs before focusout handlers
+
+  // Escape cancels select mode
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && _selectMode) cancelSelection(); });
 
   // Double-click → single-row context menu (works outside select mode)
   document.addEventListener('dblclick', e => {
@@ -2513,7 +2521,7 @@
   // Touch long-press + double-tap
   document.addEventListener('touchstart', e => {
     const tr = e.target.closest && e.target.closest('tbody tr');
-    if (!tr || e.target.closest('button') || e.target.closest('input')) return;
+    if (!tr || !tr.dataset.index || e.target.closest('button') || e.target.closest('input')) return;
     const touch = e.touches[0];
     _lpTimer = setTimeout(() => {
       _lpTimer = null;
@@ -4506,7 +4514,7 @@
         const p = items[0];
         const realIdx = products.indexOf(p);
         const isLow = p.stockQty <= (p.lowStockThreshold || defThresh);
-        rows.push(`<tr class="${isLow ? 'low-stock-row' : ''}" style="transition:opacity .35s,background .35s" id="prod-row-${realIdx}">
+        rows.push(`<tr class="${isLow ? 'low-stock-row' : ''}" style="transition:opacity .35s,background .35s" id="prod-row-${realIdx}" data-index="${realIdx}">
           <td class="row-num">${rowNum++}</td>
           <td style="padding:8px 12px"><span class="prod-code-cell">${escHtml(p.code)}</span></td>
           <td style="padding:10px 14px;font-weight:600;color:var(--text)">${escHtml(p.name)}</td>
@@ -4531,7 +4539,7 @@
         const variantRows = items.map(p => {
           const realIdx = products.indexOf(p);
           const isLow = p.stockQty <= (p.lowStockThreshold || defThresh);
-          return `<tr class="${isLow ? 'variant-row-low' : ''}">
+          return `<tr class="${isLow ? 'variant-row-low' : ''}" data-index="${realIdx}">
             <td><span class="prod-code-cell">${escHtml(p.code)}</span></td>
             <td style="font-weight:600;color:var(--text)">${escHtml(p.variant || p.name)}</td>
             <td style="color:${isLow?'#e53e3e':'inherit'};font-weight:${isLow?700:400}">${p.stockQty}${isLow?' ⚠':''}</td>

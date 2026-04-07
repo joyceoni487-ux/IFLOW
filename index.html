@@ -2435,9 +2435,19 @@
   function _closeCtx() { document.getElementById('rowContextMenu').style.display = 'none'; }
 
   document.getElementById('ctxEdit').addEventListener('click', () => {
-    if (document.getElementById('rowContextMenu')._row) {
-      const inp = document.getElementById('rowContextMenu')._row.querySelector('input.cell-input');
-      if (inp) inp.focus();
+    const tr = document.getElementById('rowContextMenu')._row;
+    _closeCtx(); // close menu first so focus isn't stolen back
+    if (tr) {
+      // Delay one tick so the menu is gone before focus is set
+      setTimeout(() => {
+        const inp = tr.querySelector('input.cell-input');
+        if (inp) inp.focus();
+        else {
+          // Products table — make first editable cell stand out
+          const td = tr.querySelector('td:nth-child(3)');
+          if (td) { td.style.outline = '2px solid var(--accent)'; setTimeout(() => td.style.outline = '', 1500); }
+        }
+      }, 20);
     }
   });
   document.getElementById('ctxSelect').addEventListener('click', () => {
@@ -2512,7 +2522,9 @@
     const emailjsTemplateId = (document.getElementById('settingsEjsTemplate')?.value || '').trim();
     const emailjsPublicKey  = (document.getElementById('settingsEjsKey')?.value || '').trim();
     if (emailjsPublicKey && typeof emailjs !== 'undefined') emailjs.init(emailjsPublicKey);
-    const settings = { storeName, ownerName, email, phone, currency, lowStockThreshold, emailAlertsEnabled, emailjsServiceId, emailjsTemplateId, emailjsPublicKey };
+    // Merge with existing settings so hashes/tokens set elsewhere are preserved
+    const existing = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    const settings = { ...existing, storeName, ownerName, email, phone, currency, lowStockThreshold, emailAlertsEnabled, emailjsServiceId, emailjsTemplateId, emailjsPublicKey };
     localStorage.setItem('iflow_settings', JSON.stringify(settings));
     applySettings(settings);
     showToast('Settings saved ✓');
@@ -2528,6 +2540,21 @@
     updateTotal();
     const ordersPage = document.getElementById('page-orders');
     if (ordersPage && ordersPage.style.display !== 'none') renderOrders();
+  }
+
+  // Lightweight profit-stat refresh — called after every sale commit so the
+  // Products page stays live even if the user never re-navigates to it
+  function _refreshProfitStat() {
+    const el = document.getElementById('statProfit');
+    if (!el) return;
+    const cur = getCurrency();
+    const total = sales.reduce((sum, s) => {
+      const prod = products.find(p => p.name === s.product);
+      if (!prod || prod.costPrice === undefined) return sum;
+      return sum + (s.price - prod.costPrice) * s.quantity;
+    }, 0);
+    el.textContent = cur + fmtComma(total);
+    el.style.color = total >= 0 ? '#38a169' : '#e53e3e';
   }
 
   // ── WhatsApp settings ──
@@ -3061,6 +3088,7 @@
           persist();
           SheetsAPI.withToken(() => SheetsAPI.updateRow(i, sales[i]));
           updateOrdersBadge();
+          _refreshProfitStat();
           delete _draftRows[i];
           clearTimeout(_wipeTimers[i]);
           delete _wipeTimers[i];
@@ -3767,6 +3795,7 @@
       SheetsAPI.withToken(() => SheetsAPI.deleteRow(index));
       sales.splice(index, 1);
       persist();
+      _refreshProfitStat();
     }
     render();
   }

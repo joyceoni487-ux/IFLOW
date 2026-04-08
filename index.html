@@ -2911,18 +2911,37 @@ Rules:
       contents,
       generationConfig: { maxOutputTokens: 600, temperature: 0.85 }
     };
-    const res = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + encodeURIComponent(s.geminiApiKey),
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
-    );
-    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error?.message || 'API error ' + res.status); }
-    const data = await res.json();
-    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '(No response)';
-    // Save to history (cap at 20 turns)
-    _aiHistory.push({ role: 'user', parts: [{ text: userText }] });
-    _aiHistory.push({ role: 'model', parts: [{ text: reply }] });
-    if (_aiHistory.length > 20) _aiHistory = _aiHistory.slice(-20);
-    return reply;
+    // Try models in order — each key/region may support different ones
+    const _AI_MODELS = [
+      'gemini-2.0-flash-lite',
+      'gemini-1.5-flash-8b',
+      'gemini-1.5-flash-001',
+      'gemini-1.5-pro-latest',
+      'gemini-pro'
+    ];
+    let lastErr = null;
+    for (const model of _AI_MODELS) {
+      const res = await fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(s.geminiApiKey),
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '(No response)';
+        _aiHistory.push({ role: 'user', parts: [{ text: userText }] });
+        _aiHistory.push({ role: 'model', parts: [{ text: reply }] });
+        if (_aiHistory.length > 20) _aiHistory = _aiHistory.slice(-20);
+        // Remember which model worked for the label
+        const lbl = document.getElementById('aiModelLabel');
+        if (lbl) lbl.textContent = model;
+        return reply;
+      }
+      const e = await res.json().catch(() => ({}));
+      lastErr = e.error?.message || ('API error ' + res.status);
+      // Only retry on not-found / quota; stop on auth errors
+      if (res.status === 400 && !lastErr.includes('not found') && !lastErr.includes('not supported')) break;
+    }
+    throw new Error(lastErr || 'All models failed');
   }
 
   function _buildStoreContext() {

@@ -2220,7 +2220,7 @@
         <span style="font-size:1.4rem">🤖</span>
         <div>
           <div style="font-weight:700;color:#fff;font-size:0.95rem">iFlow AI</div>
-          <div style="font-size:0.72rem;color:rgba(255,255,255,.75)" id="aiModelLabel">Gemini 2.0 Flash</div>
+          <div style="font-size:0.72rem;color:rgba(255,255,255,.75)" id="aiModelLabel">Gemini 1.5 Flash</div>
         </div>
       </div>
       <button onclick="closeAiChat()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center">✕</button>
@@ -2912,7 +2912,7 @@ Rules:
       generationConfig: { maxOutputTokens: 600, temperature: 0.85 }
     };
     const res = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + encodeURIComponent(s.geminiApiKey),
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + encodeURIComponent(s.geminiApiKey),
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
     );
     if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error?.message || 'API error ' + res.status); }

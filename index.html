@@ -1305,6 +1305,14 @@
     pointer-events: none;
   }
   #saveToast.show { opacity: 1; transform: translateY(0); }
+  /* AI Chat */
+  .ai-quick-btn { background:var(--surface2); border:1px solid var(--border2); color:var(--text); border-radius:20px; padding:5px 11px; font-size:0.74rem; font-weight:600; cursor:pointer; white-space:nowrap; transition:background .15s; }
+  .ai-quick-btn:hover { background:rgba(79,70,229,.12); border-color:var(--accent); }
+  .ai-msg { max-width:88%; padding:10px 14px; border-radius:16px; font-size:0.84rem; line-height:1.55; word-break:break-word; }
+  .ai-msg-user { align-self:flex-end; background:linear-gradient(135deg,#4f46e5,#7c3aed); color:#fff; border-bottom-right-radius:4px; }
+  .ai-msg-bot { align-self:flex-start; background:var(--surface2); color:var(--text); border-bottom-left-radius:4px; border:1px solid var(--border); }
+  .ai-msg-bot.typing { opacity:.6; font-style:italic; }
+  #aiFloatBtn:hover { transform:scale(1.1); }
   </style>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
@@ -2141,6 +2149,25 @@
         </div>
       </div>
 
+      <!-- AI Assistant -->
+      <div class="settings-section">
+        <h3 class="settings-section-title">🤖 AI Assistant (Gemini)</h3>
+        <p style="font-size:0.82rem;color:var(--muted);margin:0 0 14px">Paste your Google Gemini API key to enable the AI assistant. The key is stored locally and never sent to any third-party server except Google's Gemini API.</p>
+        <div class="settings-row">
+          <div class="settings-field full">
+            <label>Gemini API Key</label>
+            <div style="display:flex;gap:8px">
+              <input type="password" id="settingsGeminiKey" placeholder="AIza…" style="flex:1" />
+              <button class="settings-btn-solid" onclick="saveGeminiKey()" style="white-space:nowrap">Save Key</button>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
+          <span id="geminiStatus" style="font-size:0.82rem;color:var(--muted)">○ Not configured</span>
+          <button class="settings-btn-outline" onclick="openAiChat()" id="aiTestBtn" style="display:none;font-size:0.78rem;padding:6px 14px">💬 Open AI Chat</button>
+        </div>
+      </div>
+
       <!-- Save Bar -->
       <div class="settings-save-bar">
         <span class="settings-save-hint">Changes are saved automatically</span>
@@ -2183,6 +2210,44 @@
     </div>
   </div>
 </div>
+
+<!-- AI Chat Modal -->
+<div id="aiChatModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9800;align-items:flex-end;justify-content:flex-end;padding:0 20px 90px 0" onclick="if(event.target===this)closeAiChat()">
+  <div style="background:var(--surface);border-radius:20px;width:360px;max-width:calc(100vw - 40px);box-shadow:0 16px 60px rgba(0,0,0,.35);display:flex;flex-direction:column;max-height:540px;overflow:hidden">
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#4f46e5,#7c3aed);padding:16px 18px;display:flex;align-items:center;justify-content:space-between;border-radius:20px 20px 0 0">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:1.4rem">🤖</span>
+        <div>
+          <div style="font-weight:700;color:#fff;font-size:0.95rem">iFlow AI</div>
+          <div style="font-size:0.72rem;color:rgba(255,255,255,.75)" id="aiModelLabel">Gemini 2.0 Flash</div>
+        </div>
+      </div>
+      <button onclick="closeAiChat()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center">✕</button>
+    </div>
+    <!-- Quick prompts -->
+    <div style="padding:10px 14px 0;display:flex;gap:6px;flex-wrap:wrap">
+      <button class="ai-quick-btn" onclick="sendAiQuick('Summarize today\'s sales and performance.')">📊 Today</button>
+      <button class="ai-quick-btn" onclick="sendAiQuick('Which products are low on stock and need restocking?')">⚠️ Restock</button>
+      <button class="ai-quick-btn" onclick="sendAiQuick('What are my top 5 best-selling products by revenue?')">🏆 Top Products</button>
+      <button class="ai-quick-btn" onclick="sendAiQuick('Give me a weekly profit and revenue summary.')">💰 Profit</button>
+    </div>
+    <!-- Messages -->
+    <div id="aiMessages" style="flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;min-height:200px;max-height:340px">
+      <div class="ai-msg ai-msg-bot">
+        <span>👋 Hi! I'm your iFlow AI assistant. Ask me anything about your sales, products, or stock — or tap a quick action above.</span>
+      </div>
+    </div>
+    <!-- Input -->
+    <div style="padding:12px 14px;border-top:1px solid var(--border);display:flex;gap:8px">
+      <input id="aiInput" type="text" placeholder="Ask about your store…" style="flex:1;padding:10px 14px;border:1px solid var(--border);border-radius:24px;background:var(--surface2);color:var(--text);font-size:0.85rem;outline:none" onkeydown="if(event.key==='Enter')sendAiMessage()" />
+      <button onclick="sendAiMessage()" id="aiSendBtn" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);border:none;color:#fff;border-radius:50%;width:40px;height:40px;cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;flex-shrink:0">➤</button>
+    </div>
+  </div>
+</div>
+
+<!-- Floating AI Button -->
+<button id="aiFloatBtn" onclick="openAiChat()" title="AI Assistant" style="display:none;position:fixed;bottom:22px;right:22px;z-index:9700;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#7c3aed);border:none;color:#fff;font-size:1.5rem;cursor:pointer;box-shadow:0 4px 20px rgba(79,70,229,.5);transition:transform .15s">🤖</button>
 
 </div><!-- end .app-body -->
 
@@ -2785,6 +2850,115 @@
       }
       return res.ok;
     } catch(e) { return false; }
+  }
+
+  // ── Gemini AI ──
+  function saveGeminiKey() {
+    const key = (document.getElementById('settingsGeminiKey')?.value || '').trim();
+    if (!key) { showToast('Paste your Gemini API key first'); return; }
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    s.geminiApiKey = key;
+    localStorage.setItem('iflow_settings', JSON.stringify(s));
+    _updateGeminiStatus(true);
+    showToast('Gemini API key saved ✓');
+  }
+  function _updateGeminiStatus(active) {
+    const el = document.getElementById('geminiStatus');
+    const btn = document.getElementById('aiTestBtn');
+    const fab = document.getElementById('aiFloatBtn');
+    if (el) { el.textContent = active ? '● AI ready — tap the 🤖 button anywhere' : '○ Not configured'; el.style.color = active ? '#38a169' : 'var(--muted)'; }
+    if (btn) btn.style.display = active ? '' : 'none';
+    if (fab) fab.style.display = active ? '' : 'none';
+  }
+  async function callGemini(prompt) {
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    if (!s.geminiApiKey) throw new Error('No Gemini API key configured');
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(s.geminiApiKey)}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 800, temperature: 0.7 } }) }
+    );
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error?.message || `API error ${res.status}`); }
+    const data = await res.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || '(No response)';
+  }
+  function buildStoreContext() {
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    const cur = getCurrency();
+    const today = new Date().toLocaleDateString();
+    const todaySales = sales.filter(x => new Date(x.timestamp).toLocaleDateString() === today);
+    const todayRevenue = todaySales.reduce((sum, x) => sum + x.price * x.quantity, 0);
+    const totalRevenue = sales.reduce((sum, x) => sum + x.price * x.quantity, 0);
+    const defThresh = parseInt(s.lowStockThreshold) || 5;
+    const lowStock = products.filter(p => p.stockQty <= (p.lowStockThreshold || defThresh));
+    const prodRevMap = {};
+    sales.forEach(x => { if (x.product) prodRevMap[x.product] = (prodRevMap[x.product] || 0) + x.price * x.quantity; });
+    const topProds = Object.entries(prodRevMap).sort((a,b) => b[1]-a[1]).slice(0,5);
+    const weekAgo = Date.now() - 7*24*60*60*1000;
+    const weekSales = sales.filter(x => x.timestamp > weekAgo);
+    const weekRevenue = weekSales.reduce((sum, x) => sum + x.price * x.quantity, 0);
+    return `You are an AI assistant for a retail store management app called iFlow.
+Store: "${s.storeName || 'My Store'}" | Owner: "${s.ownerName || 'Owner'}" | Currency: ${cur}
+Today (${today}): ${todaySales.length} sales, revenue ${cur}${fmtComma(todayRevenue)}
+This week: ${weekSales.length} sales, revenue ${cur}${fmtComma(weekRevenue)}
+All-time: ${sales.length} total sales, revenue ${cur}${fmtComma(totalRevenue)}
+Products in stock: ${products.length} | Low stock items (${lowStock.length}): ${lowStock.map(p=>p.name+'('+p.stockQty+')').join(', ')||'none'}
+Top products by revenue: ${topProds.map(([n,r])=>n+': '+cur+fmtComma(r)).join(', ')||'no sales yet'}
+Recent sales (last 10): ${sales.slice(-10).map(x=>x.product+' x'+x.quantity+' @'+cur+x.price).join('; ')||'none'}
+Answer concisely and helpfully. Use plain text only, no markdown symbols.`;
+  }
+  function openAiChat() {
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    if (!s.geminiApiKey) { showToast('Set your Gemini API key in Settings first'); navigateTo('settings'); return; }
+    const modal = document.getElementById('aiChatModal');
+    if (modal) { modal.style.display = 'flex'; setTimeout(() => document.getElementById('aiInput')?.focus(), 100); }
+  }
+  function closeAiChat() {
+    const modal = document.getElementById('aiChatModal');
+    if (modal) modal.style.display = 'none';
+  }
+  function _aiAppendMsg(role, text, typing) {
+    const box = document.getElementById('aiMessages');
+    if (!box) return null;
+    const div = document.createElement('div');
+    div.className = 'ai-msg ai-msg-' + role + (typing ? ' typing' : '');
+    div.textContent = text;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+    return div;
+  }
+  async function sendAiMessage() {
+    const inp = document.getElementById('aiInput');
+    const msg = (inp?.value || '').trim();
+    if (!msg) return;
+    inp.value = '';
+    const btn = document.getElementById('aiSendBtn');
+    if (btn) btn.disabled = true;
+    _aiAppendMsg('user', msg);
+    const typingDiv = _aiAppendMsg('bot', 'Thinking…', true);
+    try {
+      const reply = await callGemini(buildStoreContext() + '\n\nUser: ' + msg);
+      if (typingDiv) { typingDiv.textContent = reply; typingDiv.classList.remove('typing'); }
+    } catch(err) {
+      if (typingDiv) { typingDiv.textContent = '⚠️ ' + err.message; typingDiv.classList.remove('typing'); }
+    } finally {
+      if (btn) btn.disabled = false;
+      inp?.focus();
+    }
+  }
+  async function sendAiQuick(prompt) {
+    const btn = document.getElementById('aiSendBtn');
+    if (btn) btn.disabled = true;
+    _aiAppendMsg('user', prompt);
+    const typingDiv = _aiAppendMsg('bot', 'Thinking…', true);
+    try {
+      const reply = await callGemini(buildStoreContext() + '\n\nUser: ' + prompt);
+      if (typingDiv) { typingDiv.textContent = reply; typingDiv.classList.remove('typing'); }
+    } catch(err) {
+      if (typingDiv) { typingDiv.textContent = '⚠️ ' + err.message; typingDiv.classList.remove('typing'); }
+    } finally {
+      if (btn) btn.disabled = false;
+    }
   }
 
   // ── Trash password (SHA-256 hash stored in localStorage) ──
@@ -3913,6 +4087,9 @@
     if (s.waNumber) { const el = document.getElementById('settingsWaNumber'); if (el) el.value = s.waNumber; }
     if (s.waApiToken) { const el = document.getElementById('settingsWaApiToken'); if (el) el.value = s.waApiToken; }
     _updateWaBadge(s.waNumber);
+    // Gemini AI
+    if (s.geminiApiKey) { const el = document.getElementById('settingsGeminiKey'); if (el) el.value = s.geminiApiKey; }
+    _updateGeminiStatus(!!s.geminiApiKey);
     // Restore logo preview
     const logo = localStorage.getItem('iflow_logo');
     if (logo) {
@@ -4784,6 +4961,19 @@ function showApp(user) {
   if (GOOGLE_CLIENT_ID !== 'YOUR_CLIENT_ID_HERE') {
     SheetsAPI.init(GOOGLE_CLIENT_ID);
   }
+  // Pre-seed Gemini API key if not already stored
+  (function() {
+    const BUNDLED_KEY = 'AIzaSyAEZ-R4lr0e6nYP5IwO5pqzg5rXp5skPdw';
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    if (!s.geminiApiKey) { s.geminiApiKey = BUNDLED_KEY; localStorage.setItem('iflow_settings', JSON.stringify(s)); }
+  })();
+  // Show AI FAB and update status once DOM is ready
+  setTimeout(() => {
+    if (typeof _updateGeminiStatus === 'function') {
+      const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+      _updateGeminiStatus(!!s.geminiApiKey);
+    }
+  }, 50);
 }
 
 function signOut() {

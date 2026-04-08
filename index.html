@@ -2227,15 +2227,17 @@
     </div>
     <!-- Quick prompts -->
     <div style="padding:10px 14px 0;display:flex;gap:6px;flex-wrap:wrap">
-      <button class="ai-quick-btn" onclick="sendAiQuick('Summarize today\'s sales and performance.')">📊 Today</button>
-      <button class="ai-quick-btn" onclick="sendAiQuick('Which products are low on stock and need restocking?')">⚠️ Restock</button>
-      <button class="ai-quick-btn" onclick="sendAiQuick('What are my top 5 best-selling products by revenue?')">🏆 Top Products</button>
-      <button class="ai-quick-btn" onclick="sendAiQuick('Give me a weekly profit and revenue summary.')">💰 Profit</button>
+      <button class="ai-quick-btn" onclick="sendAiQuick('How e go today? Give me today sales summary.')">📊 Today</button>
+      <button class="ai-quick-btn" onclick="sendAiQuick('Which products don almost finish? Tell me wetin I need to restock.')">⚠️ Restock</button>
+      <button class="ai-quick-btn" onclick="sendAiQuick('Which products dey sell pass? Show me top sellers.')">🏆 Top Sellers</button>
+      <button class="ai-quick-btn" onclick="sendAiQuick('How e go this week? Revenue, profit, everything.')">💰 This Week</button>
+      <button class="ai-quick-btn" onclick="sendAiQuick('Take me to products page.')">📦 Products</button>
+      <button class="ai-quick-btn" onclick="sendAiQuick('Take me to orders.')">🧾 Orders</button>
     </div>
     <!-- Messages -->
     <div id="aiMessages" style="flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;min-height:200px;max-height:340px">
       <div class="ai-msg ai-msg-bot">
-        <span>👋 Hi! I'm your iFlow AI assistant. Ask me anything about your sales, products, or stock — or tap a quick action above.</span>
+        <span>How far! I be iFlow AI — your shop assistant. Tap a quick action above or just talk to me natural natural.</span>
       </div>
     </div>
     <!-- Input -->
@@ -2852,7 +2854,36 @@
     } catch(e) { return false; }
   }
 
-  // ── Gemini AI ──
+  // ── Gemini AI (Agentic Mode — Nigerian English) ──
+  let _aiHistory = [];          // multi-turn conversation [{role,parts}]
+  let _aiPendingDelete = null;  // product name awaiting delete confirmation
+  let _aiAwaitingName = false;  // first-use name collection flow
+
+  const _AI_SYSTEM = `You are iFlow AI, a sharp and friendly shop assistant for a Nigerian retail store. You speak naturally in Nigerian English and use Pidgin slangs — things like "Oya", "Abeg", "Sharp sharp", "Wetin", "Na so", "E don do", "No wahala", "How far", "Sabi", "Chai", "Ehn", "You sure?" — but only when it flows naturally, not forced.
+
+You can actually DO things in this store app, not just answer questions. When you want to perform an action, respond with ONLY a JSON object — no other text before or after it:
+{"action":"ACTION_NAME","data":{...},"message":"friendly message to show the user"}
+
+Available actions and their data fields:
+• add_stock       — name(str), quantity(number), unitPrice(number), costPrice(number, optional), type(str, optional), code(str, optional)
+• record_sale     — product(str), quantity(number), price(number, optional — uses stock price if omitted), customer(str, optional)
+• update_stock    — name(str), addQty(number) — adds more units to existing product
+• set_stock       — name(str), newQty(number) — sets exact stock quantity
+• navigate        — page(str: "home"|"products"|"orders"|"settings"|"trash")
+• delete_product  — name(str) — always ask for confirmation first via message, set needsConfirm:true
+• get_report      — period(str: "today"|"week"|"month"|"all")
+
+When NOT taking an action (chatting, answering, asking questions), respond with plain conversational text only — no JSON.
+
+Rules:
+1. If info is incomplete for add_stock (missing price or quantity), ask first before acting. Say something like "Abeg how much e cost?" or "How many units?"
+2. If quantity or price sounds suspicious (e.g. 50000 units of a phone, or ₦1 for a laptop), ask "You sure about this? Wetin be [the thing that sounds off]?"
+3. For delete, always get confirmation — say "You sure say you wan remove [name]? Just type 'yes delete it' or 'no'."
+4. Address the user by name once you know it.
+5. Keep responses short and punchy. No long grammar.
+6. You know the full stock list, sales history, and store data — use it to give useful advice.
+7. When recording sales, check if the product actually exists in stock and if quantity is available.`;
+
   function saveGeminiKey() {
     const key = (document.getElementById('settingsGeminiKey')?.value || '').trim();
     if (!key) { showToast('Paste your Gemini API key first'); return; }
@@ -2870,52 +2901,190 @@
     if (btn) btn.style.display = active ? '' : 'none';
     if (fab) fab.style.display = active ? '' : 'none';
   }
-  async function callGemini(prompt) {
+
+  async function callGemini(userText) {
     const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-    if (!s.geminiApiKey) throw new Error('No Gemini API key configured');
+    if (!s.geminiApiKey) throw new Error('No Gemini API key. Go to Settings to add it.');
+    const contents = [..._aiHistory, { role: 'user', parts: [{ text: userText }] }];
+    const body = {
+      systemInstruction: { parts: [{ text: _AI_SYSTEM }] },
+      contents,
+      generationConfig: { maxOutputTokens: 600, temperature: 0.85 }
+    };
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(s.geminiApiKey)}`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 800, temperature: 0.7 } }) }
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + encodeURIComponent(s.geminiApiKey),
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
     );
-    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error?.message || `API error ${res.status}`); }
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error?.message || 'API error ' + res.status); }
     const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || '(No response)';
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '(No response)';
+    // Save to history (cap at 20 turns)
+    _aiHistory.push({ role: 'user', parts: [{ text: userText }] });
+    _aiHistory.push({ role: 'model', parts: [{ text: reply }] });
+    if (_aiHistory.length > 20) _aiHistory = _aiHistory.slice(-20);
+    return reply;
   }
-  function buildStoreContext() {
+
+  function _buildStoreContext() {
     const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    const userName = localStorage.getItem('iflow_ai_name') || s.ownerName || '';
     const cur = getCurrency();
     const today = new Date().toLocaleDateString();
     const todaySales = sales.filter(x => new Date(x.timestamp).toLocaleDateString() === today);
-    const todayRevenue = todaySales.reduce((sum, x) => sum + x.price * x.quantity, 0);
-    const totalRevenue = sales.reduce((sum, x) => sum + x.price * x.quantity, 0);
+    const todayRev = todaySales.reduce((sum, x) => sum + x.price * x.quantity, 0);
+    const totalRev = sales.reduce((sum, x) => sum + x.price * x.quantity, 0);
     const defThresh = parseInt(s.lowStockThreshold) || 5;
     const lowStock = products.filter(p => p.stockQty <= (p.lowStockThreshold || defThresh));
     const prodRevMap = {};
     sales.forEach(x => { if (x.product) prodRevMap[x.product] = (prodRevMap[x.product] || 0) + x.price * x.quantity; });
-    const topProds = Object.entries(prodRevMap).sort((a,b) => b[1]-a[1]).slice(0,5);
+    const top5 = Object.entries(prodRevMap).sort((a,b) => b[1]-a[1]).slice(0,5);
     const weekAgo = Date.now() - 7*24*60*60*1000;
-    const weekSales = sales.filter(x => x.timestamp > weekAgo);
-    const weekRevenue = weekSales.reduce((sum, x) => sum + x.price * x.quantity, 0);
-    return `You are an AI assistant for a retail store management app called iFlow.
-Store: "${s.storeName || 'My Store'}" | Owner: "${s.ownerName || 'Owner'}" | Currency: ${cur}
-Today (${today}): ${todaySales.length} sales, revenue ${cur}${fmtComma(todayRevenue)}
-This week: ${weekSales.length} sales, revenue ${cur}${fmtComma(weekRevenue)}
-All-time: ${sales.length} total sales, revenue ${cur}${fmtComma(totalRevenue)}
-Products in stock: ${products.length} | Low stock items (${lowStock.length}): ${lowStock.map(p=>p.name+'('+p.stockQty+')').join(', ')||'none'}
-Top products by revenue: ${topProds.map(([n,r])=>n+': '+cur+fmtComma(r)).join(', ')||'no sales yet'}
-Recent sales (last 10): ${sales.slice(-10).map(x=>x.product+' x'+x.quantity+' @'+cur+x.price).join('; ')||'none'}
-Answer concisely and helpfully. Use plain text only, no markdown symbols.`;
+    const weekRev = sales.filter(x => x.timestamp > weekAgo).reduce((sum,x) => sum + x.price*x.quantity, 0);
+    const stockList = products.slice(0,30).map(p => p.name + '(qty:' + p.stockQty + ',price:' + cur + p.unitPrice + ')').join(', ');
+    return `[STORE DATA — ${new Date().toLocaleString()}]
+Store: "${s.storeName||'My Store'}" | User: "${userName||'unknown'}" | Currency: ${cur}
+Today: ${todaySales.length} sales, revenue ${cur}${fmtComma(todayRev)}
+This week revenue: ${cur}${fmtComma(weekRev)} | All-time: ${sales.length} sales, ${cur}${fmtComma(totalRev)}
+Products (${products.length} total): ${stockList||'none'}
+Low stock (${lowStock.length}): ${lowStock.map(p=>p.name+'('+p.stockQty+')').join(', ')||'none'}
+Top sellers: ${top5.map(([n,r])=>n+':'+cur+fmtComma(r)).join(', ')||'none'}
+Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.price).join('; ')||'none'}`;
   }
+
+  function _parseAiAction(text) {
+    const m = text.match(/\{[\s\S]*?"action"[\s\S]*?\}/);
+    if (!m) return null;
+    try { return JSON.parse(m[0]); } catch(e) { return null; }
+  }
+
+  async function _executeAction(obj) {
+    const { action, data, message } = obj;
+    const cur = getCurrency();
+    switch (action) {
+
+      case 'add_stock': {
+        if (!data.name) return 'Abeg, wetin be the product name?';
+        if (!data.quantity || isNaN(data.quantity)) return 'How many units you wan add? Tell me the quantity.';
+        if (!data.unitPrice || isNaN(data.unitPrice)) return 'Abeg, how much e dey sell? Give me the price.';
+        const qty = parseInt(data.quantity), price = parseFloat(data.unitPrice);
+        if (qty > 10000) return 'Chai! ' + qty + ' units?! You sure say that quantity correct? If yes, type it again.';
+        if (price < 1) return 'Price of ' + cur + price + ' for "' + data.name + '" — that one too small o. You sure?';
+        const p = {
+          name: data.name, code: data.code || generateProductCode(data.type || 'GEN'),
+          type: data.type || 'General', stockQty: qty, unitPrice: price,
+          costPrice: (data.costPrice !== undefined && data.costPrice !== null) ? parseFloat(data.costPrice) : undefined,
+          lowStockThreshold: 5, dateAdded: new Date().toLocaleDateString(),
+          category: data.name, variant: ''
+        };
+        pushUndo('products');
+        products.push(p);
+        // run parseProductName to auto-categorise if possible
+        const parsed = parseProductName(data.name);
+        if (parsed.category !== data.name) { p.category = parsed.category; p.variant = parsed.variant; }
+        localStorage.setItem('iflow_products', JSON.stringify(products));
+        renderProducts(); refreshProductsList(); checkLowStock();
+        return message || 'E don do! "' + data.name + '" don enter stock. ' + qty + ' units @ ' + cur + fmtComma(price) + '. Sharp sharp!';
+      }
+
+      case 'record_sale': {
+        const prod = findStockProduct(data.product || '');
+        if (!prod) return 'Abeg, I no fit find "' + data.product + '" for your stock list. Check the name.';
+        const qty = parseInt(data.quantity) || 1;
+        if (prod.stockQty < qty) return 'Ehn, you only get ' + prod.stockQty + ' units of "' + prod.name + '" remaining. You wan sell ' + qty + '?';
+        const salePrice = parseFloat(data.price) || prod.unitPrice;
+        pushUndo('sales');
+        const sale = { customer: data.customer || 'Walk-in', product: prod.name, quantity: qty, price: salePrice, timestamp: Date.now() };
+        sales.push(sale);
+        localStorage.setItem('iflow_sales', JSON.stringify(sales));
+        prod.stockQty -= qty;
+        localStorage.setItem('iflow_products', JSON.stringify(products));
+        renderProducts(); updateTotal(); _refreshProfitStat();
+        return message || 'Sale recorded! ' + qty + 'x "' + prod.name + '" for ' + cur + fmtComma(salePrice) + '. E don go!';
+      }
+
+      case 'update_stock': {
+        const prod = findStockProduct(data.name || '');
+        if (!prod) return 'I no fit find "' + data.name + '" for your stock o.';
+        const add = parseInt(data.addQty);
+        if (isNaN(add)) return 'How many units you wan add? Give me a number.';
+        const idx = products.indexOf(prod);
+        pushUndo('products');
+        products[idx].stockQty += add;
+        localStorage.setItem('iflow_products', JSON.stringify(products));
+        renderProducts(); checkLowStock();
+        return message || 'Updated! "' + prod.name + '" now get ' + products[idx].stockQty + ' units for stock.';
+      }
+
+      case 'set_stock': {
+        const prod = findStockProduct(data.name || '');
+        if (!prod) return 'I no fit find "' + data.name + '" o.';
+        const newQty = parseInt(data.newQty);
+        if (isNaN(newQty) || newQty < 0) return 'Wetin be the new quantity? Give me a valid number.';
+        const idx = products.indexOf(prod);
+        pushUndo('products');
+        products[idx].stockQty = newQty;
+        localStorage.setItem('iflow_products', JSON.stringify(products));
+        renderProducts(); checkLowStock();
+        return message || '"' + prod.name + '" stock don set to ' + newQty + ' units.';
+      }
+
+      case 'navigate': {
+        const pages = ['home','products','orders','settings','trash'];
+        const pg = (data.page || '').toLowerCase();
+        if (!pages.includes(pg)) return 'I no know that page. Try: ' + pages.join(', ') + '.';
+        navigateTo(pg);
+        return message || 'Oya, I don carry you go ' + pg + ' page.';
+      }
+
+      case 'delete_product': {
+        if (data.needsConfirm) {
+          _aiPendingDelete = data.name;
+          return message || 'You sure say you wan remove "' + data.name + '" from stock? This go move am go trash. Type "yes delete it" to confirm or "no" to cancel.';
+        }
+        const prod = findStockProduct(data.name || '');
+        if (!prod) return 'I no fit find "' + data.name + '" o.';
+        _aiPendingDelete = prod.name;
+        return 'You sure say you wan remove "' + prod.name + '" from stock? Type "yes delete it" to confirm or "no" to cancel.';
+      }
+
+      case 'get_report': {
+        const period = data.period || 'today';
+        const now = Date.now(); const day = 86400000;
+        let filtered = sales;
+        if (period === 'today') filtered = sales.filter(x => new Date(x.timestamp).toLocaleDateString() === new Date().toLocaleDateString());
+        else if (period === 'week') filtered = sales.filter(x => x.timestamp > now - 7*day);
+        else if (period === 'month') filtered = sales.filter(x => x.timestamp > now - 30*day);
+        const rev = filtered.reduce((s,x) => s + x.price*x.quantity, 0);
+        const items = filtered.reduce((s,x) => s + x.quantity, 0);
+        return (message || '') + '\n' + period.toUpperCase() + ': ' + filtered.length + ' sales, ' + items + ' items sold, revenue ' + cur + fmtComma(rev) + '.';
+      }
+
+      default:
+        return message || 'Action done.';
+    }
+  }
+
   function openAiChat() {
     const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
     if (!s.geminiApiKey) { showToast('Set your Gemini API key in Settings first'); navigateTo('settings'); return; }
     const modal = document.getElementById('aiChatModal');
-    if (modal) { modal.style.display = 'flex'; setTimeout(() => document.getElementById('aiInput')?.focus(), 100); }
+    if (!modal) return;
+    modal.style.display = 'flex';
+    // First-use: clear history and ask for name
+    const storedName = localStorage.getItem('iflow_ai_name');
+    if (!storedName) {
+      const box = document.getElementById('aiMessages');
+      if (box) {
+        box.innerHTML = '';
+        _aiHistory = [];
+        _aiAppendMsg('bot', 'E don set! How far? I be iFlow AI, your shop assistant wey go help you run things sharp sharp.\n\nAbeg, wetin be your name?');
+        _aiAwaitingName = true;
+      }
+    }
+    setTimeout(() => document.getElementById('aiInput')?.focus(), 100);
   }
   function closeAiChat() {
-    const modal = document.getElementById('aiChatModal');
-    if (modal) modal.style.display = 'none';
+    document.getElementById('aiChatModal').style.display = 'none';
   }
   function _aiAppendMsg(role, text, typing) {
     const box = document.getElementById('aiMessages');
@@ -2927,39 +3096,87 @@ Answer concisely and helpfully. Use plain text only, no markdown symbols.`;
     box.scrollTop = box.scrollHeight;
     return div;
   }
+
+  async function _aiDispatch(msg) {
+    const btn = document.getElementById('aiSendBtn');
+    if (btn) btn.disabled = true;
+    const typingDiv = _aiAppendMsg('bot', 'Dey think...', true);
+    try {
+      // Handle pending delete confirmation locally (no round-trip needed)
+      if (_aiPendingDelete) {
+        if (/yes|confirm|delete it|go ahead|do am/i.test(msg)) {
+          const prod = findStockProduct(_aiPendingDelete);
+          let result;
+          if (prod) {
+            const idx = products.indexOf(prod);
+            const name = prod.name;
+            pushUndo('products');
+            moveToTrash('product', prod, idx);
+            products.splice(idx, 1);
+            localStorage.setItem('iflow_products', JSON.stringify(products));
+            renderProducts(); refreshProductsList();
+            result = 'E don go. "' + name + '" don enter trash. You fit restore am from trash page if you change your mind.';
+          } else {
+            result = 'I no fit find that product again o.';
+          }
+          _aiPendingDelete = null;
+          if (typingDiv) { typingDiv.textContent = result; typingDiv.classList.remove('typing'); }
+          return;
+        } else if (/no|cancel|abeg no|stop/i.test(msg)) {
+          const name = _aiPendingDelete;
+          _aiPendingDelete = null;
+          if (typingDiv) { typingDiv.textContent = 'Ok no wahala. "' + name + '" still dey your stock.'; typingDiv.classList.remove('typing'); }
+          return;
+        }
+      }
+      const context = _buildStoreContext();
+      const raw = await callGemini(context + '\n\nUser message: ' + msg);
+      const action = _parseAiAction(raw);
+      if (action) {
+        const result = await _executeAction(action);
+        if (typingDiv) { typingDiv.textContent = result.trim(); typingDiv.classList.remove('typing'); }
+      } else {
+        if (typingDiv) { typingDiv.textContent = raw.trim(); typingDiv.classList.remove('typing'); }
+      }
+    } catch(err) {
+      if (typingDiv) { typingDiv.textContent = '⚠️ ' + err.message; typingDiv.classList.remove('typing'); }
+    } finally {
+      if (btn) btn.disabled = false;
+      document.getElementById('aiInput')?.focus();
+    }
+  }
+
   async function sendAiMessage() {
     const inp = document.getElementById('aiInput');
     const msg = (inp?.value || '').trim();
     if (!msg) return;
     inp.value = '';
-    const btn = document.getElementById('aiSendBtn');
-    if (btn) btn.disabled = true;
     _aiAppendMsg('user', msg);
-    const typingDiv = _aiAppendMsg('bot', 'Thinking…', true);
-    try {
-      const reply = await callGemini(buildStoreContext() + '\n\nUser: ' + msg);
-      if (typingDiv) { typingDiv.textContent = reply; typingDiv.classList.remove('typing'); }
-    } catch(err) {
-      if (typingDiv) { typingDiv.textContent = '⚠️ ' + err.message; typingDiv.classList.remove('typing'); }
-    } finally {
-      if (btn) btn.disabled = false;
-      inp?.focus();
+    // First-use name collection
+    if (_aiAwaitingName) {
+      _aiAwaitingName = false;
+      const name = msg.replace(/^(my name is|i am|call me|na me be)\s*/i, '').replace(/[^a-zA-Z\s]/g,'').trim();
+      if (name.length >= 2 && name.split(' ').length <= 3) {
+        const firstName = name.split(' ')[0];
+        localStorage.setItem('iflow_ai_name', firstName);
+        _aiHistory = []; // fresh history with name context
+        _aiAppendMsg('bot', firstName + '! Nice to meet you. So wetin you need today? I can:\n• Add new stock ("add 50 units of Indomie for ₦200")\n• Record a sale ("sold 3 iPhone 15 to Emeka")\n• Check your numbers ("how e go today?")\n• Navigate pages ("take me to orders")\n• Give advice ("which product dey run out?")\n\nJust talk to me natural natural — I go understand.');
+        return;
+      } else {
+        _aiAppendMsg('bot', 'Abeg just tell me your first name — e short like "Emeka" or "Temi".');
+        _aiAwaitingName = true;
+        return;
+      }
     }
+    await _aiDispatch(msg);
   }
+
   async function sendAiQuick(prompt) {
-    const btn = document.getElementById('aiSendBtn');
-    if (btn) btn.disabled = true;
     _aiAppendMsg('user', prompt);
-    const typingDiv = _aiAppendMsg('bot', 'Thinking…', true);
-    try {
-      const reply = await callGemini(buildStoreContext() + '\n\nUser: ' + prompt);
-      if (typingDiv) { typingDiv.textContent = reply; typingDiv.classList.remove('typing'); }
-    } catch(err) {
-      if (typingDiv) { typingDiv.textContent = '⚠️ ' + err.message; typingDiv.classList.remove('typing'); }
-    } finally {
-      if (btn) btn.disabled = false;
-    }
+    await _aiDispatch(prompt);
   }
+
+  function buildStoreContext() { return _buildStoreContext(); } // backwards compat alias
 
   // ── Trash password (SHA-256 hash stored in localStorage) ──
   async function _hashPw(pw) {

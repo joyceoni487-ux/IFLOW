@@ -2911,18 +2911,19 @@ Rules:
       contents,
       generationConfig: { maxOutputTokens: 600, temperature: 0.85 }
     };
-    // Try models in order — each key/region may support different ones
+    // Stable models use v1; experimental/preview models use v1beta
+    // systemInstruction is supported on both endpoints for 1.5+ models
     const _AI_MODELS = [
-      'gemini-2.0-flash-lite',
-      'gemini-1.5-flash-8b',
-      'gemini-1.5-flash-001',
-      'gemini-1.5-pro-latest',
-      'gemini-pro'
+      { v: 'v1beta', m: 'gemini-2.0-flash-lite' },
+      { v: 'v1beta', m: 'gemini-2.0-flash-exp' },
+      { v: 'v1',     m: 'gemini-1.5-flash' },
+      { v: 'v1',     m: 'gemini-1.5-flash-8b' },
+      { v: 'v1',     m: 'gemini-1.5-pro' },
     ];
     let lastErr = null;
-    for (const model of _AI_MODELS) {
+    for (const { v, m } of _AI_MODELS) {
       const res = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(s.geminiApiKey),
+        'https://generativelanguage.googleapis.com/' + v + '/models/' + m + ':generateContent?key=' + encodeURIComponent(s.geminiApiKey),
         { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
       );
       if (res.ok) {
@@ -2931,15 +2932,14 @@ Rules:
         _aiHistory.push({ role: 'user', parts: [{ text: userText }] });
         _aiHistory.push({ role: 'model', parts: [{ text: reply }] });
         if (_aiHistory.length > 20) _aiHistory = _aiHistory.slice(-20);
-        // Remember which model worked for the label
         const lbl = document.getElementById('aiModelLabel');
-        if (lbl) lbl.textContent = model;
+        if (lbl) lbl.textContent = m;
         return reply;
       }
       const e = await res.json().catch(() => ({}));
       lastErr = e.error?.message || ('API error ' + res.status);
-      // Only retry on not-found / quota; stop on auth errors
-      if (res.status === 400 && !lastErr.includes('not found') && !lastErr.includes('not supported')) break;
+      // Stop retrying on auth errors (401/403); keep trying on model errors (400/404) and quota (429)
+      if (res.status === 401 || res.status === 403) break;
     }
     throw new Error(lastErr || 'All models failed');
   }

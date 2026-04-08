@@ -2665,13 +2665,22 @@
     const el = document.getElementById('statProfit');
     if (!el) return;
     const cur = getCurrency();
-    const total = sales.reduce((sum, s) => {
-      const prod = products.find(p => p.name === s.product);
-      if (!prod || prod.costPrice === undefined) return sum;
-      return sum + (s.price - prod.costPrice) * s.quantity;
-    }, 0);
-    el.textContent = cur + fmtComma(total);
-    el.style.color = total >= 0 ? '#38a169' : '#e53e3e';
+    let hasAnyCost = false;
+    let profitTotal = 0;
+    let revenueTotal = 0;
+    sales.forEach(s => {
+      revenueTotal += s.price * s.quantity;
+      const prod = findStockProduct(s.product);
+      if (prod && prod.costPrice !== undefined) {
+        hasAnyCost = true;
+        profitTotal += (s.price - prod.costPrice) * s.quantity;
+      }
+    });
+    const display = hasAnyCost ? profitTotal : revenueTotal;
+    const labelEl = el.closest('.stat-card') && el.closest('.stat-card').querySelector('.stat-label');
+    if (labelEl) labelEl.textContent = hasAnyCost ? 'Est. Profit' : 'Revenue';
+    el.textContent = cur + fmtComma(display);
+    el.style.color = display >= 0 ? '#38a169' : '#e53e3e';
   }
 
   // ── WhatsApp settings ──
@@ -4473,17 +4482,8 @@
     const totalVal = filtered.reduce((s,p) => s + p.stockQty * p.unitPrice, 0);
     const lowCount = filtered.filter(p => p.stockQty <= (p.lowStockThreshold || defThresh)).length;
 
-    // Profit = sum of (salePrice - costPrice) * qty for all sales where product has a costPrice
-    const profitTotal = sales.reduce((sum, s) => {
-      const prod = products.find(p => p.name === s.product);
-      if (!prod || prod.costPrice === undefined) return sum;
-      return sum + (s.price - prod.costPrice) * s.quantity;
-    }, 0);
-    const profitEl = document.getElementById('statProfit');
-    if (profitEl) {
-      profitEl.textContent = cur + fmtComma(profitTotal);
-      profitEl.style.color = profitTotal >= 0 ? '#38a169' : '#e53e3e';
-    }
+    // Profit stat: use shared function for consistent logic + normalized name matching
+    _refreshProfitStat();
 
     document.getElementById('statTotalProducts').textContent = filtered.length;
     document.getElementById('statStockValue').textContent = cur + fmtComma(totalVal);

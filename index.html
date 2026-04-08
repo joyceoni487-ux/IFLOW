@@ -2669,6 +2669,7 @@
     let profitTotal = 0;
     let revenueTotal = 0;
     sales.forEach(s => {
+      if (!s.product || !s.price || !s.quantity) return;
       revenueTotal += s.price * s.quantity;
       const prod = findStockProduct(s.product);
       if (prod && prod.costPrice !== undefined) {
@@ -3446,8 +3447,9 @@
 
   // Find product in stock by name (flexible match — ignores separator style)
   function findStockProduct(name) {
+    if (!name) return null;
     const n = normalizeProductName(name.toLowerCase().trim());
-    return products.find(p => normalizeProductName(p.name.toLowerCase().trim()) === n) || null;
+    return products.find(p => p.name && normalizeProductName(p.name.toLowerCase().trim()) === n) || null;
   }
 
   // Called when user types in product name field — auto-fill price & clear error

@@ -2152,12 +2152,12 @@
       <!-- AI Assistant -->
       <div class="settings-section">
         <h3 class="settings-section-title">🤖 AI Assistant (Gemini)</h3>
-        <p style="font-size:0.82rem;color:var(--muted);margin:0 0 14px">Paste your Google Gemini API key to enable the AI assistant. The key is stored locally and never sent to any third-party server except Google's Gemini API.</p>
+        <p style="font-size:0.82rem;color:var(--muted);margin:0 0 14px">Paste a <strong>Groq</strong> key (starts with <code>gsk_</code>) or a <strong>Gemini</strong> key (starts with <code>AIza</code>). Groq is recommended — free tier, fast, no quota issues. Key is stored locally only.</p>
         <div class="settings-row">
           <div class="settings-field full">
-            <label>Gemini API Key</label>
+            <label>AI API Key (Groq or Gemini)</label>
             <div style="display:flex;gap:8px">
-              <input type="password" id="settingsGeminiKey" placeholder="AIza…" style="flex:1" />
+              <input type="password" id="settingsGeminiKey" placeholder="gsk_… or AIza…" style="flex:1" />
               <button class="settings-btn-solid" onclick="saveGeminiKey()" style="white-space:nowrap">Save Key</button>
             </div>
           </div>
@@ -2886,12 +2886,13 @@ Rules:
 
   function saveGeminiKey() {
     const key = (document.getElementById('settingsGeminiKey')?.value || '').trim();
-    if (!key) { showToast('Paste your Gemini API key first'); return; }
+    if (!key) { showToast('Paste your API key first'); return; }
     const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
     s.geminiApiKey = key;
     localStorage.setItem('iflow_settings', JSON.stringify(s));
     _updateGeminiStatus(true);
-    showToast('Gemini API key saved ✓');
+    const provider = key.startsWith('gsk_') ? 'Groq' : 'Gemini';
+    showToast(provider + ' API key saved ✓');
   }
   function _updateGeminiStatus(active) {
     const el = document.getElementById('geminiStatus');
@@ -2904,16 +2905,45 @@ Rules:
 
   async function callGemini(userText) {
     const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-    if (!s.geminiApiKey) throw new Error('No Gemini API key. Go to Settings to add it.');
+    const key = s.geminiApiKey;
+    if (!key) throw new Error('No AI key. Go to Settings to add one.');
+    return key.startsWith('gsk_') ? _callGroq(userText, key) : _callGeminiApi(userText, key);
+  }
+
+  async function _callGroq(userText, key) {
+    // OpenAI-compatible format
+    const messages = [{ role: 'system', content: _AI_SYSTEM }];
+    _aiHistory.forEach(t => messages.push({ role: t.role === 'model' ? 'assistant' : t.role, content: t.parts[0].text }));
+    messages.push({ role: 'user', content: userText });
+    const models = ['llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'];
+    let lastErr = null;
+    for (const model of models) {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+        body: JSON.stringify({ model, messages, max_tokens: 600, temperature: 0.85 })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const reply = data.choices?.[0]?.message?.content || '(No response)';
+        _aiHistory.push({ role: 'user', parts: [{ text: userText }] });
+        _aiHistory.push({ role: 'model', parts: [{ text: reply }] });
+        if (_aiHistory.length > 20) _aiHistory = _aiHistory.slice(-20);
+        const lbl = document.getElementById('aiModelLabel');
+        if (lbl) lbl.textContent = 'Groq · ' + model.split('-').slice(0,2).join('-');
+        return reply;
+      }
+      const e = await res.json().catch(() => ({}));
+      lastErr = e.error?.message || ('Groq error ' + res.status);
+      if (res.status === 401 || res.status === 403) break;
+    }
+    throw new Error(lastErr || 'Groq API failed');
+  }
+
+  async function _callGeminiApi(userText, key) {
     const contents = [..._aiHistory, { role: 'user', parts: [{ text: userText }] }];
-    const body = {
-      systemInstruction: { parts: [{ text: _AI_SYSTEM }] },
-      contents,
-      generationConfig: { maxOutputTokens: 600, temperature: 0.85 }
-    };
-    // Stable models use v1; experimental/preview models use v1beta
-    // systemInstruction is supported on both endpoints for 1.5+ models
-    const _AI_MODELS = [
+    const body = { systemInstruction: { parts: [{ text: _AI_SYSTEM }] }, contents, generationConfig: { maxOutputTokens: 600, temperature: 0.85 } };
+    const models = [
       { v: 'v1beta', m: 'gemini-2.0-flash-lite' },
       { v: 'v1beta', m: 'gemini-2.0-flash-exp' },
       { v: 'v1',     m: 'gemini-1.5-flash' },
@@ -2921,9 +2951,9 @@ Rules:
       { v: 'v1',     m: 'gemini-1.5-pro' },
     ];
     let lastErr = null;
-    for (const { v, m } of _AI_MODELS) {
+    for (const { v, m } of models) {
       const res = await fetch(
-        'https://generativelanguage.googleapis.com/' + v + '/models/' + m + ':generateContent?key=' + encodeURIComponent(s.geminiApiKey),
+        'https://generativelanguage.googleapis.com/' + v + '/models/' + m + ':generateContent?key=' + encodeURIComponent(key),
         { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
       );
       if (res.ok) {
@@ -2938,10 +2968,9 @@ Rules:
       }
       const e = await res.json().catch(() => ({}));
       lastErr = e.error?.message || ('API error ' + res.status);
-      // Stop retrying on auth errors (401/403); keep trying on model errors (400/404) and quota (429)
       if (res.status === 401 || res.status === 403) break;
     }
-    throw new Error(lastErr || 'All models failed');
+    throw new Error(lastErr || 'All Gemini models failed');
   }
 
   function _buildStoreContext() {
@@ -5197,11 +5226,15 @@ function showApp(user) {
   if (GOOGLE_CLIENT_ID !== 'YOUR_CLIENT_ID_HERE') {
     SheetsAPI.init(GOOGLE_CLIENT_ID);
   }
-  // Pre-seed Gemini API key if not already stored
+  // Pre-seed AI API key (Groq preferred, Gemini as fallback)
   (function() {
-    const BUNDLED_KEY = 'AIzaSyAEZ-R4lr0e6nYP5IwO5pqzg5rXp5skPdw';
+    const GROQ_KEY   = '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';
     const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-    if (!s.geminiApiKey) { s.geminiApiKey = BUNDLED_KEY; localStorage.setItem('iflow_settings', JSON.stringify(s)); }
+    // Always prefer Groq key — overwrite only if current key is the old Gemini one
+    if (!s.geminiApiKey || s.geminiApiKey.startsWith('AIza')) {
+      s.geminiApiKey = GROQ_KEY;
+      localStorage.setItem('iflow_settings', JSON.stringify(s));
+    }
   })();
   // Show AI FAB and update status once DOM is ready
   setTimeout(() => {

@@ -1313,6 +1313,8 @@
   .ai-msg-bot { align-self:flex-start; background:var(--surface2); color:var(--text); border-bottom-left-radius:4px; border:1px solid var(--border); }
   .ai-msg-bot.typing { opacity:.6; font-style:italic; }
   #aiFloatBtn:hover { transform:scale(1.1); }
+  @keyframes aiPulse { 0%{transform:scale(1);opacity:.8} 100%{transform:scale(1.6);opacity:0} }
+  #aiMicBtn.ai-listening { background:linear-gradient(135deg,#e53e3e,#c0392b) !important; box-shadow:0 4px 24px rgba(229,62,62,.5) !important; }
   </style>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
@@ -2151,7 +2153,7 @@
 
       <!-- AI Assistant -->
       <div class="settings-section">
-        <h3 class="settings-section-title">🤖 AI Assistant (Gemini)</h3>
+        <h3 class="settings-section-title">🤖 AI Assistant</h3>
         <p style="font-size:0.82rem;color:var(--muted);margin:0 0 14px">Paste a <strong>Groq</strong> key (starts with <code>gsk_</code>) or a <strong>Gemini</strong> key (starts with <code>AIza</code>). Groq is recommended — free tier, fast, no quota issues. Key is stored locally only.</p>
         <div class="settings-row">
           <div class="settings-field full">
@@ -2162,9 +2164,8 @@
             </div>
           </div>
         </div>
-        <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
+        <div style="margin-top:6px">
           <span id="geminiStatus" style="font-size:0.82rem;color:var(--muted)">○ Not configured</span>
-          <button class="settings-btn-outline" onclick="openAiChat()" id="aiTestBtn" style="display:none;font-size:0.78rem;padding:6px 14px">💬 Open AI Chat</button>
         </div>
       </div>
 
@@ -2220,7 +2221,7 @@
         <span style="font-size:1.4rem">🤖</span>
         <div>
           <div style="font-weight:700;color:#fff;font-size:0.95rem">iFlow AI</div>
-          <div style="font-size:0.72rem;color:rgba(255,255,255,.75)" id="aiModelLabel">Gemini 1.5 Flash</div>
+          <div style="font-size:0.72rem;color:rgba(255,255,255,.75)" id="aiModelLabel">Groq · llama-3.3</div>
         </div>
       </div>
       <button onclick="closeAiChat()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center">✕</button>
@@ -2240,46 +2241,31 @@
         <span>How far! I be iFlow AI — your shop assistant. Tap a quick action above or just talk to me natural natural.</span>
       </div>
     </div>
-    <!-- Input -->
-    <div style="padding:12px 14px;border-top:1px solid var(--border);display:flex;gap:8px">
-      <input id="aiInput" type="text" placeholder="Ask about your store…" style="flex:1;padding:10px 14px;border:1px solid var(--border);border-radius:24px;background:var(--surface2);color:var(--text);font-size:0.85rem;outline:none" onkeydown="if(event.key==='Enter')sendAiMessage()" />
-      <button onclick="sendAiMessage()" id="aiSendBtn" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);border:none;color:#fff;border-radius:50%;width:40px;height:40px;cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;flex-shrink:0">➤</button>
+    <!-- Voice-first input -->
+    <div style="padding:12px 14px;border-top:1px solid var(--border)">
+      <!-- Mic button — primary interaction -->
+      <div style="display:flex;justify-content:center;margin-bottom:10px">
+        <button id="aiMicBtn" onclick="toggleVoiceInput()" title="Hold to speak" style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#7c3aed);border:none;color:#fff;cursor:pointer;box-shadow:0 4px 18px rgba(79,70,229,.45);transition:transform .15s,box-shadow .15s;display:flex;align-items:center;justify-content:center;position:relative">
+          <svg id="aiMicIcon" viewBox="0 0 24 24" width="28" height="28" fill="#fff"><path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm-1 17.93V21h2v-2.07A8.001 8.001 0 0 0 20 11h-2a6 6 0 0 1-12 0H4a8.001 8.001 0 0 0 7 7.93z"/></svg>
+          <span id="aiMicPulse" style="display:none;position:absolute;inset:-4px;border-radius:50%;border:3px solid rgba(79,70,229,.5);animation:aiPulse 1.2s ease-out infinite"></span>
+        </button>
+      </div>
+      <p id="aiVoiceStatus" style="text-align:center;font-size:0.78rem;color:var(--muted);margin:0 0 8px">Tap mic to speak</p>
+      <!-- Text fallback -->
+      <div style="display:flex;gap:8px">
+        <input id="aiInput" type="text" placeholder="or type here…" style="flex:1;padding:9px 14px;border:1px solid var(--border);border-radius:24px;background:var(--surface2);color:var(--text);font-size:0.83rem;outline:none" onkeydown="if(event.key==='Enter')sendAiMessage()" />
+        <button onclick="sendAiMessage()" id="aiSendBtn" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);border:none;color:#fff;border-radius:50%;width:38px;height:38px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;flex-shrink:0">➤</button>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- Floating AI Button -->
-<button id="aiFloatBtn" onclick="openAiChat()" title="AI Assistant" style="display:none;position:fixed;bottom:22px;right:22px;z-index:9700;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#7c3aed);border:none;color:#fff;font-size:1.5rem;cursor:pointer;box-shadow:0 4px 20px rgba(79,70,229,.5);transition:transform .15s">🤖</button>
-
-</div><!-- end .app-body -->
-
-<!-- Floating Mic Button -->
-<button class="fab-mic" onclick="openAI()" title="Ask AI">
-  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-    <path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm-1 17.93V21h2v-2.07A8.001 8.001 0 0 0 20 11h-2a6 6 0 0 1-12 0H4a8.001 8.001 0 0 0 7 7.93z"/>
-  </svg>
+<!-- Floating AI Mic Button (single entry point) -->
+<button id="aiFloatBtn" onclick="openAiChat()" title="Ask iFlow AI" style="display:none;position:fixed;bottom:26px;right:26px;z-index:9700;width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#7c3aed);border:none;color:#fff;cursor:pointer;box-shadow:0 4px 24px rgba(79,70,229,.55);transition:transform .15s;display:flex;align-items:center;justify-content:center">
+  <svg viewBox="0 0 24 24" width="26" height="26" fill="#fff"><path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm-1 17.93V21h2v-2.07A8.001 8.001 0 0 0 20 11h-2a6 6 0 0 1-12 0H4a8.001 8.001 0 0 0 7 7.93z"/></svg>
 </button>
 
-<!-- AI Panel -->
-<div class="ai-overlay" id="aiOverlay" onclick="handleOverlayClick(event)">
-  <div class="ai-panel">
-    <div class="drag-handle"></div>
-    <h3>AI Assistant</h3>
-    <p class="ai-hint">Tap the mic and speak to log a sale,<br/>ask a question, or get a summary.</p>
-
-    <div class="mic-ring" id="micRing">
-      <div class="pulse"></div>
-      <button class="mic-btn-inner" onclick="toggleListening()">
-        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm-1 17.93V21h2v-2.07A8.001 8.001 0 0 0 20 11h-2a6 6 0 0 1-12 0H4a8.001 8.001 0 0 0 7 7.93z"/>
-        </svg>
-      </button>
-    </div>
-
-    <p class="ai-status" id="aiStatus">Tap mic to speak</p>
-    <button class="ai-close" onclick="closeAI()">Dismiss</button>
-  </div>
-</div>
+</div><!-- end .app-body -->
 
 <script>
   let sales = JSON.parse(localStorage.getItem('iflow_sales') || '[]');
@@ -2896,11 +2882,11 @@ Rules:
   }
   function _updateGeminiStatus(active) {
     const el = document.getElementById('geminiStatus');
-    const btn = document.getElementById('aiTestBtn');
     const fab = document.getElementById('aiFloatBtn');
-    if (el) { el.textContent = active ? '● AI ready — tap the 🤖 button anywhere' : '○ Not configured'; el.style.color = active ? '#38a169' : 'var(--muted)'; }
-    if (btn) btn.style.display = active ? '' : 'none';
-    if (fab) fab.style.display = active ? '' : 'none';
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    const provider = (s.geminiApiKey || '').startsWith('gsk_') ? 'Groq' : 'Gemini';
+    if (el) { el.textContent = active ? ('● ' + provider + ' AI ready — tap the mic button') : '○ Not configured'; el.style.color = active ? '#38a169' : 'var(--muted)'; }
+    if (fab) fab.style.display = active ? 'flex' : 'none';
   }
 
   async function callGemini(userText) {
@@ -3114,7 +3100,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
 
   function openAiChat() {
     const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-    if (!s.geminiApiKey) { showToast('Set your Gemini API key in Settings first'); navigateTo('settings'); return; }
+    if (!s.geminiApiKey) { showToast('Set your AI API key in Settings first'); navigateTo('settings'); return; }
     const modal = document.getElementById('aiChatModal');
     if (!modal) return;
     modal.style.display = 'flex';
@@ -4507,38 +4493,68 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
   const _sdEl = document.getElementById('saleDate'); if (_sdEl) _sdEl.value = new Date().toISOString().slice(0, 10);
 
   // ── AI Panel ──
-  let listening = false;
+  // ── Voice Input (SpeechRecognition) ──
+  let _speechRec = null;
+  let _voiceActive = false;
+  const _SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-  function openAI() {
-    document.getElementById('aiOverlay').classList.add('open');
+  function toggleVoiceInput() {
+    _voiceActive ? _stopVoice() : _startVoice();
   }
 
-  function closeAI() {
-    stopListening();
-    document.getElementById('aiOverlay').classList.remove('open');
+  function _startVoice() {
+    if (!_SR) { showToast('Voice not supported on this browser. Use text input.'); return; }
+    // Make sure chat is open
+    const modal = document.getElementById('aiChatModal');
+    if (modal && modal.style.display === 'none') openAiChat();
+    _voiceActive = true;
+    const micBtn = document.getElementById('aiMicBtn');
+    const pulse  = document.getElementById('aiMicPulse');
+    const status = document.getElementById('aiVoiceStatus');
+    if (micBtn) micBtn.classList.add('ai-listening');
+    if (pulse)  pulse.style.display = '';
+    if (status) status.textContent = 'Listening… speak now';
+    const inp = document.getElementById('aiInput');
+    if (inp) { inp.value = ''; inp.placeholder = 'Listening...'; }
+    _speechRec = new _SR();
+    _speechRec.lang = 'en-NG';
+    _speechRec.interimResults = false;
+    _speechRec.maxAlternatives = 1;
+    _speechRec.onresult = (e) => {
+      const text = e.results[0][0].transcript;
+      _stopVoice();
+      _aiAppendMsg('user', text);
+      _aiDispatch(text);
+    };
+    _speechRec.onerror = (e) => {
+      _stopVoice();
+      if (e.error === 'not-allowed') showToast('Mic access denied. Allow mic in browser settings.');
+      else if (e.error !== 'no-speech') showToast('Voice error: ' + e.error);
+    };
+    _speechRec.onend = () => { if (_voiceActive) _stopVoice(); };
+    _speechRec.start();
   }
 
-  function handleOverlayClick(e) {
-    if (e.target === document.getElementById('aiOverlay')) closeAI();
+  function _stopVoice() {
+    _voiceActive = false;
+    if (_speechRec) { try { _speechRec.stop(); } catch(e){} _speechRec = null; }
+    const micBtn = document.getElementById('aiMicBtn');
+    const pulse  = document.getElementById('aiMicPulse');
+    const status = document.getElementById('aiVoiceStatus');
+    if (micBtn) micBtn.classList.remove('ai-listening');
+    if (pulse)  pulse.style.display = 'none';
+    if (status) status.textContent = 'Tap mic to speak';
+    const inp = document.getElementById('aiInput');
+    if (inp) inp.placeholder = 'or type here…';
   }
 
-  function toggleListening() {
-    listening ? stopListening() : startListening();
-  }
-
-  function startListening() {
-    listening = true;
-    document.getElementById('micRing').classList.add('listening');
-    document.getElementById('aiStatus').textContent = 'Listening…';
-    document.getElementById('aiStatus').classList.add('active');
-  }
-
-  function stopListening() {
-    listening = false;
-    document.getElementById('micRing').classList.remove('listening');
-    document.getElementById('aiStatus').textContent = 'Tap mic to speak';
-    document.getElementById('aiStatus').classList.remove('active');
-  }
+  // Legacy stubs (the old panel no longer exists but keep names to avoid errors)
+  function openAI() { openAiChat(); }
+  function closeAI() { closeAiChat(); }
+  function handleOverlayClick() {}
+  function toggleListening() { toggleVoiceInput(); }
+  function startListening() { _startVoice(); }
+  function stopListening() { _stopVoice(); }
 
   // ── Messages ──
   const convos = [

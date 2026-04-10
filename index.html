@@ -4030,39 +4030,60 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     accessToken: null,
     tokenExpiry: 0,
     pendingCbs: [],
+    _enabled: false,   // only true after explicit token success
 
     init(clientId) {
-      if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
-        setTimeout(() => this.init(clientId), 300);
-        return;
-      }
-      this.tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: clientId,
-        scope: 'https://www.googleapis.com/auth/spreadsheets',
-        callback: (resp) => {
-          if (resp.error) { setSyncStatus('error', 'Auth error'); return; }
-          this.accessToken = resp.access_token;
-          this.tokenExpiry = Date.now() + (resp.expires_in - 60) * 1000;
-          const cbs = [...this.pendingCbs];
-          this.pendingCbs = [];
-          cbs.forEach(cb => cb());
+      let tries = 0;
+      const tryInit = () => {
+        tries++;
+        if (typeof google === 'undefined' || !google.accounts?.oauth2) {
+          if (tries < 25) { setTimeout(tryInit, 300); return; } // ~7.5 s max
+          // Google library never loaded — hide sync indicators
+          setSyncStatus('', '—'); setProductSyncStatus('', '—'); return;
         }
-      });
-      this.withToken(() => this.loadAll());
+        this.tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: 'https://www.googleapis.com/auth/spreadsheets',
+          callback: (resp) => {
+            if (resp.error) { setSyncStatus('error', 'Auth error'); setProductSyncStatus('error', 'Auth error'); return; }
+            this.accessToken = resp.access_token;
+            this.tokenExpiry = Date.now() + (resp.expires_in - 60) * 1000;
+            this._enabled = true;
+            const cbs = [...this.pendingCbs];
+            this.pendingCbs = [];
+            cbs.forEach(cb => { try { cb(); } catch(e){} });
+          }
+        });
+        this.withToken(() => this.loadAll());
+      };
+      tryInit();
     },
 
     withToken(cb) {
       if (this.accessToken && Date.now() < this.tokenExpiry) {
-        cb();
+        try { cb(); } catch(e) { setSyncStatus('error', 'Sync error'); }
+        return;
+      }
+      const idx = this.pendingCbs.push(cb) - 1;
+      // Timeout: if no token arrives in 12 s, remove callback and reset status
+      const timer = setTimeout(() => {
+        const i = this.pendingCbs.indexOf(cb);
+        if (i !== -1) { this.pendingCbs.splice(i, 1); }
+        if (!this._enabled) { setSyncStatus('', '—'); setProductSyncStatus('', '—'); }
+      }, 12000);
+      if (this.tokenClient) {
+        this.tokenClient.requestAccessToken({ prompt: '' });
       } else {
-        this.pendingCbs.push(cb);
-        if (this.tokenClient) this.tokenClient.requestAccessToken({ prompt: '' });
+        clearTimeout(timer);
+        this.pendingCbs.splice(idx, 1);
+        setSyncStatus('', '—'); setProductSyncStatus('', '—');
       }
     },
 
     async req(url, opts = {}) {
       opts.headers = Object.assign({ 'Authorization': 'Bearer ' + this.accessToken }, opts.headers || {});
       const r = await fetch(url, opts);
+      if (r.status === 401) { this.accessToken = null; throw new Error('Token expired'); }
       return r.json();
     },
 
@@ -4080,27 +4101,18 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
         if (obtn) { obtn.href = `https://docs.google.com/spreadsheets/d/${cached}`; obtn.style.display = ''; }
         return cached;
       }
-      setSyncStatus('syncing', 'Creating spreadsheet…');
+      setSyncStatus('syncing', 'Creating…');
       const resp = await this.req(this.BASE, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          properties: { title: 'iFlow — Sales Data' },
-          sheets: [{ properties: { title: 'Sales', sheetId: 0 } }]
-        })
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ properties: { title: 'iFlow — Sales Data' }, sheets: [{ properties: { title: 'Sales', sheetId: 0 } }] })
       });
       this.spreadsheetId = resp.spreadsheetId;
       this.salesSheetId = 0;
       localStorage.setItem('iflow_sheet_id', this.spreadsheetId);
-      // Write header row
-      await this.req(
-        `${this.BASE}/${this.spreadsheetId}/values/Sales!A1:H1?valueInputOption=RAW`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ values: [['Date','Time','Product','Quantity','Unit Price','Subtotal','_ts','Customer']] })
-        }
-      );
+      await this.req(`${this.BASE}/${this.spreadsheetId}/values/Sales!A1:H1?valueInputOption=RAW`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values: [['Date','Time','Product','Quantity','Unit Price','Subtotal','_ts','Customer']] })
+      });
       const btn = document.getElementById('openSheetsBtn');
       if (btn) { btn.href = `https://docs.google.com/spreadsheets/d/${this.spreadsheetId}`; btn.style.display = ''; }
       const obtn = document.getElementById('openOrdersSheetBtn');
@@ -4113,88 +4125,73 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     },
 
     async loadAll() {
-      setSyncStatus('syncing', 'Loading…');
-      const id = await this.ensureSheet();
-      const data = await this.req(`${this.BASE}/${id}/values/Sales!A2:H`);
-      const rows = data.values || [];
-      if (rows.length > 0) {
-        sales = rows.filter(r => r[6]).map(r => ({
-          timestamp: parseInt(r[6]),
-          product:   r[2] || '',
-          quantity:  parseFloat(r[3]) || 0,
-          price:     parseFloat(r[4]) || 0,
-          customer:  r[7] || ''
-        }));
-        persist();
-        render();
-      } else if (sales.length > 0) {
-        // Migrate existing localStorage data up to Sheets
-        for (const s of sales) await this.appendRow(s);
+      setSyncStatus('syncing', 'Syncing…');
+      try {
+        const id = await this.ensureSheet();
+        const data = await this.req(`${this.BASE}/${id}/values/Sales!A2:H`);
+        const rows = data.values || [];
+        if (rows.length > 0) {
+          sales = rows.filter(r => r[6]).map(r => ({
+            timestamp: parseInt(r[6]), product: r[2] || '',
+            quantity: parseFloat(r[3]) || 0, price: parseFloat(r[4]) || 0, customer: r[7] || ''
+          }));
+          persist(); render();
+        } else if (sales.length > 0) {
+          for (const s of sales) await this.appendRow(s);
+        }
+        const ordersPage = document.getElementById('page-orders');
+        if (ordersPage && ordersPage.style.display !== 'none') renderOrders();
+        updateOrdersBadge();
+        const prods = await this.loadProducts();
+        products = prods;
+        localStorage.setItem('iflow_products', JSON.stringify(products));
+        refreshProductsList(); renderProducts(); checkLowStock();
+        setSyncStatus('synced', 'Synced');
+      } catch(e) {
+        setSyncStatus('error', 'Sync failed');
+        setProductSyncStatus('error', 'Sync failed');
+        console.warn('Sheets loadAll error:', e.message);
       }
-      // Refresh orders page if visible
-      const ordersPage = document.getElementById('page-orders');
-      if (ordersPage && ordersPage.style.display !== 'none') renderOrders();
-      updateOrdersBadge();
-      // Load products too
-      const prods = await this.loadProducts();
-      products = prods;
-      localStorage.setItem('iflow_products', JSON.stringify(products));
-      refreshProductsList();
-      renderProducts();
-      checkLowStock();
-      setSyncStatus('synced', 'Synced');
     },
 
     async appendRow(s) {
-      const id = await this.ensureSheet();
-      setSyncStatus('syncing', 'Saving…');
-      await this.req(
-        `${this.BASE}/${id}/values/Sales!A:H:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+      try {
+        const id = await this.ensureSheet();
+        setSyncStatus('syncing', 'Saving…');
+        await this.req(`${this.BASE}/${id}/values/Sales!A:H:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ values: [this.rowVals(s)] })
-        }
-      );
-      setSyncStatus('synced', 'Saved');
+        });
+        setSyncStatus('synced', 'Saved');
+      } catch(e) { setSyncStatus('error', 'Save failed'); console.warn('appendRow:', e.message); }
     },
 
     async updateRow(rowIndex, s) {
-      const id = await this.ensureSheet();
-      const r = rowIndex + 2;
-      setSyncStatus('syncing', 'Updating…');
-      await this.req(
-        `${this.BASE}/${id}/values/Sales!A${r}:H${r}?valueInputOption=USER_ENTERED`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+      try {
+        const id = await this.ensureSheet();
+        const r = rowIndex + 2;
+        setSyncStatus('syncing', 'Updating…');
+        await this.req(`${this.BASE}/${id}/values/Sales!A${r}:H${r}?valueInputOption=USER_ENTERED`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ values: [this.rowVals(s)] })
-        }
-      );
-      setSyncStatus('synced', 'Saved');
+        });
+        setSyncStatus('synced', 'Saved');
+      } catch(e) { setSyncStatus('error', 'Update failed'); console.warn('updateRow:', e.message); }
     },
 
     async deleteRow(rowIndex) {
-      const id = await this.ensureSheet();
-      setSyncStatus('syncing', 'Deleting…');
-      await this.req(
-        `${this.BASE}/${id}:batchUpdate`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            requests: [{
-              deleteDimension: {
-                range: { sheetId: this.salesSheetId, dimension: 'ROWS', startIndex: rowIndex + 1, endIndex: rowIndex + 2 }
-              }
-            }]
-          })
-        }
-      );
-      setSyncStatus('synced', 'Synced');
+      try {
+        const id = await this.ensureSheet();
+        setSyncStatus('syncing', 'Deleting…');
+        await this.req(`${this.BASE}/${id}:batchUpdate`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ requests: [{ deleteDimension: { range: { sheetId: this.salesSheetId, dimension: 'ROWS', startIndex: rowIndex + 1, endIndex: rowIndex + 2 } } }] })
+        });
+        setSyncStatus('synced', 'Synced');
+      } catch(e) { setSyncStatus('error', 'Delete failed'); console.warn('deleteRow:', e.message); }
     },
 
-    // ── Products sheet methods (separate Google Sheets document) ──
+    // ── Products sheet methods ──
     productsDocId: null,
     productsMainSheetId: 0,
 
@@ -4210,13 +4207,10 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
         if (btn) { btn.href = `https://docs.google.com/spreadsheets/d/${cached}`; btn.style.display = ''; }
         return cached;
       }
-      setProductSyncStatus('syncing', 'Creating Products spreadsheet…');
+      setProductSyncStatus('syncing', 'Creating…');
       const resp = await this.req(this.BASE, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          properties: { title: 'iFlow — Products & Stock' },
-          sheets: [{ properties: { title: 'Products', sheetId: 0 } }]
-        })
+        body: JSON.stringify({ properties: { title: 'iFlow — Products & Stock' }, sheets: [{ properties: { title: 'Products', sheetId: 0 } }] })
       });
       this.productsDocId = resp.spreadsheetId;
       this.productsMainSheetId = 0;
@@ -4236,46 +4230,54 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     },
 
     async loadProducts() {
-      setProductSyncStatus('syncing', 'Loading…');
-      const id = await this.ensureProductsDoc();
-      const data = await this.req(`${this.BASE}/${id}/values/Products!A2:G`);
-      setProductSyncStatus('synced', 'Synced');
-      return (data.values||[]).filter(r=>r[0]).map(r => ({
-        code: r[0]||'', name: r[1]||'', type: r[2]||'',
-        stockQty: parseFloat(r[3])||0, unitPrice: parseFloat(r[4])||0,
-        lowStockThreshold: parseFloat(r[5])||5, dateAdded: r[6]||''
-      }));
+      setProductSyncStatus('syncing', 'Syncing…');
+      try {
+        const id = await this.ensureProductsDoc();
+        const data = await this.req(`${this.BASE}/${id}/values/Products!A2:G`);
+        setProductSyncStatus('synced', 'Synced');
+        return (data.values||[]).filter(r=>r[0]).map(r => ({
+          code: r[0]||'', name: r[1]||'', type: r[2]||'',
+          stockQty: parseFloat(r[3])||0, unitPrice: parseFloat(r[4])||0,
+          lowStockThreshold: parseFloat(r[5])||5, dateAdded: r[6]||''
+        }));
+      } catch(e) { setProductSyncStatus('error', 'Sync failed'); console.warn('loadProducts:', e.message); return products; }
     },
 
     async appendProduct(p) {
-      const id = await this.ensureProductsDoc();
-      setProductSyncStatus('syncing', 'Saving…');
-      await this.req(`${this.BASE}/${id}/values/Products!A:G:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ values: [this.productRowVals(p)] })
-      });
-      setProductSyncStatus('synced', 'Saved');
+      try {
+        const id = await this.ensureProductsDoc();
+        setProductSyncStatus('syncing', 'Saving…');
+        await this.req(`${this.BASE}/${id}/values/Products!A:G:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ values: [this.productRowVals(p)] })
+        });
+        setProductSyncStatus('synced', 'Saved');
+      } catch(e) { setProductSyncStatus('error', 'Save failed'); console.warn('appendProduct:', e.message); }
     },
 
     async updateProduct(rowIndex, p) {
-      const id = await this.ensureProductsDoc();
-      const r = rowIndex + 2;
-      setProductSyncStatus('syncing', 'Updating…');
-      await this.req(`${this.BASE}/${id}/values/Products!A${r}:G${r}?valueInputOption=USER_ENTERED`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ values: [this.productRowVals(p)] })
-      });
-      setProductSyncStatus('synced', 'Saved');
+      try {
+        const id = await this.ensureProductsDoc();
+        const r = rowIndex + 2;
+        setProductSyncStatus('syncing', 'Updating…');
+        await this.req(`${this.BASE}/${id}/values/Products!A${r}:G${r}?valueInputOption=USER_ENTERED`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ values: [this.productRowVals(p)] })
+        });
+        setProductSyncStatus('synced', 'Saved');
+      } catch(e) { setProductSyncStatus('error', 'Update failed'); console.warn('updateProduct:', e.message); }
     },
 
     async deleteProduct(rowIndex) {
-      const id = await this.ensureProductsDoc();
-      setProductSyncStatus('syncing', 'Deleting…');
-      await this.req(`${this.BASE}/${id}:batchUpdate`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requests: [{ deleteDimension: { range: { sheetId: this.productsMainSheetId, dimension: 'ROWS', startIndex: rowIndex+1, endIndex: rowIndex+2 } } }] })
-      });
-      setProductSyncStatus('synced', 'Synced');
+      try {
+        const id = await this.ensureProductsDoc();
+        setProductSyncStatus('syncing', 'Deleting…');
+        await this.req(`${this.BASE}/${id}:batchUpdate`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ requests: [{ deleteDimension: { range: { sheetId: this.productsMainSheetId, dimension: 'ROWS', startIndex: rowIndex+1, endIndex: rowIndex+2 } } }] })
+        });
+        setProductSyncStatus('synced', 'Synced');
+      } catch(e) { setProductSyncStatus('error', 'Delete failed'); console.warn('deleteProduct:', e.message); }
     }
   };
 

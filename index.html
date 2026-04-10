@@ -2089,6 +2089,20 @@
         </div>
       </div>
 
+      <!-- Google Sheets Sync -->
+      <div class="settings-section">
+        <div class="settings-section-title">
+          <span class="settings-icon">📊</span>
+          <div><h3>Google Sheets Sync</h3><p>Back up your sales and stock data to a Google Spreadsheet in real time</p></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px">
+          <button class="settings-btn-solid" onclick="connectSheets()">🔗 Connect Google Sheets</button>
+          <span id="sheetsStatus" style="font-size:0.82rem;color:var(--muted)">○ Not connected</span>
+          <button class="settings-btn-outline danger" onclick="disconnectSheets()" id="sheetsDisconnectBtn" style="display:none;font-size:0.78rem;padding:6px 12px">Disconnect</button>
+        </div>
+        <p style="font-size:0.72rem;color:var(--muted);margin:8px 0 0">Clicking Connect opens a Google sign-in popup. Once authorised, all sales and stock changes sync automatically. You only need to do this once.</p>
+      </div>
+
       <!-- Email Alerts -->
       <div class="settings-section">
         <div class="settings-section-title">
@@ -2804,6 +2818,32 @@
     const el = document.getElementById('gmailStatus');
     const btn = document.getElementById('gmailDisconnectBtn');
     if (el) { el.textContent = connected ? '● Connected — emails send automatically' : '○ Not connected'; el.style.color = connected ? '#38a169' : 'var(--muted)'; }
+    if (btn) btn.style.display = connected ? '' : 'none';
+  }
+
+  // ── Google Sheets connect / disconnect ──
+  function connectSheets() {
+    if (!SheetsAPI.tokenClient) {
+      showToast('Google library still loading — try in a moment');
+      return;
+    }
+    showToast('Opening Google sign-in…');
+    SheetsAPI.connect();
+  }
+  function disconnectSheets() {
+    SheetsAPI.accessToken = null;
+    SheetsAPI.tokenExpiry = 0;
+    SheetsAPI._enabled = false;
+    localStorage.removeItem('iflow_sheets_connected');
+    setSyncStatus('', '—');
+    setProductSyncStatus('', '—');
+    _updateSheetsStatus(false);
+    showToast('Google Sheets disconnected');
+  }
+  function _updateSheetsStatus(connected) {
+    const el  = document.getElementById('sheetsStatus');
+    const btn = document.getElementById('sheetsDisconnectBtn');
+    if (el)  { el.textContent = connected ? '● Connected — syncing automatically' : '○ Not connected'; el.style.color = connected ? '#38a169' : 'var(--muted)'; }
     if (btn) btn.style.display = connected ? '' : 'none';
   }
   async function _sendViaGmail(to, subject, body) {
@@ -4037,26 +4077,41 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       const tryInit = () => {
         tries++;
         if (typeof google === 'undefined' || !google.accounts?.oauth2) {
-          if (tries < 25) { setTimeout(tryInit, 300); return; } // ~7.5 s max
-          // Google library never loaded — hide sync indicators
+          if (tries < 25) { setTimeout(tryInit, 300); return; }
           setSyncStatus('', '—'); setProductSyncStatus('', '—'); return;
         }
         this.tokenClient = google.accounts.oauth2.initTokenClient({
           client_id: clientId,
           scope: 'https://www.googleapis.com/auth/spreadsheets',
           callback: (resp) => {
-            if (resp.error) { setSyncStatus('error', 'Auth error'); setProductSyncStatus('error', 'Auth error'); return; }
+            if (resp.error) {
+              setSyncStatus('error', 'Auth error'); setProductSyncStatus('error', 'Auth error');
+              _updateSheetsStatus(false); return;
+            }
             this.accessToken = resp.access_token;
             this.tokenExpiry = Date.now() + (resp.expires_in - 60) * 1000;
             this._enabled = true;
+            localStorage.setItem('iflow_sheets_connected', '1');
+            _updateSheetsStatus(true);
             const cbs = [...this.pendingCbs];
             this.pendingCbs = [];
             cbs.forEach(cb => { try { cb(); } catch(e){} });
           }
         });
-        this.withToken(() => this.loadAll());
+        // Only auto-connect silently if user previously connected
+        if (localStorage.getItem('iflow_sheets_connected') === '1') {
+          this.withToken(() => this.loadAll());
+        } else {
+          setSyncStatus('', '—'); setProductSyncStatus('', '—');
+        }
       };
       tryInit();
+    },
+
+    connect() {
+      if (!this.tokenClient) { showToast('Google library not loaded yet. Try again in a moment.'); return; }
+      this.pendingCbs.push(() => this.loadAll());
+      this.tokenClient.requestAccessToken({ prompt: 'consent' });
     },
 
     withToken(cb) {
@@ -4336,6 +4391,8 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     // Gmail
     if (s.googleClientId) { const el = document.getElementById('settingsGoogleClientId'); if (el) el.value = s.googleClientId; }
     _updateGmailStatus(!!(s.gmailToken && Date.now() < (s.gmailExpiry || 0)));
+    // Sheets
+    _updateSheetsStatus(localStorage.getItem('iflow_sheets_connected') === '1' && SheetsAPI._enabled);
     // WhatsApp
     if (s.waNumber) { const el = document.getElementById('settingsWaNumber'); if (el) el.value = s.waNumber; }
     if (s.waApiToken) { const el = document.getElementById('settingsWaApiToken'); if (el) el.value = s.waApiToken; }

@@ -2185,6 +2185,15 @@
         <div style="margin-top:6px">
           <span id="geminiStatus" style="font-size:0.82rem;color:var(--muted)">○ Not configured</span>
         </div>
+        <div class="settings-row" style="margin-top:16px">
+          <div class="settings-field">
+            <label>AI Language Style</label>
+            <select id="settingsAiStyle" style="padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:0.85rem;width:100%">
+              <option value="pidgin">Nigerian Pidgin — slangy &amp; casual (default)</option>
+              <option value="english">Nigerian English — clear &amp; professional</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       <!-- Save Bar -->
@@ -2242,7 +2251,10 @@
           <div style="font-size:0.72rem;color:rgba(255,255,255,.75)" id="aiModelLabel">Groq · llama-3.3</div>
         </div>
       </div>
-      <button onclick="closeAiChat()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center">✕</button>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button id="aiTtsBtn" onclick="toggleAiTts()" title="Toggle AI voice" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center">🔊</button>
+        <button onclick="closeAiChat()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center">✕</button>
+      </div>
     </div>
     <!-- Quick prompts -->
     <div style="padding:10px 14px 0;display:flex;gap:6px;flex-wrap:wrap">
@@ -2722,9 +2734,10 @@
     const emailjsTemplateId = (document.getElementById('settingsEjsTemplate')?.value || '').trim();
     const emailjsPublicKey  = (document.getElementById('settingsEjsKey')?.value || '').trim();
     if (emailjsPublicKey && typeof emailjs !== 'undefined') emailjs.init(emailjsPublicKey);
+    const aiStyle = document.getElementById('settingsAiStyle')?.value || 'pidgin';
     // Merge with existing settings so hashes/tokens set elsewhere are preserved
     const existing = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-    const settings = { ...existing, storeName, ownerName, email, phone, currency, lowStockThreshold, emailAlertsEnabled, emailjsServiceId, emailjsTemplateId, emailjsPublicKey };
+    const settings = { ...existing, storeName, ownerName, email, phone, currency, lowStockThreshold, emailAlertsEnabled, emailjsServiceId, emailjsTemplateId, emailjsPublicKey, aiStyle };
     localStorage.setItem('iflow_settings', JSON.stringify(settings));
     applySettings(settings);
     showToast('Settings saved ✓');
@@ -2898,6 +2911,34 @@
   let _aiHistory = [];          // multi-turn conversation [{role,parts}]
   let _aiPendingDelete = null;  // product name awaiting delete confirmation
   let _aiAwaitingName = false;  // first-use name collection flow
+  let _aiTtsOn = localStorage.getItem('iflow_ai_tts') !== '0'; // TTS default on
+
+  function toggleAiTts() {
+    _aiTtsOn = !_aiTtsOn;
+    localStorage.setItem('iflow_ai_tts', _aiTtsOn ? '1' : '0');
+    const btn = document.getElementById('aiTtsBtn');
+    if (btn) btn.textContent = _aiTtsOn ? '🔊' : '🔇';
+    if (!_aiTtsOn && window.speechSynthesis) window.speechSynthesis.cancel();
+  }
+
+  function _speakText(text) {
+    if (!_aiTtsOn || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    // Strip JSON and action markers from spoken text
+    const clean = text.replace(/\{[\s\S]*?\}/g, '').replace(/[*_~`#]/g, '').trim();
+    if (!clean) return;
+    const utt = new SpeechSynthesisUtterance(clean);
+    utt.lang = 'en-NG';
+    utt.rate = 1.05;
+    utt.pitch = 1.0;
+    // Prefer a voice that sounds Nigerian/African if available
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(v => /en.NG|en.GH|en.ZA/i.test(v.lang)) ||
+                      voices.find(v => /en.GB|en.AU/i.test(v.lang)) ||
+                      voices.find(v => /en/i.test(v.lang));
+    if (preferred) utt.voice = preferred;
+    window.speechSynthesis.speak(utt);
+  }
 
   const _AI_SYSTEM = `You are iFlow AI, a sharp and friendly shop assistant for a Nigerian retail store. You speak naturally in Nigerian English and use Pidgin slangs — things like "Oya", "Abeg", "Sharp sharp", "Wetin", "Na so", "E don do", "No wahala", "How far", "Sabi", "Chai", "Ehn", "You sure?" — but only when it flows naturally, not forced.
 
@@ -2923,6 +2964,24 @@ Rules:
 5. Keep responses short and punchy. No long grammar.
 6. You know the full stock list, sales history, and store data — use it to give useful advice.
 7. When recording sales, check if the product actually exists in stock and if quantity is available.`;
+
+  // Returns the right system prompt based on the user's chosen AI style
+  function _getAiSystem() {
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    if (s.aiStyle === 'english') {
+      return _AI_SYSTEM
+        .replace("You speak naturally in Nigerian English and use Pidgin slangs — things like \"Oya\", \"Abeg\", \"Sharp sharp\", \"Wetin\", \"Na so\", \"E don do\", \"No wahala\", \"How far\", \"Sabi\", \"Chai\", \"Ehn\", \"You sure?\" — but only when it flows naturally, not forced.",
+          "You speak in clear, professional Nigerian English. Warm, direct, and efficient. You may use very light expressions (\"no problem\", \"sharp\", \"all good\") but keep Pidgin slangs minimal — the user prefers standard English.")
+        .replace("1. If info is incomplete for add_stock (missing price or quantity), ask first before acting. Say something like \"Abeg how much e cost?\" or \"How many units?\"",
+          "1. If info is incomplete for add_stock (missing price or quantity), ask clearly before acting. E.g. \"What is the unit price?\" or \"How many units?\"")
+        .replace("2. If quantity or price sounds suspicious (e.g. 50000 units of a phone, or ₦1 for a laptop), ask \"You sure about this? Wetin be [the thing that sounds off]?\"",
+          "2. If quantity or price sounds suspicious, ask for confirmation politely. E.g. \"Are you sure about 50,000 units? That seems unusually high.\"")
+        .replace("3. For delete, always get confirmation — say \"You sure say you wan remove [name]? Just type 'yes delete it' or 'no'.\"",
+          "3. For delete, always get confirmation first. E.g. \"Are you sure you want to remove [name] from stock? Type 'yes delete it' to confirm or 'no' to cancel.\"")
+        .replace("5. Keep responses short and punchy. No long grammar.", "5. Keep responses concise and professional.");
+    }
+    return _AI_SYSTEM;
+  }
 
   function saveGeminiKey() {
     const key = (document.getElementById('settingsGeminiKey')?.value || '').trim();
@@ -2952,7 +3011,7 @@ Rules:
 
   async function _callGroq(userText, key) {
     // OpenAI-compatible format
-    const messages = [{ role: 'system', content: _AI_SYSTEM }];
+    const messages = [{ role: 'system', content: _getAiSystem() }];
     _aiHistory.forEach(t => messages.push({ role: t.role === 'model' ? 'assistant' : t.role, content: t.parts[0].text }));
     messages.push({ role: 'user', content: userText });
     const models = ['llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'];
@@ -2982,7 +3041,7 @@ Rules:
 
   async function _callGeminiApi(userText, key) {
     const contents = [..._aiHistory, { role: 'user', parts: [{ text: userText }] }];
-    const body = { systemInstruction: { parts: [{ text: _AI_SYSTEM }] }, contents, generationConfig: { maxOutputTokens: 600, temperature: 0.85 } };
+    const body = { systemInstruction: { parts: [{ text: _getAiSystem() }] }, contents, generationConfig: { maxOutputTokens: 600, temperature: 0.85 } };
     const models = [
       { v: 'v1beta', m: 'gemini-2.0-flash-lite' },
       { v: 'v1beta', m: 'gemini-2.0-flash-exp' },
@@ -3040,9 +3099,28 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
   }
 
   function _parseAiAction(text) {
-    const m = text.match(/\{[\s\S]*?"action"[\s\S]*?\}/);
-    if (!m) return null;
-    try { return JSON.parse(m[0]); } catch(e) { return null; }
+    // Find the first { that starts an action JSON object
+    const start = text.indexOf('{"action"');
+    if (start === -1) return null;
+    // Track brace depth to find the matching closing } — handles nested data objects
+    let depth = 0;
+    for (let i = start; i < text.length; i++) {
+      if (text[i] === '{') depth++;
+      else if (text[i] === '}') {
+        depth--;
+        if (depth === 0) {
+          try { return JSON.parse(text.slice(start, i + 1)); } catch(e) { return null; }
+        }
+      }
+    }
+    return null;
+  }
+
+  // Navigate to a named page — used by AI navigate action
+  function navigateTo(page) {
+    const id = page === 'home' ? 'inventory' : page;
+    const navEl = document.querySelector(`.nav-item[onclick*="'${id}'"]`);
+    if (navEl) setNav(navEl, id);
   }
 
   async function _executeAction(obj) {
@@ -3158,6 +3236,9 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     const modal = document.getElementById('aiChatModal');
     if (!modal) return;
     modal.style.display = 'flex';
+    // Sync TTS button icon with current state
+    const ttsBtn = document.getElementById('aiTtsBtn');
+    if (ttsBtn) ttsBtn.textContent = _aiTtsOn ? '🔊' : '🔇';
     // First-use: clear history and ask for name
     const storedName = localStorage.getItem('iflow_ai_name');
     if (!storedName) {
@@ -3173,6 +3254,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
   }
   function closeAiChat() {
     document.getElementById('aiChatModal').style.display = 'none';
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
   }
   function _aiAppendMsg(role, text, typing) {
     const box = document.getElementById('aiMessages');
@@ -3209,11 +3291,14 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
           }
           _aiPendingDelete = null;
           if (typingDiv) { typingDiv.textContent = result; typingDiv.classList.remove('typing'); }
+          _speakText(result);
           return;
         } else if (/no|cancel|abeg no|stop/i.test(msg)) {
           const name = _aiPendingDelete;
           _aiPendingDelete = null;
-          if (typingDiv) { typingDiv.textContent = 'Ok no wahala. "' + name + '" still dey your stock.'; typingDiv.classList.remove('typing'); }
+          const reply = 'Ok no wahala. "' + name + '" still dey your stock.';
+          if (typingDiv) { typingDiv.textContent = reply; typingDiv.classList.remove('typing'); }
+          _speakText(reply);
           return;
         }
       }
@@ -3223,8 +3308,11 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       if (action) {
         const result = await _executeAction(action);
         if (typingDiv) { typingDiv.textContent = result.trim(); typingDiv.classList.remove('typing'); }
+        _speakText(result);
       } else {
-        if (typingDiv) { typingDiv.textContent = raw.trim(); typingDiv.classList.remove('typing'); }
+        const reply = raw.trim();
+        if (typingDiv) { typingDiv.textContent = reply; typingDiv.classList.remove('typing'); }
+        _speakText(reply);
       }
     } catch(err) {
       if (typingDiv) { typingDiv.textContent = '⚠️ ' + err.message; typingDiv.classList.remove('typing'); }
@@ -4197,7 +4285,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
           this.accessToken = null; this._enabled = false;
           localStorage.removeItem('iflow_sheets_token');
           localStorage.removeItem('iflow_sheets_expiry');
-          localStorage.removeItem('iflow_sheets_connected');
+          // Keep iflow_sheets_connected so init() retries silent re-auth on next reload
           setSyncStatus('error', 'Session expired');
           setProductSyncStatus('error', 'Reconnect needed');
           _updateSheetsStatus(false);
@@ -4473,6 +4561,8 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     // Gemini AI
     if (s.geminiApiKey) { const el = document.getElementById('settingsGeminiKey'); if (el) el.value = s.geminiApiKey; }
     _updateGeminiStatus(!!s.geminiApiKey);
+    const aiStyleEl = document.getElementById('settingsAiStyle');
+    if (aiStyleEl && s.aiStyle) aiStyleEl.value = s.aiStyle;
     // Restore logo preview
     const logo = localStorage.getItem('iflow_logo');
     if (logo) {

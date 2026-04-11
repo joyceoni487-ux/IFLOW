@@ -1315,6 +1315,10 @@
   #aiFloatBtn:hover { transform:scale(1.1); }
   @keyframes aiPulse { 0%{transform:scale(1);opacity:.8} 100%{transform:scale(1.6);opacity:0} }
   #aiMicBtn.ai-listening { background:linear-gradient(135deg,#e53e3e,#c0392b) !important; box-shadow:0 4px 24px rgba(229,62,62,.5) !important; }
+  .ls-item { display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(229,62,62,.08);border-radius:8px;border:1px solid rgba(229,62,62,.2); }
+  .ls-code { font-family:monospace;font-size:0.78rem;color:#718096;flex-shrink:0; }
+  .ls-name { flex:1;font-weight:600;color:var(--text,#1a202c); }
+  .ls-qty { font-size:0.85rem;color:#e53e3e;font-weight:700;flex-shrink:0; }
   </style>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
@@ -2278,6 +2282,18 @@
 <button id="aiFloatBtn" onclick="openAiChat()" title="Ask iFlow AI" style="display:none;position:fixed;bottom:26px;right:26px;z-index:9700;width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#7c3aed);border:none;color:#fff;cursor:pointer;box-shadow:0 4px 24px rgba(79,70,229,.55);transition:transform .15s;display:flex;align-items:center;justify-content:center">
   <svg viewBox="0 0 24 24" width="26" height="26" fill="#fff"><path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm-1 17.93V21h2v-2.07A8.001 8.001 0 0 0 20 11h-2a6 6 0 0 1-12 0H4a8.001 8.001 0 0 0 7 7.93z"/></svg>
 </button>
+
+<!-- Low Stock Alert Overlay -->
+<div id="lowStockOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9800;align-items:center;justify-content:center">
+  <div style="background:var(--surface,#fff);border-radius:16px;padding:28px 32px;max-width:420px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.25)">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <span style="font-size:1.5rem">⚠️</span>
+      <h3 style="margin:0;font-size:1.1rem;color:var(--text,#1a202c)">Low Stock Alert</h3>
+    </div>
+    <div id="lowStockList" style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto;margin-bottom:20px"></div>
+    <button onclick="document.getElementById('lowStockOverlay').style.display='none'" style="width:100%;padding:10px;border:none;border-radius:8px;background:#e53e3e;color:#fff;font-weight:600;cursor:pointer;font-size:0.95rem">Got it, I'll restock</button>
+  </div>
+</div>
 
 </div><!-- end .app-body -->
 
@@ -4998,7 +5014,8 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     refreshProductsList();
     SheetsAPI.withToken(() => SheetsAPI.appendProduct(p));
     toggleAddProductForm();
-    ['npName','npType','npQty','npPrice','npThreshold','npCode'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+    showToast(`"${name}" added to stock`);
+    ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
     checkLowStock();
   }
 

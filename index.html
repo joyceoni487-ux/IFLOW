@@ -4124,8 +4124,10 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
           client_id: clientId,
           scope: 'https://www.googleapis.com/auth/spreadsheets',
           callback: (resp) => {
+            this._authPending = false;
             if (resp.error) {
               this._clearToken();
+              this.pendingCbs = [];
               setSyncStatus('error', 'Auth error'); setProductSyncStatus('error', 'Auth error');
               _updateSheetsStatus(false); return;
             }
@@ -4168,25 +4170,41 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       this.tokenClient.requestAccessToken({ prompt: 'select_account' });
     },
 
+    _authPending: false,
     withToken(cb) {
       if (this.accessToken && Date.now() < this.tokenExpiry) {
         try { cb(); } catch(e) { setSyncStatus('error', 'Sync error'); console.warn(e); }
         return;
       }
-      // Try restoring token first
+      // Try restoring a saved token first
       if (this._loadToken()) { try { cb(); } catch(e) {} return; }
-      // Queue and re-auth silently
+      // Not connected at all — skip silently
+      if (!this.tokenClient || !this._enabled) return;
+      // Queue the callback; only fire one re-auth at a time
       this.pendingCbs.push(cb);
-      if (this.tokenClient && this._enabled) {
+      if (!this._authPending) {
+        this._authPending = true;
         this.tokenClient.requestAccessToken({ prompt: '' });
+        setTimeout(() => { this._authPending = false; }, 30000);
       }
-      // If not enabled at all (not connected), just skip silently
     },
 
     async req(url, opts = {}) {
       opts.headers = Object.assign({ 'Authorization': 'Bearer ' + this.accessToken }, opts.headers || {});
       const r = await fetch(url, opts);
-      if (r.status === 401) { this.accessToken = null; throw new Error('Token expired'); }
+      if (!r.ok) {
+        if (r.status === 401) {
+          this.accessToken = null; this._enabled = false;
+          localStorage.removeItem('iflow_sheets_token');
+          localStorage.removeItem('iflow_sheets_expiry');
+          localStorage.removeItem('iflow_sheets_connected');
+          setSyncStatus('error', 'Session expired');
+          setProductSyncStatus('error', 'Reconnect needed');
+          _updateSheetsStatus(false);
+        }
+        const body = await r.json().catch(() => ({}));
+        throw new Error(body.error?.message || `HTTP ${r.status}`);
+      }
       return r.json();
     },
 
@@ -4246,10 +4264,17 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
         if (ordersPage && ordersPage.style.display !== 'none') renderOrders();
         updateOrdersBadge();
         const prods = await this.loadProducts();
-        products = prods;
-        localStorage.setItem('iflow_products', JSON.stringify(products));
+        if (prods.length > 0) {
+          // Sheets has data — use it as source of truth
+          products = prods;
+          localStorage.setItem('iflow_products', JSON.stringify(products));
+        } else if (products.length > 0) {
+          // Sheets is empty but local has products — push local up to Sheets
+          for (const p of products) await this.appendProduct(p);
+        }
         refreshProductsList(); renderProducts(); checkLowStock();
         setSyncStatus('synced', 'Synced');
+        setProductSyncStatus('synced', 'Synced');
       } catch(e) {
         setSyncStatus('error', 'Sync failed');
         setProductSyncStatus('error', 'Sync failed');

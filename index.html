@@ -1453,6 +1453,7 @@
               <span id="syncText">—</span>
             </div>
             <a class="open-sheets-btn" id="openSheetsBtn" href="#" target="_blank" style="display:none">↗ Open in Sheets</a>
+            <button id="syncReconnectBtn" onclick="connectSheets()" style="display:none;font-size:0.72rem;padding:3px 9px;border-radius:6px;border:1px solid #e53e3e;background:none;color:#e53e3e;cursor:pointer">↺ Reconnect</button>
           </div>
         </div>
       </div>
@@ -1569,6 +1570,7 @@
               <span id="ordersSyncText">—</span>
             </div>
             <a class="open-sheets-btn" id="openOrdersSheetBtn" href="#" target="_blank" style="display:none">↗ Open in Sheets</a>
+            <button id="ordersSyncReconnectBtn" onclick="connectSheets()" style="display:none;font-size:0.72rem;padding:3px 9px;border-radius:6px;border:1px solid #e53e3e;background:none;color:#e53e3e;cursor:pointer">↺ Reconnect</button>
           </div>
         </div>
         <div class="orders-filters">
@@ -1637,6 +1639,7 @@
               <span id="productSyncText">—</span>
             </div>
             <a class="open-sheets-btn" id="openProductsSheetBtn" href="#" target="_blank" style="display:none">↗ Open in Sheets</a>
+            <button id="productSyncReconnectBtn" onclick="connectSheets()" style="display:none;font-size:0.72rem;padding:3px 9px;border-radius:6px;border:1px solid #e53e3e;background:none;color:#e53e3e;cursor:pointer">↺ Reconnect</button>
           </div>
         </div>
         <div class="orders-filters">
@@ -4150,11 +4153,15 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     const txt = document.getElementById('syncText');
     if (dot) { dot.className = 'sync-dot ' + (state || ''); }
     if (txt) txt.textContent = text || '';
+    const rb  = document.getElementById('syncReconnectBtn');
+    if (rb)  rb.style.display  = state === 'error' ? '' : 'none';
     // Mirror to Orders page sync bar (same sheet)
     const odot = document.getElementById('ordersSyncDot');
     const otxt = document.getElementById('ordersSyncText');
     if (odot) { odot.className = 'sync-dot ' + (state || ''); }
     if (otxt) otxt.textContent = text || '';
+    const orb  = document.getElementById('ordersSyncReconnectBtn');
+    if (orb)  orb.style.display  = state === 'error' ? '' : 'none';
   }
 
   function setProductSyncStatus(state, text) {
@@ -4162,6 +4169,8 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     const txt = document.getElementById('productSyncText');
     if (dot) { dot.className = 'sync-dot ' + (state || ''); }
     if (txt) txt.textContent = text || '';
+    const rb  = document.getElementById('productSyncReconnectBtn');
+    if (rb)  rb.style.display  = state === 'error' ? '' : 'none';
   }
 
   const SheetsAPI = {
@@ -4266,9 +4275,9 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       }
       // Try restoring a saved token first
       if (this._loadToken()) { try { cb(); } catch(e) {} return; }
-      // Not connected at all — skip silently
-      if (!this.tokenClient || !this._enabled) return;
-      // Queue the callback; only fire one re-auth at a time
+      // No token — only queue if user has previously connected
+      if (!this.tokenClient || localStorage.getItem('iflow_sheets_connected') !== '1') return;
+      // Queue the callback; only fire one silent re-auth at a time
       this.pendingCbs.push(cb);
       if (!this._authPending) {
         this._authPending = true;
@@ -4300,15 +4309,23 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       if (this.spreadsheetId) return this.spreadsheetId;
       const cached = localStorage.getItem('iflow_sheet_id');
       if (cached) {
-        this.spreadsheetId = cached;
-        const meta = await this.req(`${this.BASE}/${cached}?fields=sheets.properties`);
-        const s = (meta.sheets || []).find(s => s.properties.title === 'Sales');
-        this.salesSheetId = s ? s.properties.sheetId : 0;
-        const btn = document.getElementById('openSheetsBtn');
-        if (btn) { btn.href = `https://docs.google.com/spreadsheets/d/${cached}`; btn.style.display = ''; }
-        const obtn = document.getElementById('openOrdersSheetBtn');
-        if (obtn) { obtn.href = `https://docs.google.com/spreadsheets/d/${cached}`; obtn.style.display = ''; }
-        return cached;
+        try {
+          const meta = await this.req(`${this.BASE}/${cached}?fields=sheets.properties`);
+          const s = (meta.sheets || []).find(s => s.properties.title === 'Sales');
+          this.spreadsheetId = cached;
+          this.salesSheetId = s ? s.properties.sheetId : 0;
+          const btn = document.getElementById('openSheetsBtn');
+          if (btn) { btn.href = `https://docs.google.com/spreadsheets/d/${cached}`; btn.style.display = ''; }
+          const obtn = document.getElementById('openOrdersSheetBtn');
+          if (obtn) { obtn.href = `https://docs.google.com/spreadsheets/d/${cached}`; obtn.style.display = ''; }
+          return cached;
+        } catch(e) {
+          // Spreadsheet inaccessible — clear stale ID and create a fresh one below
+          localStorage.removeItem('iflow_sheet_id');
+          this.spreadsheetId = null;
+          if (e.message.includes('401') || e.message.includes('Session expired')) throw e;
+          // else fall through to create new sheet
+        }
       }
       setSyncStatus('syncing', 'Creating…');
       const resp = await this.req(this.BASE, {
@@ -4364,8 +4381,22 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
         setSyncStatus('synced', 'Synced');
         setProductSyncStatus('synced', 'Synced');
       } catch(e) {
-        setSyncStatus('error', 'Sync failed');
-        setProductSyncStatus('error', 'Sync failed');
+        const isAuthErr = e.message.includes('401') || e.message.includes('Session expired') || e.message.includes('Token expired');
+        if (isAuthErr && this.tokenClient && !this._authPending) {
+          // Token expired mid-sync — attempt silent re-auth, then retry loadAll
+          setSyncStatus('', 'Reconnecting…'); setProductSyncStatus('', 'Reconnecting…');
+          this._authPending = true;
+          this.pendingCbs.push(() => this.loadAll());
+          this.tokenClient.requestAccessToken({ prompt: '' });
+          setTimeout(() => {
+            if (this._authPending) {
+              this._authPending = false; this.pendingCbs = [];
+              setSyncStatus('error', 'Session expired'); setProductSyncStatus('error', 'Session expired');
+            }
+          }, 15000);
+        } else {
+          setSyncStatus('error', 'Sync failed'); setProductSyncStatus('error', 'Sync failed');
+        }
         console.warn('Sheets loadAll error:', e.message);
       }
     },
@@ -4415,13 +4446,19 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       if (this.productsDocId) return this.productsDocId;
       const cached = localStorage.getItem('iflow_products_sheet_id');
       if (cached) {
-        this.productsDocId = cached;
-        const meta = await this.req(`${this.BASE}/${cached}?fields=sheets.properties`);
-        const s = (meta.sheets||[]).find(sh => sh.properties.title === 'Products');
-        this.productsMainSheetId = s?.properties?.sheetId ?? 0;
-        const btn = document.getElementById('openProductsSheetBtn');
-        if (btn) { btn.href = `https://docs.google.com/spreadsheets/d/${cached}`; btn.style.display = ''; }
-        return cached;
+        try {
+          const meta = await this.req(`${this.BASE}/${cached}?fields=sheets.properties`);
+          const s = (meta.sheets||[]).find(sh => sh.properties.title === 'Products');
+          this.productsDocId = cached;
+          this.productsMainSheetId = s?.properties?.sheetId ?? 0;
+          const btn = document.getElementById('openProductsSheetBtn');
+          if (btn) { btn.href = `https://docs.google.com/spreadsheets/d/${cached}`; btn.style.display = ''; }
+          return cached;
+        } catch(e) {
+          localStorage.removeItem('iflow_products_sheet_id');
+          this.productsDocId = null;
+          if (e.message.includes('401') || e.message.includes('Session expired')) throw e;
+        }
       }
       setProductSyncStatus('syncing', 'Creating…');
       const resp = await this.req(this.BASE, {

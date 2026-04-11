@@ -2831,9 +2831,7 @@
     SheetsAPI.connect();
   }
   function disconnectSheets() {
-    SheetsAPI.accessToken = null;
-    SheetsAPI.tokenExpiry = 0;
-    SheetsAPI._enabled = false;
+    SheetsAPI._clearToken();
     localStorage.removeItem('iflow_sheets_connected');
     setSyncStatus('', '—');
     setProductSyncStatus('', '—');
@@ -4070,7 +4068,33 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     accessToken: null,
     tokenExpiry: 0,
     pendingCbs: [],
-    _enabled: false,   // only true after explicit token success
+    _enabled: false,
+
+    // ── Save / restore token across page reloads ──
+    _saveToken(token, expiresIn) {
+      this.accessToken = token;
+      this.tokenExpiry = Date.now() + (expiresIn - 60) * 1000;
+      this._enabled = true;
+      localStorage.setItem('iflow_sheets_token',  token);
+      localStorage.setItem('iflow_sheets_expiry', this.tokenExpiry.toString());
+      localStorage.setItem('iflow_sheets_connected', '1');
+    },
+    _loadToken() {
+      const token  = localStorage.getItem('iflow_sheets_token');
+      const expiry = parseInt(localStorage.getItem('iflow_sheets_expiry') || '0');
+      if (token && expiry > Date.now() + 5000) {
+        this.accessToken  = token;
+        this.tokenExpiry  = expiry;
+        this._enabled     = true;
+        return true;
+      }
+      return false;
+    },
+    _clearToken() {
+      this.accessToken = null; this.tokenExpiry = 0; this._enabled = false;
+      localStorage.removeItem('iflow_sheets_token');
+      localStorage.removeItem('iflow_sheets_expiry');
+    },
 
     init(clientId) {
       let tries = 0;
@@ -4085,22 +4109,35 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
           scope: 'https://www.googleapis.com/auth/spreadsheets',
           callback: (resp) => {
             if (resp.error) {
+              this._clearToken();
               setSyncStatus('error', 'Auth error'); setProductSyncStatus('error', 'Auth error');
               _updateSheetsStatus(false); return;
             }
-            this.accessToken = resp.access_token;
-            this.tokenExpiry = Date.now() + (resp.expires_in - 60) * 1000;
-            this._enabled = true;
-            localStorage.setItem('iflow_sheets_connected', '1');
+            this._saveToken(resp.access_token, resp.expires_in);
             _updateSheetsStatus(true);
+            setSyncStatus('syncing', 'Connecting…');
             const cbs = [...this.pendingCbs];
             this.pendingCbs = [];
-            cbs.forEach(cb => { try { cb(); } catch(e){} });
+            cbs.forEach(cb => { try { cb(); } catch(e) { console.warn('SheetsAPI cb error', e); } });
           }
         });
-        // Only auto-connect silently if user previously connected
-        if (localStorage.getItem('iflow_sheets_connected') === '1') {
-          this.withToken(() => this.loadAll());
+        // Restore token from localStorage — if still valid, sync immediately
+        if (this._loadToken()) {
+          _updateSheetsStatus(true);
+          this.loadAll();
+        } else if (localStorage.getItem('iflow_sheets_connected') === '1') {
+          // Was connected but token expired — silent re-auth
+          setSyncStatus('', 'Reconnect…'); setProductSyncStatus('', 'Reconnect…');
+          this.pendingCbs.push(() => this.loadAll());
+          this.tokenClient.requestAccessToken({ prompt: '' });
+          // Give up after 15 s — user can reconnect manually
+          setTimeout(() => {
+            if (!this._enabled) {
+              this.pendingCbs = [];
+              setSyncStatus('', 'Tap Reconnect'); setProductSyncStatus('', '—');
+              _updateSheetsStatus(false);
+            }
+          }, 15000);
         } else {
           setSyncStatus('', '—'); setProductSyncStatus('', '—');
         }
@@ -4109,30 +4146,25 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     },
 
     connect() {
-      if (!this.tokenClient) { showToast('Google library not loaded yet. Try again in a moment.'); return; }
+      if (!this.tokenClient) { showToast('Google library still loading — try in a moment.'); return; }
+      if (this.pendingCbs.some(cb => cb.toString().includes('loadAll'))) return; // dedupe
       this.pendingCbs.push(() => this.loadAll());
-      this.tokenClient.requestAccessToken({ prompt: 'consent' });
+      this.tokenClient.requestAccessToken({ prompt: 'select_account' });
     },
 
     withToken(cb) {
       if (this.accessToken && Date.now() < this.tokenExpiry) {
-        try { cb(); } catch(e) { setSyncStatus('error', 'Sync error'); }
+        try { cb(); } catch(e) { setSyncStatus('error', 'Sync error'); console.warn(e); }
         return;
       }
-      const idx = this.pendingCbs.push(cb) - 1;
-      // Timeout: if no token arrives in 12 s, remove callback and reset status
-      const timer = setTimeout(() => {
-        const i = this.pendingCbs.indexOf(cb);
-        if (i !== -1) { this.pendingCbs.splice(i, 1); }
-        if (!this._enabled) { setSyncStatus('', '—'); setProductSyncStatus('', '—'); }
-      }, 12000);
-      if (this.tokenClient) {
+      // Try restoring token first
+      if (this._loadToken()) { try { cb(); } catch(e) {} return; }
+      // Queue and re-auth silently
+      this.pendingCbs.push(cb);
+      if (this.tokenClient && this._enabled) {
         this.tokenClient.requestAccessToken({ prompt: '' });
-      } else {
-        clearTimeout(timer);
-        this.pendingCbs.splice(idx, 1);
-        setSyncStatus('', '—'); setProductSyncStatus('', '—');
       }
+      // If not enabled at all (not connected), just skip silently
     },
 
     async req(url, opts = {}) {

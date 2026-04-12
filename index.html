@@ -1453,6 +1453,7 @@
               <span id="syncText">—</span>
             </div>
             <a class="open-sheets-btn" id="openSheetsBtn" href="#" target="_blank" style="display:none">↗ Open in Sheets</a>
+            <button id="syncManualBtn" onclick="SheetsAPI.manualSync()" style="display:none;font-size:0.72rem;padding:3px 9px;border-radius:6px;border:1px solid var(--accent);background:none;color:var(--accent);cursor:pointer">↑ Sync</button>
             <button id="syncReconnectBtn" onclick="connectSheets()" style="display:none;font-size:0.72rem;padding:3px 9px;border-radius:6px;border:1px solid #e53e3e;background:none;color:#e53e3e;cursor:pointer">↺ Reconnect</button>
           </div>
         </div>
@@ -1570,6 +1571,7 @@
               <span id="ordersSyncText">—</span>
             </div>
             <a class="open-sheets-btn" id="openOrdersSheetBtn" href="#" target="_blank" style="display:none">↗ Open in Sheets</a>
+            <button id="ordersSyncManualBtn" onclick="SheetsAPI.manualSync()" style="display:none;font-size:0.72rem;padding:3px 9px;border-radius:6px;border:1px solid var(--accent);background:none;color:var(--accent);cursor:pointer">↑ Sync</button>
             <button id="ordersSyncReconnectBtn" onclick="connectSheets()" style="display:none;font-size:0.72rem;padding:3px 9px;border-radius:6px;border:1px solid #e53e3e;background:none;color:#e53e3e;cursor:pointer">↺ Reconnect</button>
           </div>
         </div>
@@ -1639,6 +1641,7 @@
               <span id="productSyncText">—</span>
             </div>
             <a class="open-sheets-btn" id="openProductsSheetBtn" href="#" target="_blank" style="display:none">↗ Open in Sheets</a>
+            <button id="productSyncManualBtn" onclick="SheetsAPI.manualSync()" style="display:none;font-size:0.72rem;padding:3px 9px;border-radius:6px;border:1px solid var(--accent);background:none;color:var(--accent);cursor:pointer">↑ Sync</button>
             <button id="productSyncReconnectBtn" onclick="connectSheets()" style="display:none;font-size:0.72rem;padding:3px 9px;border-radius:6px;border:1px solid #e53e3e;background:none;color:#e53e3e;cursor:pointer">↺ Reconnect</button>
           </div>
         </div>
@@ -2051,6 +2054,16 @@
         </div>
         <div class="settings-fields">
           <div class="settings-row">
+            <div class="settings-field">
+              <label>Backup &amp; Restore (local file — works even without Google)</label>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="settings-btn-solid" onclick="exportDataJSON()">💾 Export to computer</button>
+                <label class="settings-btn-outline" style="cursor:pointer;margin:0">📂 Import from file<input type="file" accept=".json" onchange="importDataJSON(event)" style="display:none"></label>
+              </div>
+              <p style="font-size:0.72rem;color:var(--muted);margin:5px 0 0">Exports all sales + stock as a .json file. Import it any time to restore — even on a different device.</p>
+            </div>
+          </div>
+          <div class="settings-row" style="margin-top:4px">
             <div class="settings-field">
               <label>Sales Report PDF</label>
               <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -2746,6 +2759,42 @@
     showToast('Settings saved ✓');
   }
 
+  function exportDataJSON() {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      sales: JSON.parse(localStorage.getItem('iflow_sales') || '[]'),
+      products: JSON.parse(localStorage.getItem('iflow_products') || '[]'),
+      settings: (function(){ const s = JSON.parse(localStorage.getItem('iflow_settings')||'{}'); delete s.geminiApiKey; delete s.gmailToken; return s; })()
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'iflow-backup-' + new Date().toISOString().slice(0,10) + '.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showToast('Backup saved to your computer');
+  }
+
+  function importDataJSON(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!data.sales && !data.products) { showToast('Invalid backup file'); return; }
+        if (data.sales)    { localStorage.setItem('iflow_sales',    JSON.stringify(data.sales));    sales = data.sales; }
+        if (data.products) { localStorage.setItem('iflow_products', JSON.stringify(data.products)); products = data.products; }
+        render(); updateTotal(); renderProducts(); refreshProductsList();
+        const ordersPage = document.getElementById('page-orders');
+        if (ordersPage && ordersPage.style.display !== 'none') renderOrders();
+        showToast('Backup restored — ' + (data.sales?.length||0) + ' sales, ' + (data.products?.length||0) + ' products');
+      } catch(err) { showToast('Could not read file: ' + err.message); }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }
+
   function applySettings(settings) {
     const nameEl = document.getElementById('headerStoreName');
     if (nameEl) nameEl.textContent = settings.storeName || 'Sales Tracker';
@@ -2865,8 +2914,8 @@
   function disconnectSheets() {
     SheetsAPI._clearToken();
     localStorage.removeItem('iflow_sheets_connected');
-    setSyncStatus('', '—');
-    setProductSyncStatus('', '—');
+    setSyncStatus('', '—'); setProductSyncStatus('', '—');
+    _showSyncBtn(false); _showProductSyncBtn(false);
     _updateSheetsStatus(false);
     showToast('Google Sheets disconnected');
   }
@@ -4148,20 +4197,29 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
 
   // ── Google Sheets Integration ──
 
+  function _showSyncBtn(show) {
+    ['syncManualBtn','ordersSyncManualBtn'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.style.display = show ? '' : 'none';
+    });
+  }
+  function _showProductSyncBtn(show) {
+    const el = document.getElementById('productSyncManualBtn'); if (el) el.style.display = show ? '' : 'none';
+  }
+
   function setSyncStatus(state, text) {
     const dot = document.getElementById('syncDot');
     const txt = document.getElementById('syncText');
     if (dot) { dot.className = 'sync-dot ' + (state || ''); }
     if (txt) txt.textContent = text || '';
     const rb  = document.getElementById('syncReconnectBtn');
-    if (rb)  rb.style.display  = state === 'error' ? '' : 'none';
-    // Mirror to Orders page sync bar (same sheet)
+    if (rb)  rb.style.display = state === 'error' ? '' : 'none';
+    // Mirror to Orders page sync bar
     const odot = document.getElementById('ordersSyncDot');
     const otxt = document.getElementById('ordersSyncText');
     if (odot) { odot.className = 'sync-dot ' + (state || ''); }
     if (otxt) otxt.textContent = text || '';
     const orb  = document.getElementById('ordersSyncReconnectBtn');
-    if (orb)  orb.style.display  = state === 'error' ? '' : 'none';
+    if (orb)  orb.style.display = state === 'error' ? '' : 'none';
   }
 
   function setProductSyncStatus(state, text) {
@@ -4170,7 +4228,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     if (dot) { dot.className = 'sync-dot ' + (state || ''); }
     if (txt) txt.textContent = text || '';
     const rb  = document.getElementById('productSyncReconnectBtn');
-    if (rb)  rb.style.display  = state === 'error' ? '' : 'none';
+    if (rb)  rb.style.display = state === 'error' ? '' : 'none';
   }
 
   const SheetsAPI = {
@@ -4230,34 +4288,50 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
             }
             this._saveToken(resp.access_token, resp.expires_in);
             _updateSheetsStatus(true);
-            setSyncStatus('syncing', 'Connecting…');
+            setSyncStatus('syncing', 'Syncing…'); setProductSyncStatus('syncing', 'Syncing…');
+            _showSyncBtn(true); _showProductSyncBtn(true);
             const cbs = [...this.pendingCbs];
             this.pendingCbs = [];
             cbs.forEach(cb => { try { cb(); } catch(e) { console.warn('SheetsAPI cb error', e); } });
           }
         });
-        // Restore token from localStorage — if still valid, sync immediately
+        // On page load: restore status from localStorage — NO API calls.
+        // Tokens expire after 1 hour so we never auto-sync on load; user taps Sync.
         if (this._loadToken()) {
           _updateSheetsStatus(true);
-          this.loadAll();
+          setSyncStatus('synced', 'Connected'); setProductSyncStatus('synced', 'Connected');
+          _showSyncBtn(true); _showProductSyncBtn(true);
         } else if (localStorage.getItem('iflow_sheets_connected') === '1') {
-          // Was connected but token expired — silent re-auth
-          setSyncStatus('', 'Reconnect…'); setProductSyncStatus('', 'Reconnect…');
-          this.pendingCbs.push(() => this.loadAll());
-          this.tokenClient.requestAccessToken({ prompt: '' });
-          // Give up after 15 s — user can reconnect manually
-          setTimeout(() => {
-            if (!this._enabled) {
-              this.pendingCbs = [];
-              setSyncStatus('', 'Tap Reconnect'); setProductSyncStatus('', '—');
-              _updateSheetsStatus(false);
-            }
-          }, 15000);
+          // Was connected but token is expired — prompt to sync when ready
+          setSyncStatus('', 'Tap Sync'); setProductSyncStatus('', 'Tap Sync');
+          _showSyncBtn(true); _showProductSyncBtn(true);
+          _updateSheetsStatus(true); // still "connected" from user's perspective
         } else {
           setSyncStatus('', '—'); setProductSyncStatus('', '—');
         }
       };
       tryInit();
+    },
+
+    // Manual sync triggered by user
+    async manualSync() {
+      if (!this.tokenClient) { showToast('Google library still loading'); return; }
+      if (this._loadToken()) {
+        await this.loadAll();
+      } else {
+        // Need a fresh token — get one then auto-run loadAll via pendingCbs
+        this.pendingCbs.push(() => this.loadAll());
+        this._authPending = true;
+        this.tokenClient.requestAccessToken({ prompt: '' });
+        setSyncStatus('', 'Authenticating…'); setProductSyncStatus('', 'Authenticating…');
+        setTimeout(() => {
+          if (this._authPending) {
+            this._authPending = false; this.pendingCbs = [];
+            // Silent re-auth timed out — force account picker
+            this.tokenClient.requestAccessToken({ prompt: 'select_account' });
+          }
+        }, 8000);
+      }
     },
 
     connect() {
@@ -4378,8 +4452,8 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
           for (const p of products) await this.appendProduct(p);
         }
         refreshProductsList(); renderProducts(); checkLowStock();
-        setSyncStatus('synced', 'Synced');
-        setProductSyncStatus('synced', 'Synced');
+        setSyncStatus('synced', 'Synced'); setProductSyncStatus('synced', 'Synced');
+        _showSyncBtn(true); _showProductSyncBtn(true);
       } catch(e) {
         const isAuthErr = e.message.includes('401') || e.message.includes('Session expired') || e.message.includes('Token expired');
         if (isAuthErr && this.tokenClient && !this._authPending) {

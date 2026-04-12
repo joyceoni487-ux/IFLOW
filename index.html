@@ -2031,22 +2031,25 @@
               </div>
             </div>
 
-            <!-- Webhook URLs (read-only info) -->
+            <!-- Webhook URLs — auto-detected from current domain -->
             <div style="border-top:1px solid var(--border);padding-top:12px">
               <p style="font-size:0.78rem;font-weight:600;color:var(--text);margin:0 0 8px">Twilio Webhook URLs</p>
-              <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;flex-direction:column;gap:10px">
                 <div>
-                  <p style="font-size:0.72rem;color:var(--muted);margin:0 0 3px">When a message comes in (already set):</p>
-                  <code style="font-size:0.72rem;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;display:block;color:var(--text);word-break:break-all">https://timberwolf-mastiff-9776.twil.io/demo-reply</code>
-                </div>
-                <div>
-                  <p style="font-size:0.72rem;color:var(--muted);margin:0 0 3px">Status Callback URL — paste this in Twilio Sandbox settings:</p>
+                  <p style="font-size:0.72rem;color:var(--muted);margin:0 0 3px">When a message comes in → paste in Twilio Sandbox:</p>
                   <div style="display:flex;gap:6px;align-items:center">
-                    <code id="statusCallbackUrl" style="font-size:0.72rem;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;flex:1;color:var(--text);word-break:break-all">https://timberwolf-mastiff-9776.twil.io/status</code>
-                    <button onclick="navigator.clipboard.writeText('https://timberwolf-mastiff-9776.twil.io/status').then(()=>showToast('Copied ✓'))" class="settings-btn-outline" style="white-space:nowrap;flex-shrink:0">Copy</button>
+                    <code id="incomingWebhookUrl" style="font-size:0.72rem;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;flex:1;color:var(--text);word-break:break-all"></code>
+                    <button onclick="navigator.clipboard.writeText(document.getElementById('incomingWebhookUrl').textContent).then(()=>showToast('Copied ✓'))" class="settings-btn-outline" style="white-space:nowrap;flex-shrink:0">Copy</button>
                   </div>
-                  <p style="font-size:0.7rem;color:var(--muted);margin:4px 0 0">Create a <strong>/status</strong> Twilio Function at your runtime (see instructions below) then paste this URL in Twilio → Sandbox → Status Callback URL field.</p>
                 </div>
+                <div>
+                  <p style="font-size:0.72rem;color:var(--muted);margin:0 0 3px">Status Callback URL → paste in Twilio Sandbox:</p>
+                  <div style="display:flex;gap:6px;align-items:center">
+                    <code id="statusCallbackUrl" style="font-size:0.72rem;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;flex:1;color:var(--text);word-break:break-all"></code>
+                    <button onclick="navigator.clipboard.writeText(document.getElementById('statusCallbackUrl').textContent).then(()=>showToast('Copied ✓'))" class="settings-btn-outline" style="white-space:nowrap;flex-shrink:0">Copy</button>
+                  </div>
+                </div>
+                <p style="font-size:0.7rem;color:var(--muted);margin:0">Both endpoints are serverless functions deployed with iFlow on Vercel. No separate setup needed — just copy and paste into Twilio.</p>
               </div>
             </div>
 
@@ -4800,6 +4803,12 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       const prev = document.getElementById('settingsLogoPreview');
       if (prev) prev.innerHTML = `<img src="${logo}" style="width:100%;height:100%;object-fit:cover;border-radius:10px" />`;
     }
+    // Populate Vercel webhook URLs dynamically
+    const origin = window.location.origin;
+    const inEl = document.getElementById('incomingWebhookUrl');
+    const stEl = document.getElementById('statusCallbackUrl');
+    if (inEl) inEl.textContent = origin + '/api/incoming';
+    if (stEl) stEl.textContent = origin + '/api/status';
   }
 
   function toggleThemeFromSettings(cb) {

@@ -1447,15 +1447,7 @@
         <h2>Today's Sales</h2>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <input class="orders-search" id="salesSearch" type="text" placeholder="Search product, date…" oninput="render()" style="width:180px" />
-          <div class="sync-bar">
-            <div class="sync-indicator">
-              <span class="sync-dot" id="syncDot"></span>
-              <span id="syncText">—</span>
-            </div>
-            <a class="open-sheets-btn" id="openSheetsBtn" href="#" target="_blank" style="display:none">↗ Open in Sheets</a>
-            <button id="syncManualBtn" onclick="SheetsAPI.manualSync()" style="display:none;font-size:0.72rem;padding:3px 9px;border-radius:6px;border:1px solid var(--accent);background:none;color:var(--accent);cursor:pointer">↑ Sync</button>
-            <button id="syncReconnectBtn" onclick="connectSheets()" style="display:none;font-size:0.72rem;padding:3px 9px;border-radius:6px;border:1px solid #e53e3e;background:none;color:#e53e3e;cursor:pointer">↺ Reconnect</button>
-          </div>
+          <a class="open-sheets-btn" id="openSheetsBtn" href="#" target="_blank" style="display:none">↗ Open in Sheets</a>
         </div>
       </div>
       <div class="summary" style="margin-top:10px">
@@ -1565,15 +1557,7 @@
       <div class="orders-table-header">
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
           <p class="inventory-heading" style="margin:0">Sales Log</p>
-          <div class="sync-bar">
-            <div class="sync-indicator">
-              <span class="sync-dot" id="ordersSyncDot"></span>
-              <span id="ordersSyncText">—</span>
-            </div>
-            <a class="open-sheets-btn" id="openOrdersSheetBtn" href="#" target="_blank" style="display:none">↗ Open in Sheets</a>
-            <button id="ordersSyncManualBtn" onclick="SheetsAPI.manualSync()" style="display:none;font-size:0.72rem;padding:3px 9px;border-radius:6px;border:1px solid var(--accent);background:none;color:var(--accent);cursor:pointer">↑ Sync</button>
-            <button id="ordersSyncReconnectBtn" onclick="connectSheets()" style="display:none;font-size:0.72rem;padding:3px 9px;border-radius:6px;border:1px solid #e53e3e;background:none;color:#e53e3e;cursor:pointer">↺ Reconnect</button>
-          </div>
+          <a class="open-sheets-btn" id="openOrdersSheetBtn" href="#" target="_blank" style="display:none">↗ Open in Sheets</a>
         </div>
         <div class="orders-filters">
           <input class="orders-search" id="ordersSearch" type="text" placeholder="Search products…" oninput="renderOrders()" />
@@ -1635,14 +1619,7 @@
       <div class="orders-table-header">
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
           <p class="inventory-heading" style="margin:0">Stock Records</p>
-          <div class="sync-bar">
-            <div class="sync-indicator">
-              <span class="sync-dot" id="productSyncDot"></span>
-              <span id="productSyncText">—</span>
-            </div>
-            <a class="open-sheets-btn" id="openProductsSheetBtn" href="#" target="_blank" style="display:none">↗ Open in Sheets</a>
-            <button id="productSyncManualBtn" onclick="SheetsAPI.manualSync()" style="display:none;font-size:0.72rem;padding:3px 9px;border-radius:6px;border:1px solid var(--accent);background:none;color:var(--accent);cursor:pointer">↑ Sync</button>
-            <button id="productSyncReconnectBtn" onclick="connectSheets()" style="display:none;font-size:0.72rem;padding:3px 9px;border-radius:6px;border:1px solid #e53e3e;background:none;color:#e53e3e;cursor:pointer">↺ Reconnect</button>
+          <a class="open-sheets-btn" id="openProductsSheetBtn" href="#" target="_blank" style="display:none">↗ Open in Sheets</a>
           </div>
         </div>
         <div class="orders-filters">
@@ -2116,11 +2093,10 @@
           <div><h3>Google Sheets Sync</h3><p>Back up your sales and stock data to a Google Spreadsheet in real time</p></div>
         </div>
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px">
-          <button class="settings-btn-solid" onclick="connectSheets()">🔗 Connect Google Sheets</button>
-          <span id="sheetsStatus" style="font-size:0.82rem;color:var(--muted)">○ Not connected</span>
+          <button class="settings-btn-solid" onclick="connectSheets()">📤 Backup to Google Sheets now</button>
           <button class="settings-btn-outline danger" onclick="disconnectSheets()" id="sheetsDisconnectBtn" style="display:none;font-size:0.78rem;padding:6px 12px">Disconnect</button>
         </div>
-        <p style="font-size:0.72rem;color:var(--muted);margin:8px 0 0">Clicking Connect opens a Google sign-in popup. Once authorised, all sales and stock changes sync automatically. You only need to do this once.</p>
+        <p style="font-size:0.72rem;color:var(--muted);margin:8px 0 0">Opens Google sign-in, then copies all your data to a Google Sheet once. Click again any time to update it. No background activity — your data lives locally and is never lost on refresh.</p>
       </div>
 
       <!-- Email Alerts -->
@@ -4197,39 +4173,12 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
 
   // ── Google Sheets Integration ──
 
-  function _showSyncBtn(show) {
-    ['syncManualBtn','ordersSyncManualBtn'].forEach(id => {
-      const el = document.getElementById(id); if (el) el.style.display = show ? '' : 'none';
-    });
-  }
-  function _showProductSyncBtn(show) {
-    const el = document.getElementById('productSyncManualBtn'); if (el) el.style.display = show ? '' : 'none';
-  }
-
-  function setSyncStatus(state, text) {
-    const dot = document.getElementById('syncDot');
-    const txt = document.getElementById('syncText');
-    if (dot) { dot.className = 'sync-dot ' + (state || ''); }
-    if (txt) txt.textContent = text || '';
-    const rb  = document.getElementById('syncReconnectBtn');
-    if (rb)  rb.style.display = state === 'error' ? '' : 'none';
-    // Mirror to Orders page sync bar
-    const odot = document.getElementById('ordersSyncDot');
-    const otxt = document.getElementById('ordersSyncText');
-    if (odot) { odot.className = 'sync-dot ' + (state || ''); }
-    if (otxt) otxt.textContent = text || '';
-    const orb  = document.getElementById('ordersSyncReconnectBtn');
-    if (orb)  orb.style.display = state === 'error' ? '' : 'none';
-  }
-
-  function setProductSyncStatus(state, text) {
-    const dot = document.getElementById('productSyncDot');
-    const txt = document.getElementById('productSyncText');
-    if (dot) { dot.className = 'sync-dot ' + (state || ''); }
-    if (txt) txt.textContent = text || '';
-    const rb  = document.getElementById('productSyncReconnectBtn');
-    if (rb)  rb.style.display = state === 'error' ? '' : 'none';
-  }
+  // Sync status display removed from page headers — Sheets is Settings-only now.
+  // These stubs keep all the SheetsAPI internal calls working without errors.
+  function _showSyncBtn() {}
+  function _showProductSyncBtn() {}
+  function setSyncStatus() {}
+  function setProductSyncStatus() {}
 
   const SheetsAPI = {
     BASE: 'https://sheets.googleapis.com/v4/spreadsheets',
@@ -4334,9 +4283,45 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       }
     },
 
+    // Light init — registers the token client but makes ZERO API calls.
+    // All sync is user-triggered. No token expiry issues on page load.
+    initClientOnly(clientId) {
+      let tries = 0;
+      const tryInit = () => {
+        if (typeof google === 'undefined' || !google.accounts?.oauth2) {
+          if (++tries < 30) { setTimeout(tryInit, 300); return; }
+          return;
+        }
+        this.tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: 'https://www.googleapis.com/auth/spreadsheets',
+          callback: (resp) => {
+            this._authPending = false;
+            if (resp.error) {
+              this._clearToken();
+              this.pendingCbs = [];
+              _updateSheetsStatus(false);
+              showToast('Google sign-in failed — try again');
+              return;
+            }
+            this._saveToken(resp.access_token, resp.expires_in);
+            _updateSheetsStatus(true);
+            const cbs = [...this.pendingCbs];
+            this.pendingCbs = [];
+            cbs.forEach(cb => { try { cb(); } catch(e) { console.warn(e); } });
+          }
+        });
+        // Restore connected status display only — no API calls
+        if (localStorage.getItem('iflow_sheets_connected') === '1') {
+          _updateSheetsStatus(true);
+        }
+      };
+      tryInit();
+    },
+
     connect() {
-      if (!this.tokenClient) { showToast('Google library still loading — try in a moment.'); return; }
-      if (this.pendingCbs.some(cb => cb.toString().includes('loadAll'))) return; // dedupe
+      if (!this.tokenClient) { showToast('Google library still loading — try again in a moment'); return; }
+      // Always show account picker — never silent re-auth
       this.pendingCbs.push(() => this.loadAll());
       this.tokenClient.requestAccessToken({ prompt: 'select_account' });
     },
@@ -5572,9 +5557,9 @@ function showApp(user) {
       avatarEl.textContent = user.name.charAt(0).toUpperCase();
     }
   }
-  // Init Google Sheets sync (only when real Client ID is used)
+  // Sheets is manual-only — init the token client but make zero API calls on load
   if (GOOGLE_CLIENT_ID !== 'YOUR_CLIENT_ID_HERE') {
-    SheetsAPI.init(GOOGLE_CLIENT_ID);
+    SheetsAPI.initClientOnly(GOOGLE_CLIENT_ID);
   }
   // Pre-seed AI API key (Groq preferred, Gemini as fallback)
   (function() {

@@ -2081,15 +2081,15 @@
               <p style="font-size:0.74rem;color:var(--text);margin:0 0 8px">Alex will automatically reply to every customer message using Gemini AI. To activate, add these two variables in <strong>Vercel → Project Settings → Environment Variables</strong>:</p>
               <div style="display:flex;flex-direction:column;gap:6px">
                 <div style="display:flex;align-items:center;gap:8px">
-                  <code style="font-size:0.72rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:3px 7px;color:#818cf8;white-space:nowrap">GEMINI_API_KEY</code>
-                  <span style="font-size:0.72rem;color:var(--muted)">← your Gemini API key (same one in AI Settings above)</span>
+                  <code style="font-size:0.72rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:3px 7px;color:#818cf8;white-space:nowrap">GROQ_API_KEY</code>
+                  <span style="font-size:0.72rem;color:var(--muted)">← your Groq API key (same one in AI Settings above, starts with gsk_)</span>
                 </div>
                 <div style="display:flex;align-items:center;gap:8px">
                   <code style="font-size:0.72rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:3px 7px;color:#818cf8;white-space:nowrap">STORE_NAME</code>
                   <span style="font-size:0.72rem;color:var(--muted)">← your store name (e.g. Joyce's Boutique)</span>
                 </div>
               </div>
-              <p style="font-size:0.7rem;color:var(--muted);margin:8px 0 0">After adding the variables, redeploy on Vercel (it's automatic on next push). Without <code style="font-size:0.68rem">GEMINI_API_KEY</code>, iFlow falls back to a polite generic reply.</p>
+              <p style="font-size:0.7rem;color:var(--muted);margin:8px 0 0">After adding the variables, redeploy on Vercel (it's automatic on next push). Without <code style="font-size:0.68rem">GROQ_API_KEY</code>, iFlow falls back to a polite generic reply.</p>
             </div>
 
             <div style="display:flex;gap:10px;margin-top:4px">
@@ -5121,7 +5121,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       _wakeRec.onresult = (e) => {
         for (let i = e.resultIndex; i < e.results.length; i++) {
           const t = e.results[i][0].transcript.toLowerCase().trim();
-          if (/\b(hey|hi|hello|ok|okay)\s+alex\b/.test(t) || /^alex[,!.\s]*$/.test(t)) {
+          if (/\balex\b/i.test(t)) {
             _stopWakeWord();
             _convMode = true;
             const modal = document.getElementById('aiChatModal');

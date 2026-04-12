@@ -2031,6 +2031,28 @@
               </div>
             </div>
 
+            <!-- Auto-reply toggle -->
+            <div style="border-top:1px solid var(--border);padding-top:12px">
+              <p style="font-size:0.78rem;font-weight:600;color:var(--text);margin:0 0 8px">Incoming Message Auto-Reply</p>
+              <label style="display:flex;align-items:center;gap:10px;font-size:0.8rem;color:var(--text);cursor:pointer">
+                <input type="checkbox" id="waAutoReply" checked style="width:15px;height:15px;accent-color:#25d366" onchange="_syncAutoReplyUrl()" />
+                Auto-reply to customers who message your Twilio number
+              </label>
+              <p style="font-size:0.7rem;color:var(--muted);margin:6px 0 0">When on, customers instantly get a friendly reply. Toggle off if you prefer to reply manually. After changing, copy the updated webhook URL below and paste it in Twilio.</p>
+            </div>
+
+            <!-- Sandbox sharing instructions -->
+            <div style="border-top:1px solid var(--border);padding-top:12px;background:rgba(37,211,102,.07);border-radius:10px;padding:12px">
+              <p style="font-size:0.78rem;font-weight:600;color:#25d366;margin:0 0 6px">How to let others message your Twilio number</p>
+              <p style="font-size:0.75rem;color:var(--text);margin:0 0 6px">The Twilio Sandbox requires each person to opt in once before they can send/receive messages. Share these steps with your customers:</p>
+              <ol style="font-size:0.74rem;color:var(--text);margin:0;padding-left:18px;line-height:1.8">
+                <li>Save <strong>+1 415 523 8886</strong> in their phone contacts</li>
+                <li>Open WhatsApp and send the message: <code id="sandboxJoinCode" style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 5px">join &lt;your-sandbox-word&gt;</code></li>
+                <li>They'll get a confirmation — after that, messages go through normally</li>
+              </ol>
+              <p style="font-size:0.7rem;color:var(--muted);margin:8px 0 0">Your sandbox join word is shown in the Twilio Console → Messaging → Try it out → Send a WhatsApp message.</p>
+            </div>
+
             <!-- Webhook URLs — auto-detected from current domain -->
             <div style="border-top:1px solid var(--border);padding-top:12px">
               <p style="font-size:0.78rem;font-weight:600;color:var(--text);margin:0 0 8px">Twilio Webhook URLs</p>
@@ -3045,6 +3067,15 @@
   }
 
   // ── Twilio WhatsApp Integration ──
+  function _syncAutoReplyUrl() {
+    const origin = window.location.origin;
+    const autoReply = document.getElementById('waAutoReply')?.checked !== false;
+    const inEl = document.getElementById('incomingWebhookUrl');
+    const stEl = document.getElementById('statusCallbackUrl');
+    if (inEl) inEl.textContent = origin + '/api/incoming' + (autoReply ? '' : '?reply=0');
+    if (stEl) stEl.textContent = origin + '/api/status';
+  }
+
   function saveTwilioSettings() {
     const sid   = (document.getElementById('settingsTwilioSid')?.value   || '').trim();
     const token = (document.getElementById('settingsTwilioToken')?.value || '').trim();
@@ -3059,6 +3090,7 @@
     s.twilioTo    = to.replace(/\s/g,'');
     s.waNotifyLowStock = document.getElementById('waNotifyLowStock')?.checked ? '1' : '0';
     s.waNotifySale     = document.getElementById('waNotifySale')?.checked     ? '1' : '0';
+    s.waAutoReply      = document.getElementById('waAutoReply')?.checked      ? '1' : '0';
     localStorage.setItem('iflow_settings', JSON.stringify(s));
     _updateWaBadge(to);
     showToast('Twilio WhatsApp saved ✓');
@@ -4791,6 +4823,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     if (s.twilioTo)    { const el = document.getElementById('settingsTwilioTo');    if (el) el.value = s.twilioTo; }
     const lsEl = document.getElementById('waNotifyLowStock'); if (lsEl) lsEl.checked = s.waNotifyLowStock !== '0';
     const slEl = document.getElementById('waNotifySale');     if (slEl) slEl.checked = s.waNotifySale === '1';
+    const arEl = document.getElementById('waAutoReply');      if (arEl) arEl.checked = s.waAutoReply !== '0';
     _updateWaBadge(s.twilioTo);
     // Gemini AI
     if (s.geminiApiKey) { const el = document.getElementById('settingsGeminiKey'); if (el) el.value = s.geminiApiKey; }
@@ -4804,11 +4837,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       if (prev) prev.innerHTML = `<img src="${logo}" style="width:100%;height:100%;object-fit:cover;border-radius:10px" />`;
     }
     // Populate Vercel webhook URLs dynamically
-    const origin = window.location.origin;
-    const inEl = document.getElementById('incomingWebhookUrl');
-    const stEl = document.getElementById('statusCallbackUrl');
-    if (inEl) inEl.textContent = origin + '/api/incoming';
-    if (stEl) stEl.textContent = origin + '/api/status';
+    _syncAutoReplyUrl();
   }
 
   function toggleThemeFromSettings(cb) {

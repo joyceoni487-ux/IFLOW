@@ -1648,7 +1648,6 @@
           <input class="orders-search" id="productsSearch" type="text" placeholder="Search products…" oninput="renderProducts()" />
           <button class="btn-add" style="width:auto;padding:8px 20px;margin:0;font-size:0.82rem" onclick="toggleAddProductForm()">+ Add Product</button>
         </div>
-      </div>
 
       <!-- Add Product Form -->
       <div id="addProductForm" style="display:none;padding:20px 24px;border-bottom:1px solid var(--border);background:var(--surface2);">
@@ -1749,7 +1748,7 @@
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <button class="settings-btn-outline" onclick="exportCSV()">📊 Export CSV</button>
-        <button class="settings-btn-solid" onclick="DriveBackup.save()">☁️ Save to Drive</button>
+        <button class="settings-btn-solid" onclick="saveToDrive()">☁️ Save to Drive</button>
       </div>
     </div>
     <div class="sheets-tabs">
@@ -2155,7 +2154,7 @@
           <div><h3>Cloud Backup</h3><p>Export your data to Google Drive or download as CSV / JSON anytime</p></div>
         </div>
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px">
-          <button class="settings-btn-solid" onclick="DriveBackup.save()">☁️ Save to Google Drive</button>
+          <button class="settings-btn-solid" onclick="saveToDrive()">☁️ Save to Google Drive</button>
           <button class="settings-btn-outline" onclick="exportCSV()">📊 Export CSV</button>
           <button class="settings-btn-outline" onclick="exportDataJSON()">💾 Export JSON</button>
         </div>
@@ -2350,17 +2349,6 @@
   <svg viewBox="0 0 24 24" width="26" height="26" fill="#fff"><path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm-1 17.93V21h2v-2.07A8.001 8.001 0 0 0 20 11h-2a6 6 0 0 1-12 0H4a8.001 8.001 0 0 0 7 7.93z"/></svg>
 </button>
 
-<!-- Low Stock Alert Overlay -->
-<div id="lowStockOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9800;align-items:center;justify-content:center">
-  <div style="background:var(--surface,#fff);border-radius:16px;padding:28px 32px;max-width:420px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.25)">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
-      <span style="font-size:1.5rem">⚠️</span>
-      <h3 style="margin:0;font-size:1.1rem;color:var(--text,#1a202c)">Low Stock Alert</h3>
-    </div>
-    <div id="lowStockList" style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto;margin-bottom:20px"></div>
-    <button onclick="document.getElementById('lowStockOverlay').style.display='none'" style="width:100%;padding:10px;border:none;border-radius:8px;background:#e53e3e;color:#fff;font-weight:600;cursor:pointer;font-size:0.95rem">Got it, I'll restock</button>
-  </div>
-</div>
 
 </div><!-- end .app-body -->
 
@@ -2996,6 +2984,9 @@
     if (el) { el.textContent = connected ? '● Connected — emails send automatically' : '○ Not connected'; el.style.color = connected ? '#38a169' : 'var(--muted)'; }
     if (btn) btn.style.display = connected ? '' : 'none';
   }
+
+  // ── Cloud backup wrappers ──
+  function saveToDrive() { DriveBackup.save(); }
 
   // ── CSV export ──
   function exportCSV() {

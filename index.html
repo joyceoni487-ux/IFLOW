@@ -1970,28 +1970,68 @@
           <div class="platform-row" style="flex-wrap:wrap;gap:10px">
             <div class="platform-info">
               <span class="platform-icon" style="background:#25d366">W</span>
-              <div><strong>WhatsApp</strong><p>Click-to-chat / Business API</p></div>
+              <div><strong>WhatsApp via Twilio</strong><p>Automated alerts to your phone</p></div>
             </div>
             <span class="connected-badge" id="waBadge" style="background:var(--surface2);color:var(--muted)">○ Not set up</span>
           </div>
           <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:8px;display:flex;flex-direction:column;gap:12px">
+
+            <!-- Step-by-step instructions -->
+            <div style="background:rgba(37,211,102,.08);border:1px solid rgba(37,211,102,.25);border-radius:10px;padding:12px 14px">
+              <p style="font-size:0.8rem;font-weight:700;color:#25d366;margin:0 0 8px">Twilio Sandbox Setup</p>
+              <ol style="font-size:0.75rem;color:var(--muted);margin:0;padding-left:18px;line-height:1.8">
+                <li>Go to <strong style="color:var(--text)">console.twilio.com</strong> → Messaging → Try it out → Send a WhatsApp message</li>
+                <li>Copy your <strong style="color:var(--text)">Account SID</strong> and <strong style="color:var(--text)">Auth Token</strong> from the top of the Console page</li>
+                <li>Paste them below. The sandbox number <strong style="color:var(--text)">+14155238886</strong> is pre-filled</li>
+                <li>Enter <strong style="color:var(--text)">your WhatsApp number</strong> (with country code, e.g. +2348100000000)</li>
+                <li>Hit <strong style="color:var(--text)">Save & Test</strong> to get a test message</li>
+              </ol>
+            </div>
+
             <div class="settings-field" style="margin:0">
-              <label>WhatsApp Business Number</label>
-              <div style="display:flex;gap:8px">
-                <input type="tel" id="settingsWaNumber" placeholder="e.g. +2348120000000" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:0.85rem" />
-                <button class="settings-btn-outline" onclick="saveWaNumber()">Save</button>
-              </div>
-              <p style="font-size:0.75rem;color:var(--muted);margin:4px 0 0">Include country code (e.g. +234…). Enables click-to-chat links when contacting customers.</p>
+              <label>Account SID</label>
+              <input type="text" id="settingsTwilioSid" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style="padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:0.85rem;width:100%;font-family:monospace" />
             </div>
+            <div class="settings-field" style="margin:0">
+              <label>Auth Token</label>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input type="password" id="settingsTwilioToken" placeholder="Your Auth Token" style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:0.85rem;font-family:monospace" />
+                <button class="settings-btn-outline" onclick="(()=>{const i=document.getElementById('settingsTwilioToken');i.type=i.type==='password'?'text':'password'})()" style="white-space:nowrap">Show</button>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="settings-field" style="margin:0">
+                <label>From (Twilio Sandbox)</label>
+                <input type="tel" id="settingsTwilioFrom" placeholder="+14155238886" value="+14155238886" style="padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:0.85rem" />
+                <span style="font-size:0.7rem;color:var(--muted)">Default sandbox number</span>
+              </div>
+              <div class="settings-field" style="margin:0">
+                <label>To (Your WhatsApp Number)</label>
+                <input type="tel" id="settingsTwilioTo" placeholder="+2348100000000" style="padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:0.85rem" />
+                <span style="font-size:0.7rem;color:var(--muted)">Include country code</span>
+              </div>
+            </div>
+
+            <!-- Notification toggles -->
             <div style="border-top:1px solid var(--border);padding-top:12px">
-              <p style="font-size:0.82rem;font-weight:600;color:var(--text);margin:0 0 4px">Full Business API (automated messages)</p>
-              <p style="font-size:0.75rem;color:var(--muted);margin:0 0 8px">For automated order confirmations and alerts via WhatsApp, you need a Meta Business account + Twilio or 360dialog as the messaging provider. Paste your API credentials below:</p>
-              <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <input type="text" id="settingsWaApiToken" placeholder="API Token / Auth token" style="flex:1;min-width:160px;padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:0.8rem" />
-                <button class="settings-btn-outline" onclick="saveWaApiToken()">Save Token</button>
+              <p style="font-size:0.78rem;font-weight:600;color:var(--text);margin:0 0 8px">Notify me via WhatsApp when:</p>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <label style="display:flex;align-items:center;gap:10px;font-size:0.8rem;color:var(--text);cursor:pointer">
+                  <input type="checkbox" id="waNotifyLowStock" checked style="width:15px;height:15px;accent-color:#25d366" />
+                  Stock goes below threshold (Low Stock Alert)
+                </label>
+                <label style="display:flex;align-items:center;gap:10px;font-size:0.8rem;color:var(--text);cursor:pointer">
+                  <input type="checkbox" id="waNotifySale" style="width:15px;height:15px;accent-color:#25d366" />
+                  A sale is recorded
+                </label>
               </div>
-              <p style="font-size:0.72rem;color:var(--muted);margin:6px 0 0">The token is stored locally in your browser. iFlow never sends it to any server.</p>
             </div>
+
+            <div style="display:flex;gap:10px;margin-top:4px">
+              <button class="settings-btn-solid" onclick="saveTwilioSettings()" style="flex:1">Save Settings</button>
+              <button class="settings-btn-outline" onclick="testTwilioWhatsApp()" id="waTweetBtn">Send Test</button>
+            </div>
+            <p style="font-size:0.72rem;color:var(--muted);margin:0">Credentials are stored only in your browser. iFlow never sends them to any server.</p>
           </div>
           <div class="platform-row">
             <div class="platform-info">
@@ -2978,29 +3018,83 @@
     el.style.color = display >= 0 ? '#38a169' : '#e53e3e';
   }
 
-  // ── WhatsApp settings ──
-  function saveWaNumber() {
-    const num = (document.getElementById('settingsWaNumber')?.value || '').trim();
-    if (!num) { showToast('Enter a WhatsApp number first'); return; }
+  // ── Twilio WhatsApp Integration ──
+  function saveTwilioSettings() {
+    const sid   = (document.getElementById('settingsTwilioSid')?.value   || '').trim();
+    const token = (document.getElementById('settingsTwilioToken')?.value || '').trim();
+    const from  = (document.getElementById('settingsTwilioFrom')?.value  || '').trim();
+    const to    = (document.getElementById('settingsTwilioTo')?.value    || '').trim();
+    if (!sid || !token || !from || !to) { showToast('Fill in all four Twilio fields'); return; }
+    if (!sid.startsWith('AC')) { showToast('Account SID must start with AC'); return; }
     const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-    s.waNumber = num;
+    s.twilioSid   = sid;
+    s.twilioToken = token;
+    s.twilioFrom  = from.replace(/\s/g,'');
+    s.twilioTo    = to.replace(/\s/g,'');
+    s.waNotifyLowStock = document.getElementById('waNotifyLowStock')?.checked ? '1' : '0';
+    s.waNotifySale     = document.getElementById('waNotifySale')?.checked     ? '1' : '0';
     localStorage.setItem('iflow_settings', JSON.stringify(s));
-    _updateWaBadge(num);
-    showToast('WhatsApp number saved ✓');
+    _updateWaBadge(to);
+    showToast('Twilio WhatsApp saved ✓');
   }
-  function saveWaApiToken() {
-    const tok = (document.getElementById('settingsWaApiToken')?.value || '').trim();
+
+  async function sendTwilioWhatsApp(message) {
     const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-    s.waApiToken = tok;
-    localStorage.setItem('iflow_settings', JSON.stringify(s));
-    showToast(tok ? 'WhatsApp API token saved ✓' : 'Token cleared');
+    if (!s.twilioSid || !s.twilioToken || !s.twilioFrom || !s.twilioTo) return false;
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${s.twilioSid}/Messages.json`;
+    const body = new URLSearchParams({
+      From: 'whatsapp:' + s.twilioFrom,
+      To:   'whatsapp:' + s.twilioTo,
+      Body: message
+    });
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Basic ' + btoa(s.twilioSid + ':' + s.twilioToken),
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        console.warn('Twilio WA:', d.message || res.status);
+      }
+      return res.ok;
+    } catch(e) {
+      console.warn('Twilio WA fetch error:', e.message);
+      return false;
+    }
   }
+
+  async function testTwilioWhatsApp() {
+    const btn = document.getElementById('waTweetBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    if (!s.twilioSid || !s.twilioToken || !s.twilioFrom || !s.twilioTo) {
+      showToast('Save your Twilio credentials first');
+      if (btn) { btn.disabled = false; btn.textContent = 'Send Test'; }
+      return;
+    }
+    const storeName = s.storeName || 'iFlow';
+    const ok = await sendTwilioWhatsApp(
+      `✅ *${storeName} — iFlow Connected!*\n\nYour store alerts are now active.\n\n` +
+      `You will receive WhatsApp notifications for:\n` +
+      `${s.waNotifyLowStock !== '0' ? '• ⚠️ Low stock alerts\n' : ''}` +
+      `${s.waNotifySale === '1' ? '• 🧾 Sale confirmations\n' : ''}` +
+      `\nReply *STOP* to pause notifications.`
+    );
+    if (btn) { btn.disabled = false; btn.textContent = 'Send Test'; }
+    showToast(ok ? '✓ Test message sent — check your WhatsApp!' : '✗ Failed — check Account SID & Auth Token');
+  }
+
   function _updateWaBadge(num) {
     const b = document.getElementById('waBadge');
     if (!b) return;
-    if (num) { b.textContent = '● Connected'; b.style.color = '#25d366'; b.style.background = '#f0fff4'; }
+    if (num) { b.textContent = '● Connected'; b.style.color = '#25d366'; b.style.background = 'rgba(37,211,102,.1)'; }
     else { b.textContent = '○ Not set up'; b.style.color = 'var(--muted)'; b.style.background = 'var(--surface2)'; }
   }
+
   function openWhatsApp(phone, message) {
     const clean = (phone || '').replace(/\D/g,'');
     const url = `https://wa.me/${clean}${message ? '?text=' + encodeURIComponent(message) : ''}`;
@@ -4344,6 +4438,19 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     updateOrdersBadge();
     SheetsAPI.withToken(() => SheetsAPI.appendRow(newSale));
 
+    // WhatsApp sale notification (if enabled)
+    const _waSaleSettings = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    if (_waSaleSettings.twilioSid && _waSaleSettings.waNotifySale === '1') {
+      const cur = getCurrency();
+      sendTwilioWhatsApp(
+        `🧾 *Sale Recorded — ${_waSaleSettings.storeName || 'iFlow'}*\n\n` +
+        `Product: *${product}*\nQty: ${quantity}  ×  ${cur}${fmtComma(price)}\n` +
+        `Total: *${cur}${fmtComma(quantity * price)}*\n` +
+        (customer !== 'Walk-in' ? `Customer: ${customer}\n` : '') +
+        `\n_${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}_`
+      );
+    }
+
     ['saleDate', 'productName', 'quantity', 'price'].forEach(id => {
       document.getElementById(id).value = '';
     });
@@ -4527,10 +4634,14 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     // Gmail
     if (s.googleClientId) { const el = document.getElementById('settingsGoogleClientId'); if (el) el.value = s.googleClientId; }
     _updateGmailStatus(!!(s.gmailToken && Date.now() < (s.gmailExpiry || 0)));
-    // WhatsApp
-    if (s.waNumber) { const el = document.getElementById('settingsWaNumber'); if (el) el.value = s.waNumber; }
-    if (s.waApiToken) { const el = document.getElementById('settingsWaApiToken'); if (el) el.value = s.waApiToken; }
-    _updateWaBadge(s.waNumber);
+    // Twilio WhatsApp
+    if (s.twilioSid)   { const el = document.getElementById('settingsTwilioSid');   if (el) el.value = s.twilioSid; }
+    if (s.twilioToken) { const el = document.getElementById('settingsTwilioToken'); if (el) el.value = s.twilioToken; }
+    if (s.twilioFrom)  { const el = document.getElementById('settingsTwilioFrom');  if (el) el.value = s.twilioFrom; }
+    if (s.twilioTo)    { const el = document.getElementById('settingsTwilioTo');    if (el) el.value = s.twilioTo; }
+    const lsEl = document.getElementById('waNotifyLowStock'); if (lsEl) lsEl.checked = s.waNotifyLowStock !== '0';
+    const slEl = document.getElementById('waNotifySale');     if (slEl) slEl.checked = s.waNotifySale === '1';
+    _updateWaBadge(s.twilioTo);
     // Gemini AI
     if (s.geminiApiKey) { const el = document.getElementById('settingsGeminiKey'); if (el) el.value = s.geminiApiKey; }
     _updateGeminiStatus(!!s.geminiApiKey);
@@ -5390,6 +5501,13 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       `Low stock detected at ${new Date().toLocaleString()}:\n${lowNames}\nPlease restock soon.`);
     const email = settings.email;
     if (email) sendLowStockEmail(lowItems, email);
+    // WhatsApp alert
+    if (settings.twilioSid && settings.waNotifyLowStock !== '0') {
+      const lines = lowItems.map(p => `• ${p.name}: *${p.stockQty} left*`).join('\n');
+      sendTwilioWhatsApp(
+        `⚠️ *Low Stock Alert — ${settings.storeName || 'iFlow'}*\n\n${lines}\n\n_Please restock soon._`
+      );
+    }
   }
 
   function playWarningSound() {

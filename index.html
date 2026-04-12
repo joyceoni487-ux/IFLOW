@@ -369,6 +369,7 @@
     .bubble-wrap.them .bubble { background: var(--them-bubble); color: var(--text); border-bottom-left-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,.1); transition: background .35s, color .35s; }
     .bubble-wrap.us   .bubble { background: linear-gradient(135deg,#4f8ef7,#7b5ea7); color: #fff; border-bottom-right-radius: 4px; box-shadow: 0 2px 8px rgba(79,142,247,.35); }
     .bubble-time { font-size: 0.68rem; color: var(--subtle); margin-top: 3px; padding: 0 4px; }
+    .msg-tick { font-size: 0.7rem; margin-left: 3px; vertical-align: middle; }
     .ai-label { font-size: 0.68rem; color: #a78bfa; font-weight: 600; margin-bottom: 2px; padding: 0 4px; }
 
     .chat-input-bar {
@@ -2027,6 +2028,25 @@
                   <input type="checkbox" id="waNotifySale" style="width:15px;height:15px;accent-color:#25d366" />
                   A sale is recorded
                 </label>
+              </div>
+            </div>
+
+            <!-- Webhook URLs (read-only info) -->
+            <div style="border-top:1px solid var(--border);padding-top:12px">
+              <p style="font-size:0.78rem;font-weight:600;color:var(--text);margin:0 0 8px">Twilio Webhook URLs</p>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div>
+                  <p style="font-size:0.72rem;color:var(--muted);margin:0 0 3px">When a message comes in (already set):</p>
+                  <code style="font-size:0.72rem;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;display:block;color:var(--text);word-break:break-all">https://timberwolf-mastiff-9776.twil.io/demo-reply</code>
+                </div>
+                <div>
+                  <p style="font-size:0.72rem;color:var(--muted);margin:0 0 3px">Status Callback URL — paste this in Twilio Sandbox settings:</p>
+                  <div style="display:flex;gap:6px;align-items:center">
+                    <code id="statusCallbackUrl" style="font-size:0.72rem;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;flex:1;color:var(--text);word-break:break-all">https://timberwolf-mastiff-9776.twil.io/status</code>
+                    <button onclick="navigator.clipboard.writeText('https://timberwolf-mastiff-9776.twil.io/status').then(()=>showToast('Copied ✓'))" class="settings-btn-outline" style="white-space:nowrap;flex-shrink:0">Copy</button>
+                  </div>
+                  <p style="font-size:0.7rem;color:var(--muted);margin:4px 0 0">Create a <strong>/status</strong> Twilio Function at your runtime (see instructions below) then paste this URL in Twilio → Sandbox → Status Callback URL field.</p>
+                </div>
               </div>
             </div>
 
@@ -5197,11 +5217,11 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
           ${c.priority ? `<span class="priority-flag" style="margin-left:auto;">⚑ Priority</span>` : ''}
         </div>
         <div class="chat-messages" id="chatMessages">
-          ${c.messages.map(m => `
-            <div class="bubble-wrap ${m.from === 'them' ? 'them' : 'us'}">
+          ${c.messages.map((m, mi) => `
+            <div class="bubble-wrap ${m.from === 'them' ? 'them' : 'us'}" id="bmsg-${c.id}-${mi}">
               ${m.from === 'ai' ? `<span class="ai-label">AI Assistant</span>` : ''}
-              <div class="bubble">${m.text}</div>
-              <span class="bubble-time">${m.time}</span>
+              <div class="bubble">${escHtml(m.text)}</div>
+              <span class="bubble-time">${m.time}${m.from === 'us' ? ` <span class="msg-tick" id="tick-${c.id}-${mi}" title="${m.status||'sending'}">${_statusTick(m.status)}</span>` : ''}</span>
             </div>
           `).join('')}
         </div>
@@ -5223,19 +5243,89 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     inp.value = '';
     inp.disabled = true;
 
-    let sent = true;
-    if (c.platform === 'whatsapp') {
-      sent = await sendTwilioWhatsApp(text, c.handle);
-      if (!sent) showToast('⚠ Message not delivered — check Twilio credentials');
-    }
-
-    c.messages.push({ from: 'us', text, time: fmtTime(Date.now()), _ts: Date.now() });
+    const msgObj = { from: 'us', text, time: fmtTime(Date.now()), _ts: Date.now(), status: 'sending', sid: null };
+    c.messages.push(msgObj);
     c.preview = text.length > 55 ? text.slice(0, 55) + '…' : text;
     c.time    = 'just now';
     inp.disabled = false;
     openConvo(id);
     document.getElementById('chatMessages').scrollTop = 9999;
     renderConvList();
+
+    if (c.platform === 'whatsapp') {
+      const result = await _sendTwilioAndGetSid(text, c.handle);
+      if (result.sid) {
+        msgObj.sid    = result.sid;
+        msgObj.status = 'sent';
+      } else {
+        msgObj.status = 'failed';
+        showToast('⚠ Message not delivered — check Twilio credentials');
+      }
+      _updateTickEl(c.id, c.messages.indexOf(msgObj), msgObj.status);
+      if (result.sid) _pollStatusAfterDelay(c, msgObj);
+    } else {
+      msgObj.status = 'sent';
+    }
+  }
+
+  // Sends via Twilio and returns { sid, ok }
+  async function _sendTwilioAndGetSid(message, customTo) {
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    const toNum = customTo || s.twilioTo;
+    if (!s.twilioSid || !s.twilioToken || !s.twilioFrom || !toNum) return { sid: null, ok: false };
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${s.twilioSid}/Messages.json`;
+    const body = new URLSearchParams({
+      From: 'whatsapp:' + s.twilioFrom,
+      To:   'whatsapp:' + toNum,
+      Body: message
+    });
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Authorization': 'Basic ' + btoa(s.twilioSid + ':' + s.twilioToken), 'Content-Type': 'application/x-www-form-urlencoded' },
+        body
+      });
+      const d = await res.json().catch(() => ({}));
+      return { sid: d.sid || null, ok: res.ok };
+    } catch(e) { return { sid: null, ok: false }; }
+  }
+
+  // Status tick helper
+  function _statusTick(status) {
+    if (status === 'read')      return '<span style="color:#4fc3f7">✓✓</span>';
+    if (status === 'delivered') return '<span style="color:#48c774">✓✓</span>';
+    if (status === 'sent')      return '<span style="color:#a0aec0">✓</span>';
+    if (status === 'failed' || status === 'undelivered') return '<span style="color:#e53e3e">✗</span>';
+    return '<span style="color:#a0aec0;opacity:.5">⏳</span>'; // sending
+  }
+
+  function _updateTickEl(convoId, msgIdx, status) {
+    const el = document.getElementById(`tick-${convoId}-${msgIdx}`);
+    if (el) { el.innerHTML = _statusTick(status); el.title = status; }
+  }
+
+  // Poll Twilio for delivery status (queued→sent→delivered→read)
+  async function _pollStatusAfterDelay(c, msgObj) {
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    if (!s.twilioSid || !s.twilioToken || !msgObj.sid) return;
+    const auth = 'Basic ' + btoa(s.twilioSid + ':' + s.twilioToken);
+    const url   = `https://api.twilio.com/2010-04-01/Accounts/${s.twilioSid}/Messages/${msgObj.sid}.json`;
+    const finalStatuses = new Set(['delivered', 'read', 'failed', 'undelivered']);
+    let attempts = 0;
+    const poll = async () => {
+      if (attempts++ > 12) return; // give up after ~2 min
+      try {
+        const res  = await fetch(url, { headers: { Authorization: auth } });
+        const data = await res.json();
+        const st   = data.status || 'sent';
+        if (st !== msgObj.status) {
+          msgObj.status = st;
+          _updateTickEl(c.id, c.messages.indexOf(msgObj), st);
+        }
+        if (!finalStatuses.has(st)) setTimeout(poll, 10000); // check again in 10s
+      } catch(e) {}
+    };
+    setTimeout(poll, 5000); // first check after 5s
   }
 
   renderConvList();

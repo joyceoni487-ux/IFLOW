@@ -2264,13 +2264,14 @@
             </div>
           </div>
           <div class="settings-row" style="margin-top:4px">
-            <div class="settings-field">
-              <label>Change Password</label>
-              <button class="settings-btn-outline">Update Password</button>
-            </div>
-            <div class="settings-field">
-              <label>Active Sessions</label>
-              <button class="settings-btn-outline danger">Sign Out All Devices</button>
+            <div class="settings-field full">
+              <label>Change App Password</label>
+              <div style="display:flex;flex-direction:column;gap:8px" id="changePwForm">
+                <input type="password" id="changePwCurrent" placeholder="Current password (leave blank if none set)" style="padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:0.85rem;width:100%;box-sizing:border-box" />
+                <input type="password" id="changePwNew" placeholder="New password" style="padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:0.85rem;width:100%;box-sizing:border-box" />
+                <input type="password" id="changePwConfirm" placeholder="Confirm new password" style="padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:0.85rem;width:100%;box-sizing:border-box" />
+                <button class="settings-btn-solid" onclick="updateAppPassword()" style="width:fit-content">Update Password</button>
+              </div>
             </div>
           </div>
           <div class="settings-row">
@@ -3400,7 +3401,13 @@
   }
 
   // ── Gemini AI (Agentic Mode — Nigerian English) ──
-  let _aiHistory = [];          // multi-turn conversation [{role,parts}]
+  // Load persisted history — Alex remembers the last 30 turns across page refreshes
+  let _aiHistory = (function() {
+    try { return JSON.parse(localStorage.getItem('iflow_ai_history') || '[]'); } catch(e) { return []; }
+  })();
+  function _saveAiHistory() {
+    try { localStorage.setItem('iflow_ai_history', JSON.stringify(_aiHistory.slice(-30))); } catch(e) {}
+  }
   let _aiPendingDelete = null;  // product name awaiting delete confirmation
   let _aiAwaitingName = false;  // first-use name collection flow
   let _aiTtsOn = localStorage.getItem('iflow_ai_tts') !== '0'; // TTS default on
@@ -3521,7 +3528,8 @@ Rules:
         const reply = data.choices?.[0]?.message?.content || '(No response)';
         _aiHistory.push({ role: 'user', parts: [{ text: userText }] });
         _aiHistory.push({ role: 'model', parts: [{ text: reply }] });
-        if (_aiHistory.length > 20) _aiHistory = _aiHistory.slice(-20);
+        if (_aiHistory.length > 30) _aiHistory = _aiHistory.slice(-30);
+        _saveAiHistory();
         const lbl = document.getElementById('aiModelLabel');
         if (lbl) lbl.textContent = 'Groq · ' + model.split('-').slice(0,2).join('-');
         return reply;
@@ -3554,7 +3562,8 @@ Rules:
         const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || '(No response)';
         _aiHistory.push({ role: 'user', parts: [{ text: userText }] });
         _aiHistory.push({ role: 'model', parts: [{ text: reply }] });
-        if (_aiHistory.length > 20) _aiHistory = _aiHistory.slice(-20);
+        if (_aiHistory.length > 30) _aiHistory = _aiHistory.slice(-30);
+        _saveAiHistory();
         const lbl = document.getElementById('aiModelLabel');
         if (lbl) lbl.textContent = m;
         return reply;
@@ -3733,16 +3742,20 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     // Sync TTS button icon with current state
     const ttsBtn = document.getElementById('aiTtsBtn');
     if (ttsBtn) ttsBtn.textContent = _aiTtsOn ? '🔊' : '🔇';
-    // First-use: clear history and ask for name
     const storedName = localStorage.getItem('iflow_ai_name');
+    const box = document.getElementById('aiMessages');
     if (!storedName) {
-      const box = document.getElementById('aiMessages');
-      if (box) {
-        box.innerHTML = '';
-        _aiHistory = [];
-        _aiAppendMsg('bot', 'Hey! I\'m Alex, your iFlow shop assistant. I can add stock, record sales, check your numbers, and more.\n\nWhat\'s your name?');
-        _aiAwaitingName = true;
-      }
+      // First use — clear and ask for name
+      if (box) { box.innerHTML = ''; }
+      _aiHistory = []; _saveAiHistory();
+      _aiAppendMsg('bot', 'Hey! I\'m Alex, your iFlow shop assistant. I can add stock, record sales, check your numbers, and more.\n\nWhat\'s your name?');
+      _aiAwaitingName = true;
+    } else if (box && !box.children.length && _aiHistory.length) {
+      // Re-opening after refresh — replay the last few messages visually
+      const recent = _aiHistory.slice(-10);
+      recent.forEach(t => _aiAppendMsg(t.role === 'model' ? 'bot' : 'user', t.parts[0].text));
+    } else if (box && !box.children.length) {
+      _aiAppendMsg('bot', `Hey ${storedName}! Good to see you again. What can I help with?`);
     }
     setTimeout(() => document.getElementById('aiInput')?.focus(), 100);
   }
@@ -3871,6 +3884,30 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     localStorage.setItem('iflow_settings', JSON.stringify(s));
     document.getElementById('settingsTrashPw').value = '';
     showToast('Trash password set ✓');
+  }
+
+  async function updateAppPassword() {
+    const current = (document.getElementById('changePwCurrent')?.value || '');
+    const newPw    = (document.getElementById('changePwNew')?.value    || '').trim();
+    const confirm  = (document.getElementById('changePwConfirm')?.value || '').trim();
+    if (!newPw)              { showToast('Enter a new password'); return; }
+    if (newPw !== confirm)   { showToast('Passwords do not match'); return; }
+    if (newPw.length < 4)    { showToast('Password must be at least 4 characters'); return; }
+    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    // If a password already exists, verify the current one first
+    if (s.trashPwHash) {
+      let currentHash;
+      try { currentHash = await _hashPw(current); } catch(e) { currentHash = 'plain:' + current; }
+      if (currentHash !== s.trashPwHash) { showToast('Current password is incorrect'); return; }
+    }
+    let newHash;
+    try { newHash = await _hashPw(newPw); } catch(e) { newHash = 'plain:' + newPw; }
+    s.trashPwHash = newHash;
+    localStorage.setItem('iflow_settings', JSON.stringify(s));
+    document.getElementById('changePwCurrent').value = '';
+    document.getElementById('changePwNew').value     = '';
+    document.getElementById('changePwConfirm').value = '';
+    showToast('Password updated ✓');
   }
 
   // Password gate modal
@@ -4809,6 +4846,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       if (page === 'products') renderProducts();
       if (page === 'trash') renderTrash();
       if (page === 'sheets') renderSheets();
+      if (page === 'messages') { const s = JSON.parse(localStorage.getItem('iflow_settings')||'{}'); if (s.twilioSid && s.twilioToken) syncTwilioMessages(); }
     }
   }
 

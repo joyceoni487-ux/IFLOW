@@ -49,15 +49,20 @@ export default async function handler(req, res) {
   }
 
   const replyText = await _getAiReply(Body, ProfileName, storeName, apiKey);
+  // null means AI is active but failed — send empty TwiML so Twilio doesn't trigger its own default reply
+  if (replyText === null) return res.status(200).send('<Response></Response>');
   res.status(200).send(`<Response><Message>${escapeXml(replyText)}</Message></Response>`);
 }
 
 async function _getAiReply(message, name, storeName, apiKey) {
-  const fallback = name
-    ? `Hi ${name}! Thanks for reaching out to *${storeName}*. We've received your message and will get back to you shortly 🙏`
-    : `Hi! Thanks for reaching out to *${storeName}*. We'll be with you shortly 🙏`;
-
-  if (!apiKey || !message.trim()) return fallback;
+  // No key at all — send polite fallback
+  if (!apiKey) {
+    return name
+      ? `Hi ${name}! Thanks for reaching out to *${storeName}*. We'll get back to you shortly 🙏`
+      : `Hi! Thanks for reaching out to *${storeName}*. We'll be with you shortly 🙏`;
+  }
+  // Key is set but message is empty (media-only, etc.) — stay silent
+  if (!message.trim()) return null;
 
   const systemPrompt =
 `Your name is Alex. You are a friendly and sharp AI assistant for *${storeName}*, helping customers over WhatsApp.
@@ -125,7 +130,8 @@ Rules:
 
   } catch (err) {
     console.error(JSON.stringify({ event: 'ai_error', error: String(err), ts: new Date().toISOString() }));
-    return fallback;
+    // Return null so caller sends empty TwiML — prevents Twilio firing its own default reply
+    return null;
   }
 }
 

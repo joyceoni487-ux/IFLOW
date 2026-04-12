@@ -2086,17 +2086,18 @@
         </div>
       </div>
 
-      <!-- Google Sheets Sync -->
+      <!-- Cloud Backup -->
       <div class="settings-section">
         <div class="settings-section-title">
-          <span class="settings-icon">📊</span>
-          <div><h3>Google Sheets Sync</h3><p>Back up your sales and stock data to a Google Spreadsheet in real time</p></div>
+          <span class="settings-icon">☁️</span>
+          <div><h3>Cloud Backup</h3><p>Export your data to Google Drive or download as CSV / JSON anytime</p></div>
         </div>
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px">
-          <button class="settings-btn-solid" onclick="connectSheets()">📤 Backup to Google Sheets now</button>
-          <button class="settings-btn-outline danger" onclick="disconnectSheets()" id="sheetsDisconnectBtn" style="display:none;font-size:0.78rem;padding:6px 12px">Disconnect</button>
+          <button class="settings-btn-solid" onclick="DriveBackup.save()">☁️ Save to Google Drive</button>
+          <button class="settings-btn-outline" onclick="exportCSV()">📊 Export CSV</button>
+          <button class="settings-btn-outline" onclick="exportDataJSON()">💾 Export JSON</button>
         </div>
-        <p style="font-size:0.72rem;color:var(--muted);margin:8px 0 0">Opens Google sign-in, then copies all your data to a Google Sheet once. Click again any time to update it. No background activity — your data lives locally and is never lost on refresh.</p>
+        <p style="font-size:0.72rem;color:var(--muted);margin:8px 0 0">Google Drive: opens a sign-in popup, uploads a JSON snapshot of all your data to your Drive folder. CSV / JSON: instantly downloads files to your computer — great for opening in Excel or Sheets. All data lives locally; nothing syncs in the background.</p>
       </div>
 
       <!-- Email Alerts -->
@@ -2878,28 +2879,26 @@
     if (btn) btn.style.display = connected ? '' : 'none';
   }
 
-  // ── Google Sheets connect / disconnect ──
-  function connectSheets() {
-    if (!SheetsAPI.tokenClient) {
-      showToast('Google library still loading — try in a moment');
-      return;
-    }
-    showToast('Opening Google sign-in…');
-    SheetsAPI.connect();
-  }
-  function disconnectSheets() {
-    SheetsAPI._clearToken();
-    localStorage.removeItem('iflow_sheets_connected');
-    setSyncStatus('', '—'); setProductSyncStatus('', '—');
-    _showSyncBtn(false); _showProductSyncBtn(false);
-    _updateSheetsStatus(false);
-    showToast('Google Sheets disconnected');
-  }
-  function _updateSheetsStatus(connected) {
-    const el  = document.getElementById('sheetsStatus');
-    const btn = document.getElementById('sheetsDisconnectBtn');
-    if (el)  { el.textContent = connected ? '● Connected — syncing automatically' : '○ Not connected'; el.style.color = connected ? '#38a169' : 'var(--muted)'; }
-    if (btn) btn.style.display = connected ? '' : 'none';
+  // ── CSV export ──
+  function exportCSV() {
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const salesArr = JSON.parse(localStorage.getItem('iflow_sales') || '[]');
+    const salesRows = [['Date','Time','Product','Quantity','Unit Price','Subtotal','Customer']];
+    salesArr.forEach(s => {
+      const d = new Date(s.timestamp);
+      salesRows.push([d.toLocaleDateString(), d.toLocaleTimeString(), s.product, s.quantity, s.price, (s.quantity * s.price).toFixed(2), s.customer || '']);
+    });
+    const salesCsv = salesRows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const prodsArr = JSON.parse(localStorage.getItem('iflow_products') || '[]');
+    const prodRows = [['Code','Product Name','Type','Stock Qty','Unit Price','Low Stock Threshold','Date Added']];
+    prodsArr.forEach(p => prodRows.push([p.code||'', p.name||'', p.type||'', p.stockQty, p.unitPrice, p.lowStockThreshold||5, p.dateAdded||'']));
+    const prodCsv = prodRows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    [['sales', salesCsv], ['products', prodCsv]].forEach(([name, csv]) => {
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = `iflow-${name}-${dateStr}.csv`; a.click(); URL.revokeObjectURL(a.href);
+    });
+    showToast('CSV files downloaded');
   }
   async function _sendViaGmail(to, subject, body) {
     const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
@@ -4174,118 +4173,25 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
   // ── Google Sheets Integration ──
 
   // Sync status display removed from page headers — Sheets is Settings-only now.
-  // These stubs keep all the SheetsAPI internal calls working without errors.
+  // ── SheetsAPI stub — Google Sheets removed; all calls are no-ops ──
   function _showSyncBtn() {}
   function _showProductSyncBtn() {}
   function setSyncStatus() {}
   function setProductSyncStatus() {}
 
   const SheetsAPI = {
-    BASE: 'https://sheets.googleapis.com/v4/spreadsheets',
-    spreadsheetId: null,
-    salesSheetId: 0,
-    tokenClient: null,
-    accessToken: null,
-    tokenExpiry: 0,
-    pendingCbs: [],
-    _enabled: false,
+    _enabled: false, tokenClient: null, accessToken: null,
+    withToken() {}, initClientOnly() {}, connect() {}, _clearToken() {},
+    appendRow() {}, updateRow() {}, deleteRow() {},
+    appendProduct() {}, updateProduct() {}, deleteProduct() {}
+  };
 
-    // ── Save / restore token across page reloads ──
-    _saveToken(token, expiresIn) {
-      this.accessToken = token;
-      this.tokenExpiry = Date.now() + (expiresIn - 60) * 1000;
-      this._enabled = true;
-      localStorage.setItem('iflow_sheets_token',  token);
-      localStorage.setItem('iflow_sheets_expiry', this.tokenExpiry.toString());
-      localStorage.setItem('iflow_sheets_connected', '1');
-    },
-    _loadToken() {
-      const token  = localStorage.getItem('iflow_sheets_token');
-      const expiry = parseInt(localStorage.getItem('iflow_sheets_expiry') || '0');
-      if (token && expiry > Date.now() + 5000) {
-        this.accessToken  = token;
-        this.tokenExpiry  = expiry;
-        this._enabled     = true;
-        return true;
-      }
-      return false;
-    },
-    _clearToken() {
-      this.accessToken = null; this.tokenExpiry = 0; this._enabled = false;
-      localStorage.removeItem('iflow_sheets_token');
-      localStorage.removeItem('iflow_sheets_expiry');
-    },
+  // ── Google Drive one-click backup ──
+  const DriveBackup = {
+    tokenClient: null,
+    _busy: false,
 
     init(clientId) {
-      let tries = 0;
-      const tryInit = () => {
-        tries++;
-        if (typeof google === 'undefined' || !google.accounts?.oauth2) {
-          if (tries < 25) { setTimeout(tryInit, 300); return; }
-          setSyncStatus('', '—'); setProductSyncStatus('', '—'); return;
-        }
-        this.tokenClient = google.accounts.oauth2.initTokenClient({
-          client_id: clientId,
-          scope: 'https://www.googleapis.com/auth/spreadsheets',
-          callback: (resp) => {
-            this._authPending = false;
-            if (resp.error) {
-              this._clearToken();
-              this.pendingCbs = [];
-              setSyncStatus('error', 'Auth error'); setProductSyncStatus('error', 'Auth error');
-              _updateSheetsStatus(false); return;
-            }
-            this._saveToken(resp.access_token, resp.expires_in);
-            _updateSheetsStatus(true);
-            setSyncStatus('syncing', 'Syncing…'); setProductSyncStatus('syncing', 'Syncing…');
-            _showSyncBtn(true); _showProductSyncBtn(true);
-            const cbs = [...this.pendingCbs];
-            this.pendingCbs = [];
-            cbs.forEach(cb => { try { cb(); } catch(e) { console.warn('SheetsAPI cb error', e); } });
-          }
-        });
-        // On page load: restore status from localStorage — NO API calls.
-        // Tokens expire after 1 hour so we never auto-sync on load; user taps Sync.
-        if (this._loadToken()) {
-          _updateSheetsStatus(true);
-          setSyncStatus('synced', 'Connected'); setProductSyncStatus('synced', 'Connected');
-          _showSyncBtn(true); _showProductSyncBtn(true);
-        } else if (localStorage.getItem('iflow_sheets_connected') === '1') {
-          // Was connected but token is expired — prompt to sync when ready
-          setSyncStatus('', 'Tap Sync'); setProductSyncStatus('', 'Tap Sync');
-          _showSyncBtn(true); _showProductSyncBtn(true);
-          _updateSheetsStatus(true); // still "connected" from user's perspective
-        } else {
-          setSyncStatus('', '—'); setProductSyncStatus('', '—');
-        }
-      };
-      tryInit();
-    },
-
-    // Manual sync triggered by user
-    async manualSync() {
-      if (!this.tokenClient) { showToast('Google library still loading'); return; }
-      if (this._loadToken()) {
-        await this.loadAll();
-      } else {
-        // Need a fresh token — get one then auto-run loadAll via pendingCbs
-        this.pendingCbs.push(() => this.loadAll());
-        this._authPending = true;
-        this.tokenClient.requestAccessToken({ prompt: '' });
-        setSyncStatus('', 'Authenticating…'); setProductSyncStatus('', 'Authenticating…');
-        setTimeout(() => {
-          if (this._authPending) {
-            this._authPending = false; this.pendingCbs = [];
-            // Silent re-auth timed out — force account picker
-            this.tokenClient.requestAccessToken({ prompt: 'select_account' });
-          }
-        }, 8000);
-      }
-    },
-
-    // Light init — registers the token client but makes ZERO API calls.
-    // All sync is user-triggered. No token expiry issues on page load.
-    initClientOnly(clientId) {
       let tries = 0;
       const tryInit = () => {
         if (typeof google === 'undefined' || !google.accounts?.oauth2) {
@@ -4294,302 +4200,55 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
         }
         this.tokenClient = google.accounts.oauth2.initTokenClient({
           client_id: clientId,
-          scope: 'https://www.googleapis.com/auth/spreadsheets',
+          scope: 'https://www.googleapis.com/auth/drive.file',
           callback: (resp) => {
-            this._authPending = false;
-            if (resp.error) {
-              this._clearToken();
-              this.pendingCbs = [];
-              _updateSheetsStatus(false);
-              showToast('Google sign-in failed — try again');
-              return;
-            }
-            this._saveToken(resp.access_token, resp.expires_in);
-            _updateSheetsStatus(true);
-            const cbs = [...this.pendingCbs];
-            this.pendingCbs = [];
-            cbs.forEach(cb => { try { cb(); } catch(e) { console.warn(e); } });
+            this._busy = false;
+            if (resp.error) { showToast('Google sign-in cancelled'); return; }
+            this._upload(resp.access_token);
           }
         });
-        // Restore connected status display only — no API calls
-        if (localStorage.getItem('iflow_sheets_connected') === '1') {
-          _updateSheetsStatus(true);
-        }
       };
       tryInit();
     },
 
-    connect() {
-      if (!this.tokenClient) { showToast('Google library still loading — try again in a moment'); return; }
-      // Always show account picker — never silent re-auth
-      this.pendingCbs.push(() => this.loadAll());
+    save() {
+      if (!this.tokenClient) { showToast('Google library still loading — try in a moment'); return; }
+      if (this._busy) return;
+      this._busy = true;
+      showToast('Opening Google sign-in…');
       this.tokenClient.requestAccessToken({ prompt: 'select_account' });
     },
 
-    _authPending: false,
-    withToken(cb) {
-      if (this.accessToken && Date.now() < this.tokenExpiry) {
-        try { cb(); } catch(e) { setSyncStatus('error', 'Sync error'); console.warn(e); }
-        return;
-      }
-      // Try restoring a saved token first
-      if (this._loadToken()) { try { cb(); } catch(e) {} return; }
-      // No token — only queue if user has previously connected
-      if (!this.tokenClient || localStorage.getItem('iflow_sheets_connected') !== '1') return;
-      // Queue the callback; only fire one silent re-auth at a time
-      this.pendingCbs.push(cb);
-      if (!this._authPending) {
-        this._authPending = true;
-        this.tokenClient.requestAccessToken({ prompt: '' });
-        setTimeout(() => { this._authPending = false; }, 30000);
-      }
-    },
-
-    async req(url, opts = {}) {
-      opts.headers = Object.assign({ 'Authorization': 'Bearer ' + this.accessToken }, opts.headers || {});
-      const r = await fetch(url, opts);
-      if (!r.ok) {
-        if (r.status === 401) {
-          this.accessToken = null; this._enabled = false;
-          localStorage.removeItem('iflow_sheets_token');
-          localStorage.removeItem('iflow_sheets_expiry');
-          // Keep iflow_sheets_connected so init() retries silent re-auth on next reload
-          setSyncStatus('error', 'Session expired');
-          setProductSyncStatus('error', 'Reconnect needed');
-          _updateSheetsStatus(false);
-        }
-        const body = await r.json().catch(() => ({}));
-        throw new Error(body.error?.message || `HTTP ${r.status}`);
-      }
-      return r.json();
-    },
-
-    async ensureSheet() {
-      if (this.spreadsheetId) return this.spreadsheetId;
-      const cached = localStorage.getItem('iflow_sheet_id');
-      if (cached) {
-        try {
-          const meta = await this.req(`${this.BASE}/${cached}?fields=sheets.properties`);
-          const s = (meta.sheets || []).find(s => s.properties.title === 'Sales');
-          this.spreadsheetId = cached;
-          this.salesSheetId = s ? s.properties.sheetId : 0;
-          const btn = document.getElementById('openSheetsBtn');
-          if (btn) { btn.href = `https://docs.google.com/spreadsheets/d/${cached}`; btn.style.display = ''; }
-          const obtn = document.getElementById('openOrdersSheetBtn');
-          if (obtn) { obtn.href = `https://docs.google.com/spreadsheets/d/${cached}`; obtn.style.display = ''; }
-          return cached;
-        } catch(e) {
-          // Spreadsheet inaccessible — clear stale ID and create a fresh one below
-          localStorage.removeItem('iflow_sheet_id');
-          this.spreadsheetId = null;
-          if (e.message.includes('401') || e.message.includes('Session expired')) throw e;
-          // else fall through to create new sheet
-        }
-      }
-      setSyncStatus('syncing', 'Creating…');
-      const resp = await this.req(this.BASE, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ properties: { title: 'iFlow — Sales Data' }, sheets: [{ properties: { title: 'Sales', sheetId: 0 } }] })
-      });
-      this.spreadsheetId = resp.spreadsheetId;
-      this.salesSheetId = 0;
-      localStorage.setItem('iflow_sheet_id', this.spreadsheetId);
-      await this.req(`${this.BASE}/${this.spreadsheetId}/values/Sales!A1:H1?valueInputOption=RAW`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ values: [['Date','Time','Product','Quantity','Unit Price','Subtotal','_ts','Customer']] })
-      });
-      const btn = document.getElementById('openSheetsBtn');
-      if (btn) { btn.href = `https://docs.google.com/spreadsheets/d/${this.spreadsheetId}`; btn.style.display = ''; }
-      const obtn = document.getElementById('openOrdersSheetBtn');
-      if (obtn) { obtn.href = `https://docs.google.com/spreadsheets/d/${this.spreadsheetId}`; obtn.style.display = ''; }
-      return this.spreadsheetId;
-    },
-
-    rowVals(s) {
-      return [fmtDate(s.timestamp), fmtTime(s.timestamp), s.product, s.quantity, s.price, (s.quantity * s.price).toFixed(2), s.timestamp, s.customer || ''];
-    },
-
-    async loadAll() {
-      setSyncStatus('syncing', 'Syncing…');
+    async _upload(token) {
+      const now = new Date();
+      const dateStr = now.toISOString().slice(0, 10);
+      const timeStr = now.toTimeString().slice(0, 5).replace(':', '-');
+      const filename = `iflow-backup-${dateStr}-${timeStr}.json`;
+      const payload = {
+        exportedAt: now.toISOString(),
+        sales: JSON.parse(localStorage.getItem('iflow_sales') || '[]'),
+        products: JSON.parse(localStorage.getItem('iflow_products') || '[]'),
+        settings: (() => {
+          const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+          delete s.geminiApiKey; delete s.gmailToken; return s;
+        })()
+      };
+      const meta = JSON.stringify({ name: filename, mimeType: 'application/json' });
+      const content = JSON.stringify(payload, null, 2);
+      const boundary = 'iflow_drive_bnd';
+      const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n--${boundary}--`;
       try {
-        const id = await this.ensureSheet();
-        const data = await this.req(`${this.BASE}/${id}/values/Sales!A2:H`);
-        const rows = data.values || [];
-        if (rows.length > 0) {
-          sales = rows.filter(r => r[6]).map(r => ({
-            timestamp: parseInt(r[6]), product: r[2] || '',
-            quantity: parseFloat(r[3]) || 0, price: parseFloat(r[4]) || 0, customer: r[7] || ''
-          }));
-          persist(); render();
-        } else if (sales.length > 0) {
-          for (const s of sales) await this.appendRow(s);
-        }
-        const ordersPage = document.getElementById('page-orders');
-        if (ordersPage && ordersPage.style.display !== 'none') renderOrders();
-        updateOrdersBadge();
-        const prods = await this.loadProducts();
-        if (prods.length > 0) {
-          // Sheets has data — use it as source of truth
-          products = prods;
-          localStorage.setItem('iflow_products', JSON.stringify(products));
-        } else if (products.length > 0) {
-          // Sheets is empty but local has products — push local up to Sheets
-          for (const p of products) await this.appendProduct(p);
-        }
-        refreshProductsList(); renderProducts(); checkLowStock();
-        setSyncStatus('synced', 'Synced'); setProductSyncStatus('synced', 'Synced');
-        _showSyncBtn(true); _showProductSyncBtn(true);
+        const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': `multipart/related; boundary=${boundary}` },
+          body
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        showToast('Backup saved to Google Drive');
       } catch(e) {
-        const isAuthErr = e.message.includes('401') || e.message.includes('Session expired') || e.message.includes('Token expired');
-        if (isAuthErr && this.tokenClient && !this._authPending) {
-          // Token expired mid-sync — attempt silent re-auth, then retry loadAll
-          setSyncStatus('', 'Reconnecting…'); setProductSyncStatus('', 'Reconnecting…');
-          this._authPending = true;
-          this.pendingCbs.push(() => this.loadAll());
-          this.tokenClient.requestAccessToken({ prompt: '' });
-          setTimeout(() => {
-            if (this._authPending) {
-              this._authPending = false; this.pendingCbs = [];
-              setSyncStatus('error', 'Session expired'); setProductSyncStatus('error', 'Session expired');
-            }
-          }, 15000);
-        } else {
-          setSyncStatus('error', 'Sync failed'); setProductSyncStatus('error', 'Sync failed');
-        }
-        console.warn('Sheets loadAll error:', e.message);
+        showToast('Drive backup failed — try again');
+        console.warn('DriveBackup:', e.message);
       }
-    },
-
-    async appendRow(s) {
-      try {
-        const id = await this.ensureSheet();
-        setSyncStatus('syncing', 'Saving…');
-        await this.req(`${this.BASE}/${id}/values/Sales!A:H:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ values: [this.rowVals(s)] })
-        });
-        setSyncStatus('synced', 'Saved');
-      } catch(e) { setSyncStatus('error', 'Save failed'); console.warn('appendRow:', e.message); }
-    },
-
-    async updateRow(rowIndex, s) {
-      try {
-        const id = await this.ensureSheet();
-        const r = rowIndex + 2;
-        setSyncStatus('syncing', 'Updating…');
-        await this.req(`${this.BASE}/${id}/values/Sales!A${r}:H${r}?valueInputOption=USER_ENTERED`, {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ values: [this.rowVals(s)] })
-        });
-        setSyncStatus('synced', 'Saved');
-      } catch(e) { setSyncStatus('error', 'Update failed'); console.warn('updateRow:', e.message); }
-    },
-
-    async deleteRow(rowIndex) {
-      try {
-        const id = await this.ensureSheet();
-        setSyncStatus('syncing', 'Deleting…');
-        await this.req(`${this.BASE}/${id}:batchUpdate`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ requests: [{ deleteDimension: { range: { sheetId: this.salesSheetId, dimension: 'ROWS', startIndex: rowIndex + 1, endIndex: rowIndex + 2 } } }] })
-        });
-        setSyncStatus('synced', 'Synced');
-      } catch(e) { setSyncStatus('error', 'Delete failed'); console.warn('deleteRow:', e.message); }
-    },
-
-    // ── Products sheet methods ──
-    productsDocId: null,
-    productsMainSheetId: 0,
-
-    async ensureProductsDoc() {
-      if (this.productsDocId) return this.productsDocId;
-      const cached = localStorage.getItem('iflow_products_sheet_id');
-      if (cached) {
-        try {
-          const meta = await this.req(`${this.BASE}/${cached}?fields=sheets.properties`);
-          const s = (meta.sheets||[]).find(sh => sh.properties.title === 'Products');
-          this.productsDocId = cached;
-          this.productsMainSheetId = s?.properties?.sheetId ?? 0;
-          const btn = document.getElementById('openProductsSheetBtn');
-          if (btn) { btn.href = `https://docs.google.com/spreadsheets/d/${cached}`; btn.style.display = ''; }
-          return cached;
-        } catch(e) {
-          localStorage.removeItem('iflow_products_sheet_id');
-          this.productsDocId = null;
-          if (e.message.includes('401') || e.message.includes('Session expired')) throw e;
-        }
-      }
-      setProductSyncStatus('syncing', 'Creating…');
-      const resp = await this.req(this.BASE, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ properties: { title: 'iFlow — Products & Stock' }, sheets: [{ properties: { title: 'Products', sheetId: 0 } }] })
-      });
-      this.productsDocId = resp.spreadsheetId;
-      this.productsMainSheetId = 0;
-      localStorage.setItem('iflow_products_sheet_id', this.productsDocId);
-      await this.req(`${this.BASE}/${this.productsDocId}/values/Products!A1:G1?valueInputOption=RAW`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ values: [['Code','Product Name','Type','Stock Qty','Unit Price','Low Stock Threshold','Date Added']] })
-      });
-      const btn = document.getElementById('openProductsSheetBtn');
-      if (btn) { btn.href = `https://docs.google.com/spreadsheets/d/${this.productsDocId}`; btn.style.display = ''; }
-      setProductSyncStatus('synced', 'Synced');
-      return this.productsDocId;
-    },
-
-    productRowVals(p) {
-      return [p.code, p.name, p.type||'', p.stockQty, p.unitPrice, p.lowStockThreshold, p.dateAdded||''];
-    },
-
-    async loadProducts() {
-      setProductSyncStatus('syncing', 'Syncing…');
-      try {
-        const id = await this.ensureProductsDoc();
-        const data = await this.req(`${this.BASE}/${id}/values/Products!A2:G`);
-        setProductSyncStatus('synced', 'Synced');
-        return (data.values||[]).filter(r=>r[0]).map(r => ({
-          code: r[0]||'', name: r[1]||'', type: r[2]||'',
-          stockQty: parseFloat(r[3])||0, unitPrice: parseFloat(r[4])||0,
-          lowStockThreshold: parseFloat(r[5])||5, dateAdded: r[6]||''
-        }));
-      } catch(e) { setProductSyncStatus('error', 'Sync failed'); console.warn('loadProducts:', e.message); return products; }
-    },
-
-    async appendProduct(p) {
-      try {
-        const id = await this.ensureProductsDoc();
-        setProductSyncStatus('syncing', 'Saving…');
-        await this.req(`${this.BASE}/${id}/values/Products!A:G:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ values: [this.productRowVals(p)] })
-        });
-        setProductSyncStatus('synced', 'Saved');
-      } catch(e) { setProductSyncStatus('error', 'Save failed'); console.warn('appendProduct:', e.message); }
-    },
-
-    async updateProduct(rowIndex, p) {
-      try {
-        const id = await this.ensureProductsDoc();
-        const r = rowIndex + 2;
-        setProductSyncStatus('syncing', 'Updating…');
-        await this.req(`${this.BASE}/${id}/values/Products!A${r}:G${r}?valueInputOption=USER_ENTERED`, {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ values: [this.productRowVals(p)] })
-        });
-        setProductSyncStatus('synced', 'Saved');
-      } catch(e) { setProductSyncStatus('error', 'Update failed'); console.warn('updateProduct:', e.message); }
-    },
-
-    async deleteProduct(rowIndex) {
-      try {
-        const id = await this.ensureProductsDoc();
-        setProductSyncStatus('syncing', 'Deleting…');
-        await this.req(`${this.BASE}/${id}:batchUpdate`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ requests: [{ deleteDimension: { range: { sheetId: this.productsMainSheetId, dimension: 'ROWS', startIndex: rowIndex+1, endIndex: rowIndex+2 } } }] })
-        });
-        setProductSyncStatus('synced', 'Synced');
-      } catch(e) { setProductSyncStatus('error', 'Delete failed'); console.warn('deleteProduct:', e.message); }
     }
   };
 
@@ -4648,8 +4307,6 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     // Gmail
     if (s.googleClientId) { const el = document.getElementById('settingsGoogleClientId'); if (el) el.value = s.googleClientId; }
     _updateGmailStatus(!!(s.gmailToken && Date.now() < (s.gmailExpiry || 0)));
-    // Sheets
-    _updateSheetsStatus(localStorage.getItem('iflow_sheets_connected') === '1' && SheetsAPI._enabled);
     // WhatsApp
     if (s.waNumber) { const el = document.getElementById('settingsWaNumber'); if (el) el.value = s.waNumber; }
     if (s.waApiToken) { const el = document.getElementById('settingsWaApiToken'); if (el) el.value = s.waApiToken; }
@@ -5557,9 +5214,9 @@ function showApp(user) {
       avatarEl.textContent = user.name.charAt(0).toUpperCase();
     }
   }
-  // Sheets is manual-only — init the token client but make zero API calls on load
+  // Init Drive backup token client (no API calls on load)
   if (GOOGLE_CLIENT_ID !== 'YOUR_CLIENT_ID_HERE') {
-    SheetsAPI.initClientOnly(GOOGLE_CLIENT_ID);
+    DriveBackup.init(GOOGLE_CLIENT_ID);
   }
   // Pre-seed AI API key (Groq preferred, Gemini as fallback)
   (function() {

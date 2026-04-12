@@ -1757,9 +1757,12 @@
         <button class="settings-btn-solid" onclick="saveToDrive()">☁️ Save to Drive</button>
       </div>
     </div>
-    <div class="sheets-tabs">
-      <button class="sheets-tab active" id="sheetsTabSales" onclick="switchSheetsTab('sales')">📋 Sales</button>
-      <button class="sheets-tab" id="sheetsTabProducts" onclick="switchSheetsTab('products')">🗃️ Products</button>
+    <div class="sheets-tabs" style="display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;gap:0">
+        <button class="sheets-tab active" id="sheetsTabSales" onclick="switchSheetsTab('sales')">📋 Sales</button>
+        <button class="sheets-tab" id="sheetsTabProducts" onclick="switchSheetsTab('products')">🗃️ Products</button>
+      </div>
+      <button id="sheetsClearBtn" onclick="clearCurrentSheet()" style="background:none;border:1px solid var(--border2);color:var(--muted);border-radius:7px;padding:5px 13px;font-size:0.78rem;cursor:pointer;margin-bottom:2px;transition:color .2s,border-color .2s" onmouseover="this.style.color='#e53e3e';this.style.borderColor='#e53e3e'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border2)'">Clear All</button>
     </div>
     <div id="sheetsViewSales" class="sheets-table-wrap">
       <table class="sheets-table">
@@ -2307,7 +2310,7 @@
       <div style="display:flex;align-items:center;gap:10px">
         <span style="font-size:1.4rem">🤖</span>
         <div>
-          <div style="font-weight:700;color:#fff;font-size:0.95rem">iFlow AI</div>
+          <div style="font-weight:700;color:#fff;font-size:0.95rem">Alex</div>
           <div style="font-size:0.72rem;color:rgba(255,255,255,.75)" id="aiModelLabel">Groq · llama-3.3</div>
         </div>
       </div>
@@ -2318,17 +2321,17 @@
     </div>
     <!-- Quick prompts -->
     <div style="padding:10px 14px 0;display:flex;gap:6px;flex-wrap:wrap">
-      <button class="ai-quick-btn" onclick="sendAiQuick('How e go today? Give me today sales summary.')">📊 Today</button>
-      <button class="ai-quick-btn" onclick="sendAiQuick('Which products don almost finish? Tell me wetin I need to restock.')">⚠️ Restock</button>
-      <button class="ai-quick-btn" onclick="sendAiQuick('Which products dey sell pass? Show me top sellers.')">🏆 Top Sellers</button>
-      <button class="ai-quick-btn" onclick="sendAiQuick('How e go this week? Revenue, profit, everything.')">💰 This Week</button>
+      <button class="ai-quick-btn" onclick="sendAiQuick('Give me today\'s sales summary.')">📊 Today</button>
+      <button class="ai-quick-btn" onclick="sendAiQuick('Which products are almost out of stock? What do I need to restock?')">⚠️ Restock</button>
+      <button class="ai-quick-btn" onclick="sendAiQuick('Which products are selling the most? Show me the top sellers.')">🏆 Top Sellers</button>
+      <button class="ai-quick-btn" onclick="sendAiQuick('How did we do this week? Revenue, profit, everything.')">💰 This Week</button>
       <button class="ai-quick-btn" onclick="sendAiQuick('Take me to products page.')">📦 Products</button>
       <button class="ai-quick-btn" onclick="sendAiQuick('Take me to orders.')">🧾 Orders</button>
     </div>
     <!-- Messages -->
     <div id="aiMessages" style="flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;min-height:200px;max-height:340px">
       <div class="ai-msg ai-msg-bot">
-        <span>How far! I be iFlow AI — your shop assistant. Tap a quick action above or just talk to me natural natural.</span>
+        <span>Hey! I'm Alex — your iFlow shop assistant. Tap a quick action above or just say "Hey Alex" or type to get started.</span>
       </div>
     </div>
     <!-- Voice-first input -->
@@ -2351,7 +2354,7 @@
 </div>
 
 <!-- Floating AI Mic Button (single entry point) -->
-<button id="aiFloatBtn" onclick="openAiChat()" title="Ask iFlow AI" style="display:none;position:fixed;bottom:26px;right:26px;z-index:9700;width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#7c3aed);border:none;color:#fff;cursor:pointer;box-shadow:0 4px 24px rgba(79,70,229,.55);transition:transform .15s;display:flex;align-items:center;justify-content:center">
+<button id="aiFloatBtn" onclick="openAiChat()" title="Ask Alex" style="display:none;position:fixed;bottom:26px;right:26px;z-index:9700;width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#7c3aed);border:none;color:#fff;cursor:pointer;box-shadow:0 4px 24px rgba(79,70,229,.55);transition:transform .15s;display:flex;align-items:center;justify-content:center">
   <svg viewBox="0 0 24 24" width="26" height="26" fill="#fff"><path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm-1 17.93V21h2v-2.07A8.001 8.001 0 0 0 20 11h-2a6 6 0 0 1-12 0H4a8.001 8.001 0 0 0 7 7.93z"/></svg>
 </button>
 
@@ -2522,11 +2525,40 @@
     }
   }
 
+  let _currentSheetsTab = 'sales';
   function switchSheetsTab(tab) {
+    _currentSheetsTab = tab;
     document.getElementById('sheetsViewSales').style.display = tab === 'sales' ? '' : 'none';
     document.getElementById('sheetsViewProducts').style.display = tab === 'products' ? '' : 'none';
     document.getElementById('sheetsTabSales').classList.toggle('active', tab === 'sales');
     document.getElementById('sheetsTabProducts').classList.toggle('active', tab === 'products');
+  }
+
+  function clearCurrentSheet() {
+    const isSales = _currentSheetsTab === 'sales';
+    const label = isSales ? 'all sales records' : 'all products from stock';
+    const count = isSales
+      ? JSON.parse(localStorage.getItem('iflow_sales') || '[]').length
+      : products.length;
+    if (!count) { showToast('Nothing to clear here'); return; }
+    if (!confirm(`Clear ${label}? This will move ${count} item${count !== 1 ? 's' : ''} to Trash (recoverable).`)) return;
+    if (isSales) {
+      pushUndo('sales');
+      sales.forEach((s, i) => moveToTrash('sale', s, i));
+      sales.length = 0;
+      persist();
+      render();
+      updateOrdersBadge();
+    } else {
+      pushUndo('products');
+      [...products].forEach((p, i) => moveToTrash('product', p, i));
+      products.length = 0;
+      localStorage.setItem('iflow_products', JSON.stringify(products));
+      renderProducts();
+      refreshProductsList();
+    }
+    renderSheets();
+    showToast(`Cleared — check Trash to recover`);
   }
 
   function renderTrash() {
@@ -3063,26 +3095,42 @@
     if (!_aiTtsOn && window.speechSynthesis) window.speechSynthesis.cancel();
   }
 
+  function _getBestVoice() {
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices.length) return null;
+    // Priority list — natural/neural voices first
+    const tests = [
+      v => /Google.*UK.*Female/i.test(v.name),
+      v => /Microsoft.*Sonia|Microsoft.*Aria|Microsoft.*Jenny|Microsoft.*Natasha/i.test(v.name),
+      v => /Samantha|Karen|Victoria|Moira|Fiona/i.test(v.name),       // macOS/iOS natural voices
+      v => /Google.*US.*Female/i.test(v.name),
+      v => /en.NG|en.GH|en.ZA/i.test(v.lang),                         // African English
+      v => /en.GB|en.AU/i.test(v.lang) && !/eSpeak/i.test(v.name),
+      v => /en/i.test(v.lang) && !/eSpeak/i.test(v.name),
+    ];
+    for (const test of tests) { const v = voices.find(test); if (v) return v; }
+    return null;
+  }
+
   function _speakText(text) {
     if (!_aiTtsOn || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
-    // Strip JSON and action markers from spoken text
     const clean = text.replace(/\{[\s\S]*?\}/g, '').replace(/[*_~`#]/g, '').trim();
     if (!clean) return;
     const utt = new SpeechSynthesisUtterance(clean);
-    utt.lang = 'en-NG';
-    utt.rate = 1.05;
-    utt.pitch = 1.0;
-    // Prefer a voice that sounds Nigerian/African if available
-    const voices = window.speechSynthesis.getVoices();
-    const preferred = voices.find(v => /en.NG|en.GH|en.ZA/i.test(v.lang)) ||
-                      voices.find(v => /en.GB|en.AU/i.test(v.lang)) ||
-                      voices.find(v => /en/i.test(v.lang));
-    if (preferred) utt.voice = preferred;
+    utt.lang = 'en-US';
+    utt.rate = 1.0;
+    utt.pitch = 1.05;
+    // Voices load async — try immediately and also on voiceschanged
+    const setVoice = () => { const v = _getBestVoice(); if (v) utt.voice = v; };
+    setVoice();
+    if (!utt.voice) {
+      window.speechSynthesis.onvoiceschanged = () => { setVoice(); window.speechSynthesis.onvoiceschanged = null; };
+    }
     window.speechSynthesis.speak(utt);
   }
 
-  const _AI_SYSTEM = `You are iFlow AI, a sharp and friendly shop assistant for a Nigerian retail store. You speak naturally in Nigerian English and use Pidgin slangs — things like "Oya", "Abeg", "Sharp sharp", "Wetin", "Na so", "E don do", "No wahala", "How far", "Sabi", "Chai", "Ehn", "You sure?" — but only when it flows naturally, not forced.
+  const _AI_SYSTEM = `Your name is Alex. You are a sharp and friendly AI shop assistant built into the iFlow app for a Nigerian retail store. You speak in clear, natural English — warm, direct, and efficient. You understand Nigerian English and Nigerian accents perfectly. You do NOT use Pidgin slang unless the user speaks Pidgin to you first.
 
 You can actually DO things in this store app, not just answer questions. When you want to perform an action, respond with ONLY a JSON object — no other text before or after it:
 {"action":"ACTION_NAME","data":{...},"message":"friendly message to show the user"}
@@ -3099,31 +3147,16 @@ Available actions and their data fields:
 When NOT taking an action (chatting, answering, asking questions), respond with plain conversational text only — no JSON.
 
 Rules:
-1. If info is incomplete for add_stock (missing price or quantity), ask first before acting. Say something like "Abeg how much e cost?" or "How many units?"
-2. If quantity or price sounds suspicious (e.g. 50000 units of a phone, or ₦1 for a laptop), ask "You sure about this? Wetin be [the thing that sounds off]?"
-3. For delete, always get confirmation — say "You sure say you wan remove [name]? Just type 'yes delete it' or 'no'."
+1. If info is incomplete for add_stock (missing price or quantity), ask first before acting. E.g. "What is the unit price?" or "How many units do you have?"
+2. If quantity or price sounds suspicious (e.g. 50,000 units of a phone, or ₦1 for a laptop), ask for confirmation. E.g. "Are you sure about 50,000 units? That seems unusually high."
+3. For delete, always get confirmation first. E.g. "Are you sure you want to remove [name] from stock? Type 'yes delete it' to confirm or 'no' to cancel."
 4. Address the user by name once you know it.
-5. Keep responses short and punchy. No long grammar.
+5. Keep responses concise. No unnecessary filler.
 6. You know the full stock list, sales history, and store data — use it to give useful advice.
-7. When recording sales, check if the product actually exists in stock and if quantity is available.`;
+7. When recording sales, check if the product actually exists in stock and if quantity is available.
+8. If the user greets you by name (e.g. "Hey Alex", "Hi Alex"), respond warmly and ask how you can help.`;
 
-  // Returns the right system prompt based on the user's chosen AI style
-  function _getAiSystem() {
-    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-    if (s.aiStyle === 'english') {
-      return _AI_SYSTEM
-        .replace("You speak naturally in Nigerian English and use Pidgin slangs — things like \"Oya\", \"Abeg\", \"Sharp sharp\", \"Wetin\", \"Na so\", \"E don do\", \"No wahala\", \"How far\", \"Sabi\", \"Chai\", \"Ehn\", \"You sure?\" — but only when it flows naturally, not forced.",
-          "You speak in clear, professional Nigerian English. Warm, direct, and efficient. You may use very light expressions (\"no problem\", \"sharp\", \"all good\") but keep Pidgin slangs minimal — the user prefers standard English.")
-        .replace("1. If info is incomplete for add_stock (missing price or quantity), ask first before acting. Say something like \"Abeg how much e cost?\" or \"How many units?\"",
-          "1. If info is incomplete for add_stock (missing price or quantity), ask clearly before acting. E.g. \"What is the unit price?\" or \"How many units?\"")
-        .replace("2. If quantity or price sounds suspicious (e.g. 50000 units of a phone, or ₦1 for a laptop), ask \"You sure about this? Wetin be [the thing that sounds off]?\"",
-          "2. If quantity or price sounds suspicious, ask for confirmation politely. E.g. \"Are you sure about 50,000 units? That seems unusually high.\"")
-        .replace("3. For delete, always get confirmation — say \"You sure say you wan remove [name]? Just type 'yes delete it' or 'no'.\"",
-          "3. For delete, always get confirmation first. E.g. \"Are you sure you want to remove [name] from stock? Type 'yes delete it' to confirm or 'no' to cancel.\"")
-        .replace("5. Keep responses short and punchy. No long grammar.", "5. Keep responses concise and professional.");
-    }
-    return _AI_SYSTEM;
-  }
+  function _getAiSystem() { return _AI_SYSTEM; }
 
   function saveGeminiKey() {
     const key = (document.getElementById('settingsGeminiKey')?.value || '').trim();
@@ -3271,12 +3304,12 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     switch (action) {
 
       case 'add_stock': {
-        if (!data.name) return 'Abeg, wetin be the product name?';
-        if (!data.quantity || isNaN(data.quantity)) return 'How many units you wan add? Tell me the quantity.';
-        if (!data.unitPrice || isNaN(data.unitPrice)) return 'Abeg, how much e dey sell? Give me the price.';
+        if (!data.name) return 'What is the product name?';
+        if (!data.quantity || isNaN(data.quantity)) return 'How many units are you adding?';
+        if (!data.unitPrice || isNaN(data.unitPrice)) return 'What is the unit selling price?';
         const qty = parseInt(data.quantity), price = parseFloat(data.unitPrice);
-        if (qty > 10000) return 'Chai! ' + qty + ' units?! You sure say that quantity correct? If yes, type it again.';
-        if (price < 1) return 'Price of ' + cur + price + ' for "' + data.name + '" — that one too small o. You sure?';
+        if (qty > 10000) return qty + ' units? That seems very high — are you sure that quantity is correct?';
+        if (price < 1) return 'A price of ' + cur + price + ' for "' + data.name + '" looks too low. Can you confirm?';
         const p = {
           name: data.name, code: data.code || generateProductCode(data.type || 'GEN'),
           type: data.type || 'General', stockQty: qty, unitPrice: price,
@@ -3296,9 +3329,9 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
 
       case 'record_sale': {
         const prod = findStockProduct(data.product || '');
-        if (!prod) return 'Abeg, I no fit find "' + data.product + '" for your stock list. Check the name.';
+        if (!prod) return 'I couldn\'t find "' + data.product + '" in your stock list. Check the name.';
         const qty = parseInt(data.quantity) || 1;
-        if (prod.stockQty < qty) return 'Ehn, you only get ' + prod.stockQty + ' units of "' + prod.name + '" remaining. You wan sell ' + qty + '?';
+        if (prod.stockQty < qty) return 'You only have ' + prod.stockQty + ' units of "' + prod.name + '" left. Are you sure you want to sell ' + qty + '?';
         const salePrice = parseFloat(data.price) || prod.unitPrice;
         pushUndo('sales');
         const sale = { customer: data.customer || 'Walk-in', product: prod.name, quantity: qty, price: salePrice, timestamp: Date.now() };
@@ -3325,9 +3358,9 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
 
       case 'set_stock': {
         const prod = findStockProduct(data.name || '');
-        if (!prod) return 'I no fit find "' + data.name + '" o.';
+        if (!prod) return 'I couldn\'t find "' + data.name + '" in your stock list.';
         const newQty = parseInt(data.newQty);
-        if (isNaN(newQty) || newQty < 0) return 'Wetin be the new quantity? Give me a valid number.';
+        if (isNaN(newQty) || newQty < 0) return 'What should the new quantity be? Please give a valid number.';
         const idx = products.indexOf(prod);
         pushUndo('products');
         products[idx].stockQty = newQty;
@@ -3388,7 +3421,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       if (box) {
         box.innerHTML = '';
         _aiHistory = [];
-        _aiAppendMsg('bot', 'E don set! How far? I be iFlow AI, your shop assistant wey go help you run things sharp sharp.\n\nAbeg, wetin be your name?');
+        _aiAppendMsg('bot', 'Hey! I\'m Alex, your iFlow shop assistant. I can add stock, record sales, check your numbers, and more.\n\nWhat\'s your name?');
         _aiAwaitingName = true;
       }
     }
@@ -3427,9 +3460,9 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
             products.splice(idx, 1);
             localStorage.setItem('iflow_products', JSON.stringify(products));
             renderProducts(); refreshProductsList();
-            result = 'E don go. "' + name + '" don enter trash. You fit restore am from trash page if you change your mind.';
+            result = 'Done. "' + name + '" has been moved to Trash. You can restore it from the Trash page if you change your mind.';
           } else {
-            result = 'I no fit find that product again o.';
+            result = 'I couldn\'t find that product in stock.';
           }
           _aiPendingDelete = null;
           if (typingDiv) { typingDiv.textContent = result; typingDiv.classList.remove('typing'); }
@@ -3478,10 +3511,10 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
         const firstName = name.split(' ')[0];
         localStorage.setItem('iflow_ai_name', firstName);
         _aiHistory = []; // fresh history with name context
-        _aiAppendMsg('bot', firstName + '! Nice to meet you. So wetin you need today? I can:\n• Add new stock ("add 50 units of Indomie for ₦200")\n• Record a sale ("sold 3 iPhone 15 to Emeka")\n• Check your numbers ("how e go today?")\n• Navigate pages ("take me to orders")\n• Give advice ("which product dey run out?")\n\nJust talk to me natural natural — I go understand.');
+        _aiAppendMsg('bot', firstName + '! Nice to meet you. Here\'s what I can do:\n• Add stock — "add 50 units of Indomie for ₦200"\n• Record a sale — "sold 3 iPhone 15 to Emeka"\n• Check numbers — "how did we do today?"\n• Navigate — "take me to orders"\n• Give advice — "which product is running low?"\n\nJust talk to me naturally — I\'ll understand your accent.');
         return;
       } else {
-        _aiAppendMsg('bot', 'Abeg just tell me your first name — e short like "Emeka" or "Temi".');
+        _aiAppendMsg('bot', 'Just your first name is fine — like "Emeka" or "Temi".');
         _aiAwaitingName = true;
         return;
       }
@@ -4595,6 +4628,8 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
 
   function _startVoice() {
     if (!_SR) { showToast('Voice not supported on this browser. Use text input.'); return; }
+    // Pause wake word listener while actively listening
+    if (_wakeRec) { try { _wakeRec.stop(); } catch(e){} _wakeRec = null; }
     // Make sure chat is open
     const modal = document.getElementById('aiChatModal');
     if (modal && modal.style.display === 'none') openAiChat();
@@ -4637,7 +4672,58 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     if (status) status.textContent = 'Tap mic to speak';
     const inp = document.getElementById('aiInput');
     if (inp) inp.placeholder = 'or type here…';
+    // Resume wake word listener after active input ends
+    if (_wakeEnabled) setTimeout(_startWakeWord, 1000);
   }
+
+  // ── Wake Word "Hey Alex" / "Hi Alex" ──
+  let _wakeRec = null;
+  let _wakeEnabled = false;
+
+  function _startWakeWord() {
+    if (!_SR || _wakeRec || _voiceActive) return;
+    try {
+      _wakeRec = new _SR();
+      _wakeRec.continuous = true;
+      _wakeRec.interimResults = true;
+      _wakeRec.lang = 'en-NG';
+      _wakeRec.onresult = (e) => {
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const t = e.results[i][0].transcript.toLowerCase().trim();
+          if (/\b(hey|hi|hello|ok|okay)\s+alex\b/.test(t) || /^alex[,!.\s]*$/.test(t)) {
+            _stopWakeWord();
+            const modal = document.getElementById('aiChatModal');
+            if (!modal || modal.style.display === 'none') openAiChat();
+            setTimeout(() => {
+              _speakText('Hey! How can I help?');
+              setTimeout(() => _startVoice(), 900);
+            }, 300);
+            return;
+          }
+        }
+      };
+      _wakeRec.onerror = (e) => {
+        _wakeRec = null;
+        if (_wakeEnabled && e.error !== 'not-allowed' && e.error !== 'service-not-allowed') {
+          setTimeout(_startWakeWord, 2000);
+        }
+      };
+      _wakeRec.onend = () => {
+        _wakeRec = null;
+        if (_wakeEnabled && !_voiceActive) setTimeout(_startWakeWord, 500);
+      };
+      _wakeEnabled = true;
+      _wakeRec.start();
+    } catch(e) { _wakeRec = null; }
+  }
+
+  function _stopWakeWord() {
+    _wakeEnabled = false;
+    if (_wakeRec) { try { _wakeRec.stop(); } catch(e){} _wakeRec = null; }
+  }
+
+  // Start wake word listener after a short delay (lets the page settle)
+  if (_SR) setTimeout(_startWakeWord, 2500);
 
   // Legacy stubs (the old panel no longer exists but keep names to avoid errors)
   function openAI() { openAiChat(); }

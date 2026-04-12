@@ -497,16 +497,32 @@
   }
 
   .nav-icon {
-    width: 36px; height: 36px;
+    width: 34px; height: 34px;
     border-radius: 9px;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
-    font-size: 1.05rem;
     background: rgba(255,255,255,.07);
     transition: background .2s, transform .2s;
+    color: rgba(255,255,255,.65);
   }
-  .nav-item:hover .nav-icon { background: rgba(255,255,255,.12); transform: scale(1.08); }
-  .nav-item.active .nav-icon { background: rgba(79,142,247,.3); }
+  .nav-icon svg { display: block; transition: stroke .2s; }
+  .nav-item:hover .nav-icon { background: rgba(255,255,255,.12); transform: scale(1.06); color: #fff; }
+  .nav-item.active .nav-icon { background: rgba(79,142,247,.28); color: #90c2ff; }
+
+  /* ── Page transitions ── */
+  @keyframes pageIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .page-view.page-anim { animation: pageIn .22s cubic-bezier(.4,0,.2,1) both; }
+
+  /* ── Stat card pulse (on update) ── */
+  @keyframes statPop {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.05); }
+    100% { transform: scale(1); }
+  }
+  .stat-pop { animation: statPop .3s ease; }
 
   .nav-label {
     font-size: 0.85rem;
@@ -556,8 +572,8 @@
     transition: background .2s, color .2s, transform .15s;
   }
   .signout-item:hover { background: rgba(229,62,62,.12); color: #fc8181; transform: translateX(3px); }
-  .signout-item .nav-icon { background: rgba(229,62,62,.15); font-size: 1rem; }
-  .signout-item:hover .nav-icon { background: rgba(229,62,62,.25); }
+  .signout-item .nav-icon { background: rgba(229,62,62,.15); color: rgba(252,129,129,.8); }
+  .signout-item:hover .nav-icon { background: rgba(229,62,62,.25); color: #fc8181; }
 
   /* ── Orders & Sales Page ── */
   .page-view { animation: page-fade .25s ease; }
@@ -1340,14 +1356,19 @@
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
 <header>
   <div style="display:flex;align-items:center;gap:12px">
-    <div class="header-store-avatar" id="headerLogoAvatar">🏪</div>
+    <div class="header-store-avatar" id="headerLogoAvatar" style="background:linear-gradient(135deg,#4f8ef7,#7b5ea7);display:flex;align-items:center;justify-content:center;border-radius:10px;width:38px;height:38px;flex-shrink:0">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
+      </svg>
+    </div>
     <div>
-      <div class="logo">i<span>Flow</span></div>
+      <div class="logo" style="font-size:1.25rem;letter-spacing:.5px;font-weight:700">i<span style="color:#4f8ef7;font-weight:800">Flow</span></div>
       <div class="subtitle" id="headerStoreName">Sales Tracker</div>
     </div>
   </div>
@@ -1372,29 +1393,29 @@
     <div class="sidebar-label">Main</div>
 
     <div class="nav-item active" onclick="setNav(this, 'inventory')">
-      <div class="nav-icon">📦</div>
+      <div class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></div>
       <span class="nav-label">Inventory</span>
     </div>
 
     <div class="nav-item" onclick="setNav(this, 'orders')">
-      <div class="nav-icon">🧾</div>
+      <div class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
       <span class="nav-label">Orders &amp; Sales</span>
       <span class="nav-badge" id="ordersBadge" style="display:none">0</span>
     </div>
 
     <div class="nav-item" onclick="setNav(this, 'products')">
-      <div class="nav-icon">🗃️</div>
+      <div class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
       <span class="nav-label">Products &amp; Stock</span>
       <span class="nav-badge" id="lowStockBadge" style="display:none;background:#e53e3e">0</span>
     </div>
 
     <div class="nav-item" onclick="setNav(this, 'sheets')">
-      <div class="nav-icon">📝</div>
+      <div class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg></div>
       <span class="nav-label">My Sheets</span>
     </div>
 
     <div class="nav-item" onclick="setNav(this, 'subscription')">
-      <div class="nav-icon">💳</div>
+      <div class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
       <span class="nav-label">Subscription</span>
     </div>
 
@@ -1402,13 +1423,13 @@
     <div class="sidebar-label">Account</div>
 
     <div class="nav-item" onclick="setNav(this, 'trash')">
-      <div class="nav-icon">🗑️</div>
+      <div class="nav-icon" id="trashNavIcon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></div>
       <span class="nav-label">Trash</span>
       <span class="nav-badge" id="trashBadge" style="display:none">0</span>
     </div>
 
     <div class="nav-item" onclick="setNav(this, 'settings')">
-      <div class="nav-icon">⚙️</div>
+      <div class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="6" r="2.5" fill="var(--header-bg)"/><circle cx="15" cy="12" r="2.5" fill="var(--header-bg)"/><circle cx="9" cy="18" r="2.5" fill="var(--header-bg)"/></svg></div>
       <span class="nav-label">Settings</span>
     </div>
   </div>
@@ -1423,7 +1444,7 @@
       </div>
     </div>
     <div class="signout-item" onclick="signOut()">
-      <div class="nav-icon">🚪</div>
+      <div class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></div>
       <span class="nav-label">Sign Out</span>
     </div>
   </div>
@@ -2440,8 +2461,12 @@
       showToast(`✅ Sale for "${item.data.product}" restored`);
     }
     // Flash restored indicator for 5 mins on the sidebar icon
-    const icon = document.querySelector('[onclick*="trash"] .nav-icon');
-    if (icon) { icon.textContent = '♻️'; setTimeout(() => { icon.textContent = '🗑️'; }, 5 * 60 * 1000); }
+    const icon = document.getElementById('trashNavIcon');
+    if (icon) {
+      const orig = icon.innerHTML;
+      icon.innerHTML = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#48c774" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
+      setTimeout(() => { icon.innerHTML = orig; }, 5 * 60 * 1000);
+    }
     trash.splice(idx, 1);
     localStorage.setItem('iflow_trash', JSON.stringify(trash));
     renderTrash(); updateTrashBadge();
@@ -3127,6 +3152,7 @@
     if (!utt.voice) {
       window.speechSynthesis.onvoiceschanged = () => { setVoice(); window.speechSynthesis.onvoiceschanged = null; };
     }
+    utt.onend = () => _afterAlexSpoke();
     window.speechSynthesis.speak(utt);
   }
 
@@ -3430,6 +3456,9 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
   function closeAiChat() {
     document.getElementById('aiChatModal').style.display = 'none';
     if (window.speechSynthesis) window.speechSynthesis.cancel();
+    _clearConvMode();
+    _stopVoice(false);
+    setTimeout(_startWakeWord, 1500);
   }
   function _aiAppendMsg(role, text, typing) {
     const box = document.getElementById('aiMessages');
@@ -3445,7 +3474,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
   async function _aiDispatch(msg) {
     const btn = document.getElementById('aiSendBtn');
     if (btn) btn.disabled = true;
-    const typingDiv = _aiAppendMsg('bot', 'Dey think...', true);
+    const typingDiv = _aiAppendMsg('bot', 'Thinking…', true);
     try {
       // Handle pending delete confirmation locally (no round-trip needed)
       if (_aiPendingDelete) {
@@ -3471,7 +3500,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
         } else if (/no|cancel|abeg no|stop/i.test(msg)) {
           const name = _aiPendingDelete;
           _aiPendingDelete = null;
-          const reply = 'Ok no wahala. "' + name + '" still dey your stock.';
+          const reply = 'No problem. "' + name + '" is still in your stock.';
           if (typingDiv) { typingDiv.textContent = reply; typingDiv.classList.remove('typing'); }
           _speakText(reply);
           return;
@@ -3491,9 +3520,13 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       }
     } catch(err) {
       if (typingDiv) { typingDiv.textContent = '⚠️ ' + err.message; typingDiv.classList.remove('typing'); }
+      // Even on error, resume listening in conversation mode
+      if (_convMode && !_aiTtsOn) setTimeout(_afterAlexSpoke, 600);
     } finally {
       if (btn) btn.disabled = false;
       document.getElementById('aiInput')?.focus();
+      // If TTS is off, still resume conv-mode listening after AI responds
+      if (_convMode && !_aiTtsOn) setTimeout(_afterAlexSpoke, 600);
     }
   }
 
@@ -4368,31 +4401,67 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     },
 
     async _upload(token) {
+      if (typeof XLSX === 'undefined') { showToast('Spreadsheet library still loading — try again'); return; }
       const now = new Date();
       const dateStr = now.toISOString().slice(0, 10);
       const timeStr = now.toTimeString().slice(0, 5).replace(':', '-');
-      const filename = `iflow-backup-${dateStr}-${timeStr}.json`;
-      const payload = {
-        exportedAt: now.toISOString(),
-        sales: JSON.parse(localStorage.getItem('iflow_sales') || '[]'),
-        products: JSON.parse(localStorage.getItem('iflow_products') || '[]'),
-        settings: (() => {
-          const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-          delete s.geminiApiKey; delete s.gmailToken; return s;
-        })()
-      };
-      const meta = JSON.stringify({ name: filename, mimeType: 'application/json' });
-      const content = JSON.stringify(payload, null, 2);
-      const boundary = 'iflow_drive_bnd';
-      const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n--${boundary}--`;
+      const filename = `iflow-export-${dateStr}-${timeStr}.xlsx`;
+      const cur = getCurrency();
+
+      const salesArr = JSON.parse(localStorage.getItem('iflow_sales') || '[]');
+      const prodsArr = JSON.parse(localStorage.getItem('iflow_products') || '[]');
+
+      const wb = XLSX.utils.book_new();
+
+      // ── Sales sheet ──
+      const salesRows = salesArr.length
+        ? salesArr.map((s, i) => ({
+            '#': i + 1,
+            Date: new Date(s.timestamp).toLocaleDateString(),
+            Time: new Date(s.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            Product: s.product,
+            Quantity: s.quantity,
+            [`Unit Price (${cur})`]: s.price,
+            [`Subtotal (${cur})`]: +(s.quantity * s.price).toFixed(2),
+            Customer: s.customer || '—'
+          }))
+        : [{ '#': '', Date: 'No sales recorded yet', Time: '', Product: '', Quantity: '', [`Unit Price (${cur})`]: '', [`Subtotal (${cur})`]: '', Customer: '' }];
+      const salesWS = XLSX.utils.json_to_sheet(salesRows);
+      XLSX.utils.book_append_sheet(wb, salesWS, 'Sales');
+
+      // ── Products sheet ──
+      const prodsRows = prodsArr.length
+        ? prodsArr.map((p, i) => ({
+            '#': i + 1,
+            Code: p.code || '—',
+            'Product Name': p.name,
+            Type: p.type || '—',
+            'Stock Qty': p.stockQty,
+            [`Unit Price (${cur})`]: p.unitPrice,
+            [`Cost Price (${cur})`]: p.costPrice || '—',
+            'Low Stock Threshold': p.lowStockThreshold || 5,
+            'Date Added': p.dateAdded || '—'
+          }))
+        : [{ '#': '', Code: '', 'Product Name': 'No products yet', Type: '', 'Stock Qty': '', [`Unit Price (${cur})`]: '', [`Cost Price (${cur})`]: '', 'Low Stock Threshold': '', 'Date Added': '' }];
+      const prodsWS = XLSX.utils.json_to_sheet(prodsRows);
+      XLSX.utils.book_append_sheet(wb, prodsWS, 'Products');
+
+      const xlsxMime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      const wbOut = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbOut], { type: xlsxMime });
+
+      const fd = new FormData();
+      fd.append('metadata', new Blob([JSON.stringify({ name: filename, mimeType: xlsxMime })], { type: 'application/json' }));
+      fd.append('file', blob, filename);
+
       try {
         const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
           method: 'POST',
-          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': `multipart/related; boundary=${boundary}` },
-          body
+          headers: { 'Authorization': 'Bearer ' + token },
+          body: fd
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
-        showToast('Backup saved to Google Drive');
+        showToast('Spreadsheet saved to Google Drive ✓');
       } catch(e) {
         showToast('Drive backup failed — try again');
         console.warn('DriveBackup:', e.message);
@@ -4423,15 +4492,17 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     el.classList.add('active');
     document.querySelectorAll('.page-view').forEach(p => p.style.display = 'none');
     const target = document.getElementById('page-' + page);
+    const show = target || document.getElementById('page-inventory');
+    show.style.display = 'flex';
+    show.classList.remove('page-anim');
+    void show.offsetWidth; // force reflow
+    show.classList.add('page-anim');
     if (target) {
-      target.style.display = 'flex';
       if (page === 'orders') renderOrders();
       if (page === 'settings') syncSettingsToggles();
       if (page === 'products') renderProducts();
       if (page === 'trash') renderTrash();
       if (page === 'sheets') renderSheets();
-    } else {
-      document.getElementById('page-inventory').style.display = 'flex';
     }
   }
 
@@ -4622,15 +4693,44 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
   let _voiceActive = false;
   const _SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
+  // ── Conversation mode (30-second active window) ──
+  let _convMode = false;
+  let _convTimeout = null;
+  const _CONV_IDLE_MS = 30000;
+
+  function _scheduleConvTimeout() {
+    clearTimeout(_convTimeout);
+    _convTimeout = setTimeout(() => {
+      if (_convMode) {
+        _clearConvMode();
+        _speakText("I'll be here if you need me — just say Hey Alex.");
+        setTimeout(_startWakeWord, 3000);
+      }
+    }, _CONV_IDLE_MS);
+  }
+  function _clearConvMode() {
+    _convMode = false;
+    clearTimeout(_convTimeout);
+    _convTimeout = null;
+  }
+  function _isDismissal(t) {
+    return /\b(bye|goodbye|that'?s (all|it|enough)|stop|go away|you'?re dismissed|good night|thanks? (bye|that'?s (all|it))|leave|exit|close)\b/i.test(t);
+  }
+
   function toggleVoiceInput() {
-    _voiceActive ? _stopVoice() : _startVoice();
+    if (_convMode || _voiceActive) {
+      _clearConvMode();
+      _stopVoice(false);
+      _speakText('Got it. Call me anytime!');
+      setTimeout(_startWakeWord, 2500);
+    } else {
+      _startVoice();
+    }
   }
 
   function _startVoice() {
     if (!_SR) { showToast('Voice not supported on this browser. Use text input.'); return; }
-    // Pause wake word listener while actively listening
     if (_wakeRec) { try { _wakeRec.stop(); } catch(e){} _wakeRec = null; }
-    // Make sure chat is open
     const modal = document.getElementById('aiChatModal');
     if (modal && modal.style.display === 'none') openAiChat();
     _voiceActive = true;
@@ -4645,23 +4745,32 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     _speechRec = new _SR();
     _speechRec.lang = 'en-NG';
     _speechRec.interimResults = false;
-    _speechRec.maxAlternatives = 1;
+    _speechRec.maxAlternatives = 3;
     _speechRec.onresult = (e) => {
       const text = e.results[0][0].transcript;
-      _stopVoice();
+      _stopVoice(false);
+      if (_isDismissal(text)) {
+        _clearConvMode();
+        _speakText('Got it. Call me anytime!');
+        setTimeout(_startWakeWord, 2500);
+        return;
+      }
       _aiAppendMsg('user', text);
       _aiDispatch(text);
+      if (_convMode) _scheduleConvTimeout();
     };
     _speechRec.onerror = (e) => {
-      _stopVoice();
+      _stopVoice(false);
       if (e.error === 'not-allowed') showToast('Mic access denied. Allow mic in browser settings.');
-      else if (e.error !== 'no-speech') showToast('Voice error: ' + e.error);
+      else if (e.error === 'no-speech' && _convMode) _scheduleConvTimeout();
+      else if (e.error !== 'no-speech' && e.error !== 'aborted') showToast('Voice error: ' + e.error);
     };
-    _speechRec.onend = () => { if (_voiceActive) _stopVoice(); };
+    _speechRec.onend = () => { if (_voiceActive) _stopVoice(false); };
     _speechRec.start();
+    if (_convMode) _scheduleConvTimeout();
   }
 
-  function _stopVoice() {
+  function _stopVoice(resumeWake = true) {
     _voiceActive = false;
     if (_speechRec) { try { _speechRec.stop(); } catch(e){} _speechRec = null; }
     const micBtn = document.getElementById('aiMicBtn');
@@ -4669,19 +4778,28 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     const status = document.getElementById('aiVoiceStatus');
     if (micBtn) micBtn.classList.remove('ai-listening');
     if (pulse)  pulse.style.display = 'none';
-    if (status) status.textContent = 'Tap mic to speak';
+    if (status) status.textContent = _convMode ? 'Alex is thinking…' : 'Tap mic to speak';
     const inp = document.getElementById('aiInput');
     if (inp) inp.placeholder = 'or type here…';
-    // Resume wake word listener after active input ends
-    if (_wakeEnabled) setTimeout(_startWakeWord, 1000);
+    if (resumeWake && _wakeEnabled && !_convMode) setTimeout(_startWakeWord, 1000);
+  }
+
+  // Called when TTS finishes — re-opens ear in conversation mode
+  function _afterAlexSpoke() {
+    if (_convMode && _SR && !_voiceActive) {
+      const status = document.getElementById('aiVoiceStatus');
+      if (status) status.textContent = 'Listening for follow-up…';
+      setTimeout(() => { if (_convMode && !_voiceActive) _startVoice(); }, 500);
+    }
   }
 
   // ── Wake Word "Hey Alex" / "Hi Alex" ──
   let _wakeRec = null;
   let _wakeEnabled = false;
+  let _wakeHeartbeat = null;
 
   function _startWakeWord() {
-    if (!_SR || _wakeRec || _voiceActive) return;
+    if (!_SR || _wakeRec || _voiceActive || _convMode) return;
     try {
       _wakeRec = new _SR();
       _wakeRec.continuous = true;
@@ -4692,11 +4810,12 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
           const t = e.results[i][0].transcript.toLowerCase().trim();
           if (/\b(hey|hi|hello|ok|okay)\s+alex\b/.test(t) || /^alex[,!.\s]*$/.test(t)) {
             _stopWakeWord();
+            _convMode = true;
             const modal = document.getElementById('aiChatModal');
             if (!modal || modal.style.display === 'none') openAiChat();
             setTimeout(() => {
-              _speakText('Hey! How can I help?');
-              setTimeout(() => _startVoice(), 900);
+              _speakText("Hey! I'm listening.");
+              setTimeout(() => _startVoice(), 1000);
             }, 300);
             return;
           }
@@ -4710,7 +4829,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       };
       _wakeRec.onend = () => {
         _wakeRec = null;
-        if (_wakeEnabled && !_voiceActive) setTimeout(_startWakeWord, 500);
+        if (_wakeEnabled && !_voiceActive && !_convMode) setTimeout(_startWakeWord, 500);
       };
       _wakeEnabled = true;
       _wakeRec.start();
@@ -4722,8 +4841,22 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     if (_wakeRec) { try { _wakeRec.stop(); } catch(e){} _wakeRec = null; }
   }
 
-  // Start wake word listener after a short delay (lets the page settle)
-  if (_SR) setTimeout(_startWakeWord, 2500);
+  // Heartbeat: Chrome kills continuous recognition after ~60s. Proactively restart every 45s.
+  function _startWakeHeartbeat() {
+    clearInterval(_wakeHeartbeat);
+    _wakeHeartbeat = setInterval(() => {
+      if (_wakeEnabled && !_voiceActive && !_convMode) {
+        if (_wakeRec) { try { _wakeRec.stop(); } catch(e){} _wakeRec = null; }
+        setTimeout(_startWakeWord, 400);
+      }
+    }, 45000);
+  }
+
+  // Start wake word + heartbeat on page load
+  if (_SR) {
+    setTimeout(_startWakeWord, 2500);
+    _startWakeHeartbeat();
+  }
 
   // Legacy stubs (the old panel no longer exists but keep names to avoid errors)
   function openAI() { openAiChat(); }

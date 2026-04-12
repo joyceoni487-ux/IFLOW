@@ -1259,6 +1259,23 @@
   .ctx-item:hover { background:var(--surface2); }
   .ctx-item.danger { color:#e53e3e; }
   .trash-page { padding:28px 32px; max-width:900px; }
+
+  /* ── Sheets page ── */
+  .sheets-page { padding:28px 32px; display:flex; flex-direction:column; flex:1; min-width:0; min-height:0; overflow:hidden; }
+  .sheets-tabs { display:flex; gap:0; border-bottom:2px solid var(--border2); margin-bottom:0; }
+  .sheets-tab { background:none; border:none; padding:9px 20px; font-size:0.88rem; font-weight:600; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-2px; transition:color .2s,border-color .2s; }
+  .sheets-tab.active { color:var(--accent,#4f8ef7); border-bottom-color:var(--accent,#4f8ef7); }
+  .sheets-tab:hover:not(.active) { color:var(--text); }
+  .sheets-table-wrap { flex:1; overflow:auto; border:1px solid var(--border2); border-radius:0 0 10px 10px; background:var(--surface); }
+  .sheets-table { width:100%; border-collapse:collapse; font-size:0.82rem; }
+  .sheets-table thead tr { position:sticky; top:0; z-index:2; }
+  .sheets-table th { background:var(--surface2); color:var(--muted); font-weight:700; font-size:0.75rem; text-transform:uppercase; letter-spacing:.04em; padding:9px 12px; border-bottom:2px solid var(--border2); border-right:1px solid var(--border2); text-align:left; white-space:nowrap; }
+  .sheets-table td { padding:8px 12px; border-bottom:1px solid var(--border2); border-right:1px solid var(--border2); color:var(--text); white-space:nowrap; }
+  .sheets-table tbody tr:hover td { background:var(--surface2); }
+  .sheets-table th:last-child, .sheets-table td:last-child { border-right:none; }
+  .sheets-rownum { background:var(--surface2) !important; color:var(--muted) !important; font-weight:600; text-align:right !important; padding-right:14px !important; min-width:36px; width:36px; user-select:none; border-right:2px solid var(--border2) !important; }
+  .sheets-low { color:#e53e3e; font-weight:700; }
+  @media(max-width:600px) { .sheets-page { padding:16px; } .sheets-tab { padding:8px 14px; font-size:0.8rem; } }
   .trash-entry { display:flex; align-items:center; gap:14px; padding:12px 16px; border-radius:10px; border:1px solid var(--border2); background:var(--surface); margin-bottom:8px; }
   .trash-entry-info { flex:1; min-width:0; }
   .trash-entry-name { font-weight:600; color:var(--text); font-size:0.9rem; }
@@ -1369,6 +1386,11 @@
       <div class="nav-icon">🗃️</div>
       <span class="nav-label">Products &amp; Stock</span>
       <span class="nav-badge" id="lowStockBadge" style="display:none;background:#e53e3e">0</span>
+    </div>
+
+    <div class="nav-item" onclick="setNav(this, 'sheets')">
+      <div class="nav-icon">📝</div>
+      <span class="nav-label">My Sheets</span>
     </div>
 
     <div class="nav-item" onclick="setNav(this, 'subscription')">
@@ -1717,6 +1739,46 @@
 </div>
 
 <!-- Trash Page -->
+<!-- Page: My Sheets -->
+<div id="page-sheets" class="page-view" style="display:none;flex:1;min-width:0;overflow:hidden;">
+  <div class="sheets-page">
+    <div class="orders-header" style="margin-bottom:16px">
+      <div>
+        <h1 class="orders-title">My Sheets</h1>
+        <p class="orders-date" id="sheetsDate"></p>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="settings-btn-outline" onclick="exportCSV()">📊 Export CSV</button>
+        <button class="settings-btn-solid" onclick="DriveBackup.save()">☁️ Save to Drive</button>
+      </div>
+    </div>
+    <div class="sheets-tabs">
+      <button class="sheets-tab active" id="sheetsTabSales" onclick="switchSheetsTab('sales')">📋 Sales</button>
+      <button class="sheets-tab" id="sheetsTabProducts" onclick="switchSheetsTab('products')">🗃️ Products</button>
+    </div>
+    <div id="sheetsViewSales" class="sheets-table-wrap">
+      <table class="sheets-table">
+        <thead><tr>
+          <th class="sheets-rownum">#</th>
+          <th>Date</th><th>Time</th><th>Product</th>
+          <th>Qty</th><th>Unit Price</th><th>Subtotal</th><th>Customer</th>
+        </tr></thead>
+        <tbody id="sheetsSalesTbody"></tbody>
+      </table>
+    </div>
+    <div id="sheetsViewProducts" class="sheets-table-wrap" style="display:none">
+      <table class="sheets-table">
+        <thead><tr>
+          <th class="sheets-rownum">#</th>
+          <th>Code</th><th>Product Name</th><th>Type</th>
+          <th>Stock Qty</th><th>Unit Price</th><th>Low Stock Threshold</th><th>Date Added</th>
+        </tr></thead>
+        <tbody id="sheetsProductsTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <div id="page-trash" class="page-view" style="display:none;flex:1;min-width:0;overflow:hidden;">
   <div class="trash-page">
     <div class="orders-header" style="margin-bottom:20px">
@@ -2417,6 +2479,62 @@
       doEmpty();
     }
   }
+  function renderSheets() {
+    const el = document.getElementById('sheetsDate');
+    if (el) el.textContent = new Date().toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+    const cur = getCurrency();
+    const salesArr = JSON.parse(localStorage.getItem('iflow_sales') || '[]');
+    const salesTbody = document.getElementById('sheetsSalesTbody');
+    if (salesTbody) {
+      if (!salesArr.length) {
+        salesTbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--muted)">No sales recorded yet</td></tr>';
+      } else {
+        salesTbody.innerHTML = salesArr.map((s, i) => {
+          const d = new Date(s.timestamp);
+          const sub = (s.quantity * s.price).toFixed(2);
+          return `<tr>
+            <td class="sheets-rownum">${i + 1}</td>
+            <td>${d.toLocaleDateString()}</td>
+            <td>${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</td>
+            <td>${s.product}</td>
+            <td>${s.quantity}</td>
+            <td>${cur}${fmtComma(s.price)}</td>
+            <td>${cur}${fmtComma(parseFloat(sub))}</td>
+            <td>${s.customer || '—'}</td>
+          </tr>`;
+        }).join('');
+      }
+    }
+    const prodsArr = JSON.parse(localStorage.getItem('iflow_products') || '[]');
+    const prodTbody = document.getElementById('sheetsProductsTbody');
+    if (prodTbody) {
+      if (!prodsArr.length) {
+        prodTbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--muted)">No products added yet</td></tr>';
+      } else {
+        prodTbody.innerHTML = prodsArr.map((p, i) => {
+          const isLow = p.stockQty <= (p.lowStockThreshold || 5);
+          return `<tr>
+            <td class="sheets-rownum">${i + 1}</td>
+            <td>${p.code || '—'}</td>
+            <td>${p.name}</td>
+            <td>${p.type || '—'}</td>
+            <td class="${isLow ? 'sheets-low' : ''}">${p.stockQty}${isLow ? ' ⚠️' : ''}</td>
+            <td>${cur}${fmtComma(p.unitPrice)}</td>
+            <td>${p.lowStockThreshold || 5}</td>
+            <td>${p.dateAdded || '—'}</td>
+          </tr>`;
+        }).join('');
+      }
+    }
+  }
+
+  function switchSheetsTab(tab) {
+    document.getElementById('sheetsViewSales').style.display = tab === 'sales' ? '' : 'none';
+    document.getElementById('sheetsViewProducts').style.display = tab === 'products' ? '' : 'none';
+    document.getElementById('sheetsTabSales').classList.toggle('active', tab === 'sales');
+    document.getElementById('sheetsTabProducts').classList.toggle('active', tab === 'products');
+  }
+
   function renderTrash() {
     document.getElementById('trashDate').textContent = new Date().toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
     const list = document.getElementById('trashList');
@@ -4281,6 +4399,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       if (page === 'settings') syncSettingsToggles();
       if (page === 'products') renderProducts();
       if (page === 'trash') renderTrash();
+      if (page === 'sheets') renderSheets();
     } else {
       document.getElementById('page-inventory').style.display = 'flex';
     }

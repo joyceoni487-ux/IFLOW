@@ -2031,65 +2031,85 @@
               </div>
             </div>
 
-            <!-- Auto-reply toggle -->
-            <div style="border-top:1px solid var(--border);padding-top:12px">
-              <p style="font-size:0.78rem;font-weight:600;color:var(--text);margin:0 0 8px">Incoming Message Auto-Reply</p>
-              <label style="display:flex;align-items:center;gap:10px;font-size:0.8rem;color:var(--text);cursor:pointer">
-                <input type="checkbox" id="waAutoReply" checked style="width:15px;height:15px;accent-color:#25d366" onchange="_syncAutoReplyUrl()" />
-                Auto-reply to customers who message your Twilio number
-              </label>
-              <p style="font-size:0.7rem;color:var(--muted);margin:6px 0 0">When on, customers instantly get a friendly reply. Toggle off if you prefer to reply manually. After changing, copy the updated webhook URL below and paste it in Twilio.</p>
-            </div>
+            <!-- Reply behaviour -->
+            <div style="border-top:1px solid var(--border);padding-top:14px">
+              <p style="font-size:0.78rem;font-weight:600;color:var(--text);margin:0 0 10px">Auto-Reply Behaviour</p>
 
-            <!-- Sandbox sharing instructions -->
-            <div style="border-top:1px solid var(--border);padding-top:12px;background:rgba(37,211,102,.07);border-radius:10px;padding:12px">
-              <p style="font-size:0.78rem;font-weight:600;color:#25d366;margin:0 0 6px">How to let others message your Twilio number</p>
-              <p style="font-size:0.75rem;color:var(--text);margin:0 0 6px">The Twilio Sandbox requires each person to opt in once before they can send/receive messages. Share these steps with your customers:</p>
-              <ol style="font-size:0.74rem;color:var(--text);margin:0;padding-left:18px;line-height:1.8">
-                <li>Save <strong>+1 415 523 8886</strong> in their phone contacts</li>
-                <li>Open WhatsApp and send the message: <code id="sandboxJoinCode" style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 5px">join &lt;your-sandbox-word&gt;</code></li>
-                <li>They'll get a confirmation — after that, messages go through normally</li>
-              </ol>
-              <p style="font-size:0.7rem;color:var(--muted);margin:8px 0 0">Your sandbox join word is shown in the Twilio Console → Messaging → Try it out → Send a WhatsApp message.</p>
-            </div>
+              <!-- AI status badge -->
+              <div id="waAiStatusBar" style="display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:12px">
+                <span id="waAiStatusDot" style="width:9px;height:9px;border-radius:50%;background:#a0aec0;flex-shrink:0"></span>
+                <span id="waAiStatusText" style="font-size:0.78rem;color:var(--muted);flex:1">Checking AI status…</span>
+                <button onclick="_checkWaAiStatus()" style="font-size:0.7rem;color:var(--muted);background:none;border:none;cursor:pointer;padding:0">↻ Refresh</button>
+              </div>
 
-            <!-- Webhook URLs — auto-detected from current domain -->
-            <div style="border-top:1px solid var(--border);padding-top:12px">
-              <p style="font-size:0.78rem;font-weight:600;color:var(--text);margin:0 0 8px">Twilio Webhook URLs</p>
+              <!-- Toggle: AI replies -->
               <div style="display:flex;flex-direction:column;gap:10px">
+                <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+                  <input type="checkbox" id="waAutoReply" checked style="width:15px;height:15px;accent-color:#818cf8;margin-top:2px;flex-shrink:0" onchange="_syncAutoReplyUrl()" />
+                  <div>
+                    <span style="font-size:0.82rem;font-weight:600;color:var(--text)">AI auto-reply (Alex)</span>
+                    <p style="font-size:0.72rem;color:var(--muted);margin:2px 0 0">Alex replies to every incoming customer message using Groq AI. Requires <code style="font-size:0.68rem">GROQ_API_KEY</code> in Vercel environment variables — see setup below.</p>
+                  </div>
+                </label>
+
+                <!-- Toggle: Generic fallback -->
+                <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+                  <input type="checkbox" id="waGenericReply" checked style="width:15px;height:15px;accent-color:#25d366;margin-top:2px;flex-shrink:0" onchange="_syncAutoReplyUrl()" />
+                  <div>
+                    <span style="font-size:0.82rem;font-weight:600;color:var(--text)">Generic fallback message</span>
+                    <p style="font-size:0.72rem;color:var(--muted);margin:2px 0 0">Sends "Hi! Thanks for reaching out…" when AI is off or unavailable. Turn off when AI is fully active so customers don't get duplicate messages.</p>
+                  </div>
+                </label>
+              </div>
+              <p style="font-size:0.7rem;color:var(--muted);margin:10px 0 0;padding:8px;background:rgba(255,200,0,.07);border-radius:6px;border-left:3px solid rgba(255,200,0,.4)">After toggling, copy the updated "When a message comes in" URL below and re-paste it in Twilio Sandbox settings.</p>
+            </div>
+
+            <!-- Vercel AI setup card -->
+            <div style="border-top:1px solid var(--border);padding-top:12px">
+              <div style="background:rgba(99,102,241,.07);border:1px solid rgba(99,102,241,.2);border-radius:10px;padding:12px">
+                <p style="font-size:0.78rem;font-weight:700;color:#818cf8;margin:0 0 8px">How to activate AI replies (one-time setup)</p>
+                <ol style="font-size:0.74rem;color:var(--text);margin:0;padding-left:18px;line-height:2">
+                  <li>Go to <strong>vercel.com → your iFlow project → Settings → Environment Variables</strong></li>
+                  <li>Add: <code style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 6px;color:#818cf8">GROQ_API_KEY</code> = your Groq key (starts with <code style="font-size:0.68rem">gsk_</code>)</li>
+                  <li>Add: <code style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 6px;color:#818cf8">STORE_NAME</code> = your store name</li>
+                  <li>Click <strong>Save</strong> → Vercel auto-redeploys in ~30 seconds</li>
+                  <li>Come back here and click <strong>↻ Refresh</strong> on the status badge above</li>
+                </ol>
+                <p style="font-size:0.7rem;color:var(--muted);margin:8px 0 0">Your Groq key is the same one you use for Alex in the AI Settings section above.</p>
+              </div>
+            </div>
+
+            <!-- Webhook URLs -->
+            <div style="border-top:1px solid var(--border);padding-top:12px">
+              <p style="font-size:0.78rem;font-weight:600;color:var(--text);margin:0 0 8px">Twilio Webhook URLs <span style="font-weight:400;color:var(--muted)">(paste these in Twilio Sandbox)</span></p>
+              <div style="display:flex;flex-direction:column;gap:8px">
                 <div>
-                  <p style="font-size:0.72rem;color:var(--muted);margin:0 0 3px">When a message comes in → paste in Twilio Sandbox:</p>
+                  <p style="font-size:0.7rem;color:var(--muted);margin:0 0 3px">When a message comes in:</p>
                   <div style="display:flex;gap:6px;align-items:center">
                     <code id="incomingWebhookUrl" style="font-size:0.72rem;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;flex:1;color:var(--text);word-break:break-all"></code>
                     <button onclick="navigator.clipboard.writeText(document.getElementById('incomingWebhookUrl').textContent).then(()=>showToast('Copied ✓'))" class="settings-btn-outline" style="white-space:nowrap;flex-shrink:0">Copy</button>
                   </div>
                 </div>
                 <div>
-                  <p style="font-size:0.72rem;color:var(--muted);margin:0 0 3px">Status Callback URL → paste in Twilio Sandbox:</p>
+                  <p style="font-size:0.7rem;color:var(--muted);margin:0 0 3px">Status Callback URL:</p>
                   <div style="display:flex;gap:6px;align-items:center">
                     <code id="statusCallbackUrl" style="font-size:0.72rem;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;flex:1;color:var(--text);word-break:break-all"></code>
                     <button onclick="navigator.clipboard.writeText(document.getElementById('statusCallbackUrl').textContent).then(()=>showToast('Copied ✓'))" class="settings-btn-outline" style="white-space:nowrap;flex-shrink:0">Copy</button>
                   </div>
                 </div>
-                <p style="font-size:0.7rem;color:var(--muted);margin:0">Both endpoints are serverless functions deployed with iFlow on Vercel. No separate setup needed — just copy and paste into Twilio.</p>
               </div>
             </div>
 
-            <!-- Vercel env var setup for AI replies -->
-            <div style="border-top:1px solid var(--border);padding-top:12px;background:rgba(99,102,241,.07);border-radius:10px;padding:12px">
-              <p style="font-size:0.78rem;font-weight:600;color:#818cf8;margin:0 0 6px">Enable AI Replies on WhatsApp</p>
-              <p style="font-size:0.74rem;color:var(--text);margin:0 0 8px">Alex will automatically reply to every customer message using Gemini AI. To activate, add these two variables in <strong>Vercel → Project Settings → Environment Variables</strong>:</p>
-              <div style="display:flex;flex-direction:column;gap:6px">
-                <div style="display:flex;align-items:center;gap:8px">
-                  <code style="font-size:0.72rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:3px 7px;color:#818cf8;white-space:nowrap">GROQ_API_KEY</code>
-                  <span style="font-size:0.72rem;color:var(--muted)">← your Groq API key (same one in AI Settings above, starts with gsk_)</span>
-                </div>
-                <div style="display:flex;align-items:center;gap:8px">
-                  <code style="font-size:0.72rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:3px 7px;color:#818cf8;white-space:nowrap">STORE_NAME</code>
-                  <span style="font-size:0.72rem;color:var(--muted)">← your store name (e.g. Joyce's Boutique)</span>
-                </div>
-              </div>
-              <p style="font-size:0.7rem;color:var(--muted);margin:8px 0 0">After adding the variables, redeploy on Vercel (it's automatic on next push). Without <code style="font-size:0.68rem">GROQ_API_KEY</code>, iFlow falls back to a polite generic reply.</p>
+            <!-- Sandbox sharing instructions -->
+            <div style="border-top:1px solid var(--border);padding-top:12px;background:rgba(37,211,102,.06);border-radius:10px;padding:12px">
+              <p style="font-size:0.78rem;font-weight:600;color:#25d366;margin:0 0 6px">Letting customers message your Twilio number</p>
+              <p style="font-size:0.74rem;color:var(--text);margin:0 0 6px">Each person must opt in once. Share these steps:</p>
+              <ol style="font-size:0.73rem;color:var(--text);margin:0;padding-left:18px;line-height:1.9">
+                <li>Save <strong>+1 415 523 8886</strong> as a contact</li>
+                <li>WhatsApp them: <code style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 5px">join &lt;your-sandbox-word&gt;</code></li>
+                <li>They get a confirmation — done, messages flow normally after that</li>
+              </ol>
+              <p style="font-size:0.7rem;color:var(--muted);margin:6px 0 0">Find your sandbox word in Twilio Console → Messaging → Try it out → Send a WhatsApp message.</p>
             </div>
 
             <div style="display:flex;gap:10px;margin-top:4px">
@@ -3086,12 +3106,43 @@
 
   // ── Twilio WhatsApp Integration ──
   function _syncAutoReplyUrl() {
-    const origin = window.location.origin;
-    const autoReply = document.getElementById('waAutoReply')?.checked !== false;
+    const origin    = window.location.origin;
+    const aiOn      = document.getElementById('waAutoReply')?.checked    !== false;
+    const genericOn = document.getElementById('waGenericReply')?.checked !== false;
     const inEl = document.getElementById('incomingWebhookUrl');
     const stEl = document.getElementById('statusCallbackUrl');
-    if (inEl) inEl.textContent = origin + '/api/incoming' + (autoReply ? '' : '?reply=0');
+    let url = origin + '/api/incoming';
+    const params = [];
+    if (!aiOn)      params.push('reply=0');       // everything off
+    else if (!genericOn) params.push('generic=0'); // AI only, no generic fallback
+    if (params.length) url += '?' + params.join('&');
+    if (inEl) inEl.textContent = url;
     if (stEl) stEl.textContent = origin + '/api/status';
+  }
+
+  async function _checkWaAiStatus() {
+    const dot  = document.getElementById('waAiStatusDot');
+    const text = document.getElementById('waAiStatusText');
+    if (!dot || !text) return;
+    text.textContent = 'Checking…';
+    try {
+      const r = await fetch('/api/ai-status');
+      if (!r.ok) throw new Error('no endpoint');
+      const d = await r.json();
+      if (d.ai) {
+        dot.style.background  = '#48c774';
+        text.textContent = `AI active — Alex is responding to customer messages (${d.provider})${d.storeName ? ' as ' + d.storeName : ''}`;
+        text.style.color = '#48c774';
+      } else {
+        dot.style.background  = '#e53e3e';
+        text.textContent = 'AI not configured — add GROQ_API_KEY to Vercel env vars to enable AI replies';
+        text.style.color = 'var(--muted)';
+      }
+    } catch(e) {
+      dot.style.background  = '#a0aec0';
+      text.textContent = 'Could not check AI status (endpoint not deployed yet)';
+      text.style.color = 'var(--muted)';
+    }
   }
 
   function saveTwilioSettings() {
@@ -3109,6 +3160,7 @@
     s.waNotifyLowStock = document.getElementById('waNotifyLowStock')?.checked ? '1' : '0';
     s.waNotifySale     = document.getElementById('waNotifySale')?.checked     ? '1' : '0';
     s.waAutoReply      = document.getElementById('waAutoReply')?.checked      ? '1' : '0';
+    s.waGenericReply   = document.getElementById('waGenericReply')?.checked   ? '1' : '0';
     localStorage.setItem('iflow_settings', JSON.stringify(s));
     _updateWaBadge(to);
     showToast('Twilio WhatsApp saved ✓');
@@ -4878,8 +4930,10 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     if (s.twilioTo)    { const el = document.getElementById('settingsTwilioTo');    if (el) el.value = s.twilioTo; }
     const lsEl = document.getElementById('waNotifyLowStock'); if (lsEl) lsEl.checked = s.waNotifyLowStock !== '0';
     const slEl = document.getElementById('waNotifySale');     if (slEl) slEl.checked = s.waNotifySale === '1';
-    const arEl = document.getElementById('waAutoReply');      if (arEl) arEl.checked = s.waAutoReply !== '0';
+    const arEl = document.getElementById('waAutoReply');    if (arEl) arEl.checked = s.waAutoReply !== '0';
+    const grEl = document.getElementById('waGenericReply'); if (grEl) grEl.checked = s.waGenericReply !== '0';
     _updateWaBadge(s.twilioTo);
+    _checkWaAiStatus();
     // Gemini AI
     if (s.geminiApiKey) { const el = document.getElementById('settingsGeminiKey'); if (el) el.value = s.geminiApiKey; }
     _updateGeminiStatus(!!s.geminiApiKey);

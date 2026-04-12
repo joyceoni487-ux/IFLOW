@@ -1,16 +1,15 @@
 /**
- * Twilio Incoming Message Handler — AI-powered WhatsApp replies via Groq / Gemini.
+ * Twilio Incoming Message Handler — AI-powered WhatsApp replies.
  *
- * Set as the "When a message comes in" URL in Twilio Sandbox settings.
- * iFlow Settings generates the correct URL automatically.
+ * URL params (set automatically by iFlow Settings):
+ *   ?generic=0  — disable the generic fallback message
+ *   ?generic=1  — enable generic fallback (default)
+ *   ?reply=0    — disable ALL replies (all off)
  *
- * Required Vercel Environment Variables:
- *   GROQ_API_KEY   — Groq API key (starts with gsk_) — preferred
- *   GEMINI_API_KEY — Gemini API key (fallback if no Groq key)
- *   STORE_NAME     — your store name shown in replies (optional)
- *
- * Without any AI key, falls back to a polite generic auto-reply.
- * Set ?reply=0 in the URL to disable all auto-replies.
+ * Vercel Environment Variables:
+ *   GROQ_API_KEY   — Groq API key (gsk_...) — AI replies
+ *   GEMINI_API_KEY — Gemini key as fallback
+ *   STORE_NAME     — store name in replies (e.g. "Joyce's Boutique")
  */
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -25,11 +24,10 @@ export default async function handler(req, res) {
     NumMedia    = '0'
   } = req.body || {};
 
-  // ?reply=0 disables auto-reply entirely (controlled from iFlow Settings toggle)
-  const autoReply = req.query?.reply !== '0';
-  const storeName = process.env.STORE_NAME || 'our store';
-  const hasMedia  = parseInt(NumMedia, 10) > 0;
-  const apiKey    = process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY || '';
+  const allOff      = req.query?.reply    === '0';
+  const genericOn   = req.query?.generic  !== '0';   // default ON
+  const storeName   = process.env.STORE_NAME || 'our store';
+  const apiKey      = process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY || '';
 
   console.log(JSON.stringify({
     event:    'twilio_incoming',
@@ -37,102 +35,99 @@ export default async function handler(req, res) {
     from:     From,
     name:     ProfileName,
     body:     Body.slice(0, 200),
-    media:    hasMedia,
+    media:    parseInt(NumMedia, 10) > 0,
     provider: apiKey.startsWith('gsk_') ? 'groq' : apiKey ? 'gemini' : 'none',
+    genericOn,
     ts:       new Date().toISOString()
   }));
 
   res.setHeader('Content-Type', 'text/xml');
 
-  if (!autoReply) {
-    return res.status(200).send('<Response></Response>');
+  // Everything off
+  if (allOff) return res.status(200).send('<Response></Response>');
+
+  // Try AI first if key is configured
+  if (apiKey && Body.trim()) {
+    const aiReply = await _callAi(Body, ProfileName, storeName, apiKey);
+    if (aiReply) {
+      return res.status(200).send(`<Response><Message>${escapeXml(aiReply)}</Message></Response>`);
+    }
+    // AI failed — fall through to generic if enabled, else silent
   }
 
-  const replyText = await _getAiReply(Body, ProfileName, storeName, apiKey);
-  // null means AI is active but failed — send empty TwiML so Twilio doesn't trigger its own default reply
-  if (replyText === null) return res.status(200).send('<Response></Response>');
-  res.status(200).send(`<Response><Message>${escapeXml(replyText)}</Message></Response>`);
+  // Generic fallback
+  if (genericOn) {
+    const msg = ProfileName
+      ? `Hi ${ProfileName}! Thanks for reaching out to *${storeName}*. We'll get back to you shortly 🙏`
+      : `Hi! Thanks for reaching out to *${storeName}*. We'll be with you shortly 🙏`;
+    return res.status(200).send(`<Response><Message>${escapeXml(msg)}</Message></Response>`);
+  }
+
+  // Silent — just acknowledge Twilio
+  res.status(200).send('<Response></Response>');
 }
 
-async function _getAiReply(message, name, storeName, apiKey) {
-  // No key at all — send polite fallback
-  if (!apiKey) {
-    return name
-      ? `Hi ${name}! Thanks for reaching out to *${storeName}*. We'll get back to you shortly 🙏`
-      : `Hi! Thanks for reaching out to *${storeName}*. We'll be with you shortly 🙏`;
-  }
-  // Key is set but message is empty (media-only, etc.) — stay silent
-  if (!message.trim()) return null;
+async function _callAi(message, name, storeName, apiKey) {
+  const system =
+`Your name is Alex. You are a sharp, friendly AI assistant for *${storeName}* responding to customer WhatsApp messages.
 
-  const systemPrompt =
-`Your name is Alex. You are a friendly and sharp AI assistant for *${storeName}*, helping customers over WhatsApp.
-
-You help with: product questions, pricing, availability, order follow-ups, and general support.
+You help with: product questions, pricing, availability, orders, and general support.
 
 Rules:
-- Be warm, concise, and professional — this is WhatsApp, keep replies short (under 4 sentences unless more is truly needed)
-- Never make up specific prices or stock levels — say you'll confirm shortly
-- Speak in clear, natural English. You understand Nigerian English and accents perfectly
-- If directly asked, you are an AI assistant, not a human
-- Sign off with the store name when appropriate: *${storeName}*`;
+- This is WhatsApp — be concise, warm, and professional. Under 4 sentences unless detail is truly needed.
+- Never invent specific prices or stock counts — say you'll confirm shortly.
+- Speak clear, natural English. You understand Nigerian English perfectly.
+- If asked if you're human, say you're an AI assistant for the store.
+- Sign off with *${storeName}* when appropriate.`;
 
   try {
-    let text = null;
-
     if (apiKey.startsWith('gsk_')) {
-      // Groq — OpenAI-compatible
-      const models = ['llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'llama-3.1-8b-instant'];
-      for (const model of models) {
+      // Groq (preferred)
+      for (const model of ['llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'llama-3.1-8b-instant']) {
         const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
           body:    JSON.stringify({
             model,
-            messages:   [{ role: 'system', content: systemPrompt }, { role: 'user', content: message }],
-            max_tokens: 300,
+            messages:    [{ role: 'system', content: system }, { role: 'user', content: message }],
+            max_tokens:  300,
             temperature: 0.7
           })
         });
         if (r.ok) {
-          const data = await r.json();
-          text = data?.choices?.[0]?.message?.content?.trim();
-          break;
+          const d = await r.json();
+          const t = d?.choices?.[0]?.message?.content?.trim();
+          if (t) return t.length > 1500 ? t.slice(0, 1497) + '…' : t;
         }
         if (r.status === 401 || r.status === 403) break;
       }
     } else {
       // Gemini
-      const models = ['gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
-      for (const m of models) {
+      for (const m of ['gemini-2.0-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-flash-8b']) {
         const r = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`,
           {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({
-              system_instruction: { parts: [{ text: systemPrompt }] },
+              system_instruction: { parts: [{ text: system }] },
               contents:           [{ role: 'user', parts: [{ text: message }] }],
               generationConfig:   { maxOutputTokens: 300, temperature: 0.7 }
             })
           }
         );
         if (r.ok) {
-          const data = await r.json();
-          text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-          break;
+          const d = await r.json();
+          const t = d?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+          if (t) return t.length > 1500 ? t.slice(0, 1497) + '…' : t;
         }
         if (r.status === 401 || r.status === 403) break;
       }
     }
-
-    if (!text) throw new Error('empty response');
-    return text.length > 1500 ? text.slice(0, 1497) + '…' : text;
-
   } catch (err) {
     console.error(JSON.stringify({ event: 'ai_error', error: String(err), ts: new Date().toISOString() }));
-    // Return null so caller sends empty TwiML — prevents Twilio firing its own default reply
-    return null;
   }
+  return null; // AI failed
 }
 
 function escapeXml(str) {

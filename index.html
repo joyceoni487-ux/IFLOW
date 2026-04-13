@@ -4295,7 +4295,9 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
 
   function render() {
     // Always reload fresh from localStorage so changes from Sheets, AI, or other tabs are reflected
-    sales = JSON.parse(localStorage.getItem('iflow_sales') || '[]');
+    sales    = JSON.parse(localStorage.getItem('iflow_sales')    || '[]');
+    products = JSON.parse(localStorage.getItem('iflow_products') || '[]');
+    refreshProductsList(); // keep datalist dropdown in sync
     const body = document.getElementById('salesBody');
     body.innerHTML = '';
     const query = (document.getElementById('salesSearch')?.value || '').toLowerCase().trim();
@@ -4613,10 +4615,14 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
   }
 
   // Find product in stock by name (flexible match — ignores separator style)
+  // Always reads fresh from localStorage so newly added products are immediately recognised
   function findStockProduct(name) {
     if (!name) return null;
     const n = normalizeProductName(name.toLowerCase().trim());
-    return products.find(p => p.name && normalizeProductName(p.name.toLowerCase().trim()) === n) || null;
+    // Pull fresh list — keeps in-memory products in sync as a side-effect
+    const prods = JSON.parse(localStorage.getItem('iflow_products') || '[]');
+    products = prods;
+    return prods.find(p => p.name && normalizeProductName(p.name.toLowerCase().trim()) === n) || null;
   }
 
   // Called when user types in product name field — auto-fill price & clear error

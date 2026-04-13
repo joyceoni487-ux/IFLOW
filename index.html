@@ -1500,7 +1500,7 @@
       </div>
 
     <p class="inventory-heading">Inventory</p>
-    <div class="table-wrap">
+    <div class="table-wrap" id="salesTableWrap" style="max-height:420px;overflow-y:auto;">
       <table>
         <thead>
           <tr>
@@ -3529,10 +3529,12 @@ Rules:
 2. If quantity or price sounds suspicious (e.g. 50,000 units of a phone, or ₦1 for a laptop), ask for confirmation. E.g. "Are you sure about 50,000 units? That seems unusually high."
 3. For delete, always get confirmation first. E.g. "Are you sure you want to remove [name] from stock? Type 'yes delete it' to confirm or 'no' to cancel."
 4. Address the user by name once you know it.
-5. Keep responses concise. No unnecessary filler.
+5. Keep responses SHORT. No filler, no "Great!", no "Sure!", no preamble. Answer the question, then stop.
 6. You know the full stock list, sales history, and store data — use it to give useful advice.
 7. When recording sales, check if the product actually exists in stock and if quantity is available.
-8. If the user greets you by name (e.g. "Hey Alex", "Hi Alex"), respond warmly and ask how you can help.`;
+8. If the user greets you by name (e.g. "Hey Alex", "Hi Alex"), respond warmly and ask how you can help.
+9. During data entry (adding stock or recording a sale): DO NOT interrupt with confirmations or comments between each field given. Wait silently until you have enough data, then act. Only speak up if a value is missing or clearly wrong.
+10. When a direct question is asked (e.g. "how much did I make today?"), answer it immediately and directly — no lead-up, no pleasantries.`;
 
   function _getAiSystem() { return _AI_SYSTEM; }
 
@@ -4348,6 +4350,8 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       body.appendChild(tr);
     }
     updateTotal();
+    const wrap = document.getElementById('salesTableWrap');
+    if (wrap) wrap.scrollTop = wrap.scrollHeight;
   }
 
   // Delegate all cell-input changes
@@ -4898,7 +4902,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       if (page === 'products') renderProducts();
       if (page === 'trash') renderTrash();
       if (page === 'sheets') renderSheets();
-      if (page === 'messages') { const s = JSON.parse(localStorage.getItem('iflow_settings')||'{}'); if (s.twilioSid && s.twilioToken) syncTwilioMessages(); }
+      if (page === 'inventory') { const s = JSON.parse(localStorage.getItem('iflow_settings')||'{}'); if (s.twilioSid && s.twilioToken) setTimeout(syncTwilioMessages, 800); }
     }
   }
 
@@ -5191,11 +5195,18 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
 
   // Called when TTS finishes — re-opens ear in conversation mode
   function _afterAlexSpoke() {
-    if (_convMode && _SR && !_voiceActive) {
-      const status = document.getElementById('aiVoiceStatus');
-      if (status) status.textContent = 'Listening for follow-up…';
-      setTimeout(() => { if (_convMode && !_voiceActive) _startVoice(); }, 500);
-    }
+    if (!_convMode || !_SR || _voiceActive) return;
+    const status = document.getElementById('aiVoiceStatus');
+    if (status) status.textContent = 'Listening for follow-up…';
+    // Wait until speech synthesis is fully done before opening mic
+    const tryStart = (attempts) => {
+      if (window.speechSynthesis?.speaking) {
+        if (attempts > 0) setTimeout(() => tryStart(attempts - 1), 350);
+        return;
+      }
+      if (_convMode && !_voiceActive) _startVoice();
+    };
+    setTimeout(() => tryStart(8), 600);
   }
 
   // ── Wake Word "Hey Alex" / "Hi Alex" ──

@@ -1452,7 +1452,12 @@
 
     <div class="nav-item" onclick="setNav(this, 'orders')">
       <div class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
-      <span class="nav-label">Dispatch &amp; Orders</span>
+      <span class="nav-label">Orders &amp; Sales</span>
+    </div>
+
+    <div class="nav-item" onclick="setNav(this, 'dispatch')">
+      <div class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div>
+      <span class="nav-label">Dispatch</span>
       <span class="nav-badge" id="ordersBadge" style="display:none">0</span>
     </div>
 
@@ -1592,12 +1597,12 @@
       <h2>Messages</h2>
       <div style="display:flex;align-items:center;gap:8px">
         <button id="waSyncBtn" onclick="syncTwilioMessages()" title="Fetch messages from Twilio" style="background:rgba(37,211,102,.12);border:1px solid rgba(37,211,102,.3);color:#25d366;border-radius:8px;padding:5px 12px;font-size:0.75rem;font-weight:600;cursor:pointer;transition:background .2s;white-space:nowrap">↻ Sync WhatsApp</button>
-        <span class="msg-live-badge"><span class="dot"></span> <span id="msgLiveCount">3 active</span></span>
+        <span class="msg-live-badge"><span class="dot"></span> <span id="msgLiveCount">0 conversations</span></span>
       </div>
     </div>
     <div class="msg-tabs">
-      <button class="msg-tab active" onclick="switchTab('all', this)">All <span class="tab-count" id="tabCountAll">3</span></button>
-      <button class="msg-tab" onclick="switchTab('priorities', this)">Priorities <span class="tab-count" id="tabCountPri">1</span></button>
+      <button class="msg-tab active" onclick="switchTab('all', this)">All <span class="tab-count" id="tabCountAll">0</span></button>
+      <button class="msg-tab" onclick="switchTab('priorities', this)">Priorities <span class="tab-count" id="tabCountPri">0</span></button>
     </div>
   </div>
 
@@ -1621,15 +1626,67 @@
 
 </div><!-- end page-inventory -->
 
-<!-- Page: Dispatch & Orders -->
-<div id="page-orders" class="page-view" style="display:none;flex:1;min-width:0;overflow:hidden;flex-direction:column;">
+<!-- Page: Orders & Sales (restored) -->
+<div id="page-orders" class="page-view" style="display:none;flex:1;min-width:0;overflow:hidden;">
+  <div class="orders-page">
+    <div class="orders-header">
+      <div>
+        <h1 class="orders-title">Orders &amp; Sales</h1>
+        <p class="orders-date" id="ordersDate"></p>
+      </div>
+      <div class="orders-stats">
+        <div class="stat-card">
+          <span class="stat-label">Total Entries</span>
+          <span class="stat-value" id="statTotalOrders">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Total Revenue</span>
+          <span class="stat-value" id="ordersRevenue" style="color:var(--accent)">₦0.00</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Highest Sale</span>
+          <span class="stat-value" id="statHighest" style="color:#38a169">₦0.00</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Avg Sale Value</span>
+          <span class="stat-value" id="statAvg" style="color:#d97706">₦0.00</span>
+        </div>
+      </div>
+    </div>
+    <div class="orders-table-wrap">
+      <div class="orders-table-header">
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <p class="inventory-heading" style="margin:0">Sales Log</p>
+          <a class="open-sheets-btn" id="openOrdersSheetBtn" href="#" target="_blank" style="display:none">↗ Open in Sheets</a>
+        </div>
+        <div class="orders-filters">
+          <input class="orders-search" id="ordersSearch" type="text" placeholder="Search products, date…" oninput="renderOrders()" />
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>Date</th><th>Time</th><th>Customer</th>
+              <th>Product</th><th>Qty</th><th>Unit Price</th><th>Subtotal</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="ordersBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div><!-- end page-orders -->
+
+<!-- Page: Dispatch -->
+<div id="page-dispatch" class="page-view" style="display:none;flex:1;min-width:0;overflow:hidden;flex-direction:column;">
   <div class="orders-page">
 
     <!-- Header -->
     <div class="orders-header">
       <div>
         <h1 class="orders-title">Dispatch &amp; Orders</h1>
-        <p class="orders-date" id="ordersDate"></p>
+        <p class="orders-date" id="dispatchDate"></p>
       </div>
       <div class="orders-stats">
         <div class="stat-card" style="cursor:pointer" onclick="filterDispatch('pending')">
@@ -1646,7 +1703,7 @@
         </div>
         <div class="stat-card" style="cursor:pointer" onclick="filterDispatch('all')">
           <span class="stat-label">Total Orders</span>
-          <span class="stat-value" id="statTotalOrders">0</span>
+          <span class="stat-value" id="statTotalDispatch">0</span>
         </div>
       </div>
     </div>
@@ -1681,7 +1738,7 @@
     </div>
 
   </div>
-</div><!-- end page-orders -->
+</div><!-- end page-dispatch -->
 
 <!-- Create / Edit Order Modal -->
 <div id="createOrderModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9800;align-items:center;justify-content:center;">
@@ -3406,24 +3463,19 @@
     if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
 
     try {
-      const auth = 'Basic ' + btoa(s.twilioSid + ':' + s.twilioToken);
-      const base = `https://api.twilio.com/2010-04-01/Accounts/${s.twilioSid}/Messages.json`;
-      const waFrom = encodeURIComponent('whatsapp:' + s.twilioFrom);
-
-      // Fetch inbound (customers → sandbox) and outbound (sandbox → customers) in parallel
-      const [inRes, outRes] = await Promise.all([
-        fetch(`${base}?To=${waFrom}&PageSize=200`, { headers: { Authorization: auth } }),
-        fetch(`${base}?From=${waFrom}&PageSize=200`, { headers: { Authorization: auth } })
-      ]);
-
-      if (!inRes.ok || !outRes.ok) {
-        const errData = await (inRes.ok ? outRes : inRes).json().catch(() => ({}));
-        showToast('Sync failed: ' + (errData.message || 'check credentials'));
+      // Use server-side proxy to avoid CORS restrictions when calling Twilio REST API
+      const proxyRes = await fetch('/api/twilio-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sid: s.twilioSid, token: s.twilioToken, from: s.twilioFrom })
+      });
+      if (!proxyRes.ok) {
+        const errData = await proxyRes.json().catch(() => ({}));
+        showToast('Sync failed: ' + (errData.error || 'check your Twilio credentials'));
         return;
       }
-
-      const [inData, outData] = await Promise.all([inRes.json(), outRes.json()]);
-      const allMsgs = [...(inData.messages || []), ...(outData.messages || [])];
+      const proxyData = await proxyRes.json();
+      const allMsgs = [...(proxyData.inbound || []), ...(proxyData.outbound || [])];
 
       if (!allMsgs.length) {
         showToast('No WhatsApp messages found — try sending a message to the sandbox first');
@@ -3802,7 +3854,7 @@ Rules:
     const messages = [{ role: 'system', content: _getAiSystem() }];
     _aiHistory.forEach(t => messages.push({ role: t.role === 'model' ? 'assistant' : t.role, content: t.parts[0].text }));
     messages.push({ role: 'user', content: userText });
-    const models = ['llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'];
+    const models = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'llama3-70b-8192', 'llama3-8b-8192'];
     let lastErr = null;
     for (const model of models) {
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -5134,7 +5186,8 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     void show.offsetWidth; // force reflow
     show.classList.add('page-anim');
     if (target) {
-      if (page === 'orders') renderOrders();
+      if (page === 'orders')   renderOrders();
+      if (page === 'dispatch') renderDispatch();
       if (page === 'settings') syncSettingsToggles();
       if (page === 'products') renderProducts();
       if (page === 'trash') renderTrash();
@@ -5234,17 +5287,63 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     return 'ORD-' + String(max + 1).padStart(3, '0');
   }
 
+  // ── Orders & Sales page (sales log) ──────────────────────────────────
   function renderOrders() {
     const dateEl = document.getElementById('ordersDate');
+    if (dateEl) dateEl.textContent = new Date().toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+    const cur = getCurrency();
+    const query = (document.getElementById('ordersSearch')?.value || '').toLowerCase();
+    const toks = query.split(/\s+/).filter(Boolean);
+    const filtered = sales.filter(s => {
+      if (!toks.length) return true;
+      const hay = [s.product, s.customer, fmtDate(s.timestamp), fmtTime(s.timestamp), String(s.quantity), String(s.price)].join(' ').toLowerCase();
+      return toks.every(t => hay.includes(t));
+    });
+    const totalRevenue = filtered.reduce((s, o) => s + o.quantity * o.price, 0);
+    const subtotals    = filtered.map(o => o.quantity * o.price);
+    const highest = subtotals.length ? Math.max(...subtotals) : 0;
+    const avg     = subtotals.length ? totalRevenue / subtotals.length : 0;
+    const sTo = document.getElementById('statTotalOrders'); if (sTo) sTo.textContent = filtered.length;
+    const sRev = document.getElementById('ordersRevenue');  if (sRev) sRev.textContent = cur + fmtComma(totalRevenue);
+    const sHi = document.getElementById('statHighest');     if (sHi) sHi.textContent = cur + fmtComma(highest);
+    const sAv = document.getElementById('statAvg');         if (sAv) sAv.textContent = cur + fmtComma(avg);
+    const osBtn = document.getElementById('openOrdersSheetBtn');
+    if (osBtn) { const s2 = JSON.parse(localStorage.getItem('iflow_settings')||'{}'); if (s2.sheetsUrl) { osBtn.href = s2.sheetsUrl; osBtn.style.display=''; } }
+    const tbody = document.getElementById('ordersBody');
+    if (!tbody) return;
+    if (filtered.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem;">No sales recorded yet.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = filtered.map((o, idx) => {
+      const sub = o.quantity * o.price;
+      const realIdx = sales.indexOf(o);
+      return `<tr id="order-row-${realIdx}" style="transition:opacity .35s,background .35s">
+        <td class="row-num">${idx + 1}</td>
+        <td class="cell-datetime">${fmtDate(o.timestamp)}</td>
+        <td class="cell-datetime">${fmtTime(o.timestamp)}</td>
+        <td style="padding:10px 14px;color:var(--muted)">${escHtml(o.customer || '—')}</td>
+        <td style="padding:10px 14px;font-weight:600;color:var(--text)">${escHtml(o.product || '')}</td>
+        <td class="cell-datetime" style="text-align:center">${o.quantity}</td>
+        <td class="cell-datetime">${cur}${fmtComma(o.price)}</td>
+        <td class="cell-subtotal" data-val="${sub}">${cur}${fmtComma(sub)}</td>
+        <td class="cell-action"><button class="btn-terminate" onclick="confirmDeleteOrder(${realIdx})" title="Delete">&#9632;</button></td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ── Dispatch page ─────────────────────────────────────────────────────
+  function renderDispatch() {
+    const dateEl = document.getElementById('dispatchDate');
     if (dateEl) dateEl.textContent = new Date().toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
     const orders = _dOrders();
     const pending   = orders.filter(o => o.status === 'pending').length;
     const transit   = orders.filter(o => o.status === 'transit').length;
     const delivered = orders.filter(o => o.status === 'delivered').length;
-    const sp = document.getElementById('statPending');   if (sp) sp.textContent = pending;
-    const st = document.getElementById('statTransit');   if (st) st.textContent = transit;
-    const sd = document.getElementById('statDelivered'); if (sd) sd.textContent = delivered;
-    const so = document.getElementById('statTotalOrders'); if (so) so.textContent = orders.length;
+    const sp = document.getElementById('statPending');      if (sp) sp.textContent = pending;
+    const st = document.getElementById('statTransit');      if (st) st.textContent = transit;
+    const sd = document.getElementById('statDelivered');    if (sd) sd.textContent = delivered;
+    const so = document.getElementById('statTotalDispatch');if (so) so.textContent = orders.length;
     if (_dispatchTab === 'orders') _renderOrderCards(orders);
     if (_dispatchTab === 'riders') renderRiders();
   }
@@ -5431,7 +5530,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     }
     _saveDispatch(orders);
     closeCreateOrder();
-    renderOrders();
+    renderDispatch();
     updateOrdersBadge();
     showToast(editId ? 'Order updated ✓' : 'Order created ✓');
   }
@@ -5450,8 +5549,8 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     if (card) {
       card.style.transition = 'opacity .25s,transform .25s';
       card.style.opacity = '0'; card.style.transform = 'scale(.97)';
-      setTimeout(() => renderOrders(), 270);
-    } else { renderOrders(); }
+      setTimeout(() => renderDispatch(), 270);
+    } else { renderDispatch(); }
     updateOrdersBadge();
     const labels = { confirmed:'Order confirmed ✓', transit:'Dispatched to rider ✓', delivered:'Marked as delivered ✓' };
     showToast(labels[next] || 'Status updated ✓');
@@ -5465,13 +5564,13 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     order.statusHistory = order.statusHistory || [];
     order.statusHistory.push({ status:'cancelled', ts:Date.now() });
     _saveDispatch(orders);
-    renderOrders(); updateOrdersBadge();
+    renderDispatch(); updateOrdersBadge();
     showToast('Order cancelled');
   }
 
   function deleteDispatchOrder(id) {
     _saveDispatch(_dOrders().filter(o => o.id !== id));
-    renderOrders();
+    renderDispatch();
     showToast('Order deleted');
   }
 
@@ -5578,13 +5677,20 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     if (sales[i]) {
       pushUndo('sales');
       moveToTrash('sale', sales[i], i);
-      const { product, quantity } = sales[i];
-      if (product && quantity) deductStock(product, -quantity);
-      SheetsAPI.withToken(() => SheetsAPI.deleteRow(i));
-      sales.splice(i, 1);
-      persist();
+      const row = document.getElementById('order-row-' + i);
+      if (row) { row.style.background = 'rgba(229,62,62,.15)'; row.style.opacity = '0'; }
+      setTimeout(() => {
+        if (sales[i]) {
+          const { product, quantity } = sales[i];
+          if (product && quantity) deductStock(product, -quantity);
+          SheetsAPI.withToken(() => SheetsAPI.deleteRow(i));
+          sales.splice(i, 1);
+          persist();
+        }
+        renderOrders();
+        updateOrdersBadge();
+      }, 350);
     }
-    updateOrdersBadge();
   }
 
   // Apply saved theme + settings on load

@@ -260,6 +260,8 @@
       transition: color .15s, background .15s;
       line-height: 1;
     }
+    tr.entry-row td { background: rgba(79,142,247,.04); }
+    tr.entry-row td.row-num { color: #4f8ef7; font-weight: 700; }
     .btn-terminate:hover { color: #e53e3e; background: rgba(229,62,62,.1); }
 
     .error-msg { color: #e53e3e; font-size: 0.82rem; margin-top: 6px; display: none; }
@@ -4292,6 +4294,8 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
   }
 
   function render() {
+    // Always reload fresh from localStorage so changes from Sheets, AI, or other tabs are reflected
+    sales = JSON.parse(localStorage.getItem('iflow_sales') || '[]');
     const body = document.getElementById('salesBody');
     body.innerHTML = '';
     const query = (document.getElementById('salesSearch')?.value || '').toLowerCase().trim();
@@ -4328,24 +4332,28 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       return;
     }
 
-    // Normal mode: editable grid with blank rows — always keep 3 buffer rows below last entry
-    const bufferRows = 3;
-    const totalRows = Math.max(sales.length + bufferRows, 8);
+    // Normal mode: committed rows + exactly ONE blank entry row at the end
+    // Only the next available row (index = sales.length) is editable for new entries
+    const entryIndex = sales.length;
+    const totalRows  = entryIndex + 1; // committed rows + 1 entry row
     for (let i = 0; i < totalRows; i++) {
-      const s = sales[i];
-      const sub = s ? s.quantity * s.price : null;
+      const s        = sales[i];
+      const sub      = s ? s.quantity * s.price : null;
+      const isEntry  = (i === entryIndex); // only the last row is the live entry row
+      const disabled = isEntry ? '' : '';  // committed rows always editable; entry row open
       const tr = document.createElement('tr');
       tr.dataset.index = i;
+      if (isEntry) tr.classList.add('entry-row');
       tr.innerHTML = `
         <td class="row-num">${i + 1}</td>
         <td class="cell-datetime">${s ? fmtDate(s.timestamp) : ''}</td>
         <td class="cell-datetime">${s ? fmtTime(s.timestamp) : ''}</td>
-        <td><input class="cell-input" value="${s ? escAttr(s.customer) : ''}" placeholder="" data-field="customer" data-index="${i}" /></td>
-        <td><input class="cell-input product" value="${s ? escAttr(s.product) : ''}" placeholder="" data-field="product" data-index="${i}" data-prev-product="${s ? escAttr(s.product) : ''}" list="productsList" /></td>
-        <td><input class="cell-input" type="number" min="1" value="${s ? s.quantity : ''}" placeholder="" data-field="quantity" data-index="${i}" data-val="${s ? s.quantity : ''}" data-committed-qty="${s ? s.quantity : '0'}" /></td>
-        <td><input class="cell-input" type="number" min="0" step="0.01" value="${s ? s.price : ''}" placeholder="" data-field="price" data-index="${i}" data-val="${s ? s.price : ''}" /></td>
+        <td><input class="cell-input" value="${s ? escAttr(s.customer) : ''}" placeholder="${isEntry ? 'Customer name…' : ''}" data-field="customer" data-index="${i}" /></td>
+        <td><input class="cell-input product" value="${s ? escAttr(s.product) : ''}" placeholder="${isEntry ? 'Product name…' : ''}" data-field="product" data-index="${i}" data-prev-product="${s ? escAttr(s.product) : ''}" list="productsList" /></td>
+        <td><input class="cell-input" type="number" min="1" value="${s ? s.quantity : ''}" placeholder="${isEntry ? 'Qty' : ''}" data-field="quantity" data-index="${i}" data-val="${s ? s.quantity : ''}" data-committed-qty="${s ? s.quantity : '0'}" /></td>
+        <td><input class="cell-input" type="number" min="0" step="0.01" value="${s ? s.price : ''}" placeholder="${isEntry ? 'Price' : ''}" data-field="price" data-index="${i}" data-val="${s ? s.price : ''}" /></td>
         <td class="cell-subtotal" data-val="${sub !== null ? sub : ''}">${sub !== null ? getCurrency() + fmtComma(sub) : ''}</td>
-        <td class="cell-action"><button class="btn-terminate" onclick="confirmDeleteRow(${i})" title="Delete row">&#9632;</button></td>
+        <td class="cell-action">${s ? `<button class="btn-terminate" onclick="confirmDeleteRow(${i})" title="Delete row">&#9632;</button>` : ''}</td>
       `;
       body.appendChild(tr);
     }
@@ -4399,10 +4407,8 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     const tbody = document.getElementById('salesBody');
     const lastRow = tbody.lastElementChild;
     const lastIndex = parseInt(lastRow.dataset.index);
-    // Keep at least 3 buffer rows below last committed sale
-    if (tbody.children.length < sales.length + 3) {
-      render();
-    }
+    // Re-render to keep exactly 1 entry row below last committed sale
+    render();
   });
 
   // ── Cancel wipe timer when user returns to a row ──

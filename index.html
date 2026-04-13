@@ -3113,10 +3113,22 @@
     const genericOn = document.getElementById('waGenericReply')?.checked !== false;
     const inEl = document.getElementById('incomingWebhookUrl');
     const stEl = document.getElementById('statusCallbackUrl');
+
     let url = origin + '/api/incoming';
     const params = [];
-    if (!aiOn)      params.push('reply=0');       // everything off
-    else if (!genericOn) params.push('generic=0'); // AI only, no generic fallback
+    if (!aiOn) {
+      params.push('reply=0');
+    } else {
+      if (!genericOn) params.push('generic=0');
+      // Embed compact product list so the AI knows actual stock
+      try {
+        const prods = JSON.parse(localStorage.getItem('iflow_products') || '[]');
+        if (prods.length) {
+          const ctx = prods.map(p => `${p.name}${p.unitPrice ? ' (₦' + p.unitPrice + ')' : ''}`).join(', ');
+          params.push('ctx=' + encodeURIComponent(ctx));
+        }
+      } catch(e) {}
+    }
     if (params.length) url += '?' + params.join('&');
     if (inEl) inEl.textContent = url;
     if (stEl) stEl.textContent = origin + '/api/status';
@@ -3338,12 +3350,89 @@
       activeConvo = null;
       document.getElementById('chatArea').innerHTML = `<div class="no-chat"><svg viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/></svg>Select a conversation</div>`;
       showToast(`✓ Synced ${convos.length} WhatsApp conversation${convos.length !== 1 ? 's' : ''}`);
+      _checkPaymentSignals();
     } catch(e) {
       showToast('Sync error — check your internet connection');
       console.error('Twilio sync:', e);
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = '↻ Sync WhatsApp'; }
     }
+  }
+
+  // ── Payment signal detection ──
+  const _paymentKeywords = /\b(i('ve| have)? ?paid|payment (done|sent|complete|made)|i sent (the )?money|transfer(red)?|bank transfer|i just paid|proof of payment|pop|receipt|alert|debit alert|credit alert)\b/i;
+  const _seenPaymentSids = new Set(JSON.parse(localStorage.getItem('iflow_seen_payments') || '[]'));
+
+  function _paymentBeep() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'sine'; osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.4, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+      osc.start(); osc.stop(ctx.currentTime + 0.6);
+      setTimeout(() => { osc.type = 'sine'; }, 700);
+    } catch(e) {}
+  }
+
+  function _checkPaymentSignals() {
+    for (const c of convos) {
+      const lastMsg = c.messages[c.messages.length - 1];
+      if (!lastMsg || lastMsg.from !== 'them') continue;
+      const sid = lastMsg.sid;
+      if (!sid || _seenPaymentSids.has(sid)) continue;
+      if (_paymentKeywords.test(lastMsg.text)) {
+        _seenPaymentSids.add(sid);
+        localStorage.setItem('iflow_seen_payments', JSON.stringify([..._seenPaymentSids]));
+        _paymentBeep();
+        _showPaymentAlert(c, lastMsg);
+      }
+    }
+  }
+
+  function _showPaymentAlert(convo, msg) {
+    const existing = document.getElementById('paymentAlertBanner');
+    if (existing) existing.remove();
+    const banner = document.createElement('div');
+    banner.id = 'paymentAlertBanner';
+    banner.style.cssText = `position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;
+      background:#1a1a2e;border:2px solid #48c774;border-radius:14px;padding:14px 20px;
+      box-shadow:0 8px 32px rgba(0,0,0,.4);max-width:380px;width:90%;animation:pageIn .3s ease`;
+    banner.innerHTML = `
+      <div style="display:flex;align-items:flex-start;gap:12px">
+        <div style="font-size:1.5rem;flex-shrink:0">💳</div>
+        <div style="flex:1">
+          <p style="margin:0 0 2px;font-weight:700;color:#48c774;font-size:0.9rem">Payment Received</p>
+          <p style="margin:0 0 8px;font-size:0.8rem;color:#ccc">${escHtml(convo.name)}: "${escHtml(msg.text.slice(0,80))}${msg.text.length>80?'…':''}"</p>
+          <div style="display:flex;gap:8px">
+            <button onclick="_confirmPayment('${convo.id}','${msg.sid}')" style="flex:1;padding:7px;background:#48c774;color:#000;border:none;border-radius:8px;font-weight:700;font-size:0.8rem;cursor:pointer">✓ Confirm Payment</button>
+            <button onclick="document.getElementById('paymentAlertBanner').remove()" style="padding:7px 12px;background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:8px;font-size:0.8rem;cursor:pointer">Dismiss</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(banner);
+    setTimeout(() => banner?.remove(), 30000);
+  }
+
+  async function _sendTwilioReply(convo, text) {
+    const result = await _sendTwilioAndGetSid(text, convo.handle);
+    const msgObj = { from: 'us', text, time: fmtTime(Date.now()), _ts: Date.now(), status: result.sid ? 'sent' : 'failed', sid: result.sid };
+    convo.messages.push(msgObj);
+    convo.preview = text.length > 55 ? text.slice(0, 55) + '…' : text;
+    convo.time = 'just now';
+    renderConvList();
+    if (activeConvo === convo.id) openConvo(convo.id);
+  }
+
+  async function _confirmPayment(convoId, sid) {
+    document.getElementById('paymentAlertBanner')?.remove();
+    const c = convos.find(x => String(x.id) === String(convoId));
+    if (!c) return;
+    const msg = `Hi${c.name && c.name !== c.handle ? ' ' + c.name : ''}! We've confirmed your payment ✅ Your order is being processed. We'll update you on the delivery soon. Thank you!`;
+    await _sendTwilioReply(c, msg);
+    showToast('Payment confirmed and customer notified ✓');
   }
 
   function _updateMsgBadge() {
@@ -4294,10 +4383,9 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
   }
 
   function render() {
-    // Always reload fresh from localStorage so changes from Sheets, AI, or other tabs are reflected
-    sales    = JSON.parse(localStorage.getItem('iflow_sales')    || '[]');
-    products = JSON.parse(localStorage.getItem('iflow_products') || '[]');
-    refreshProductsList(); // keep datalist dropdown in sync
+    // Reload sales fresh — always in sync with Sheets and AI writes
+    sales = JSON.parse(localStorage.getItem('iflow_sales') || '[]');
+    refreshProductsList(); // rebuild dropdown (reads localStorage internally)
     const body = document.getElementById('salesBody');
     body.innerHTML = '';
     const query = (document.getElementById('salesSearch')?.value || '').toLowerCase().trim();
@@ -4615,13 +4703,11 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
   }
 
   // Find product in stock by name (flexible match — ignores separator style)
-  // Always reads fresh from localStorage so newly added products are immediately recognised
   function findStockProduct(name) {
     if (!name) return null;
     const n = normalizeProductName(name.toLowerCase().trim());
-    // Pull fresh list — keeps in-memory products in sync as a side-effect
+    // Always read from localStorage so newly-added products are immediately recognised
     const prods = JSON.parse(localStorage.getItem('iflow_products') || '[]');
-    products = prods;
     return prods.find(p => p.name && normalizeProductName(p.name.toLowerCase().trim()) === n) || null;
   }
 
@@ -4670,7 +4756,9 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
   function refreshProductsList() {
     const dl = document.getElementById('productsList');
     if (!dl) return;
-    dl.innerHTML = products.map(p => `<option value="${escAttr(p.name)}">`).join('');
+    // Read directly from localStorage — safe to call before module-level `products` is declared
+    const prods = JSON.parse(localStorage.getItem('iflow_products') || '[]');
+    dl.innerHTML = prods.map(p => `<option value="${escAttr(p.name)}">`).join('');
   }
 
   // Deduct qty from matching stock product and sync

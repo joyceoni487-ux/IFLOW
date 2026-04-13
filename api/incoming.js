@@ -24,10 +24,12 @@ export default async function handler(req, res) {
     NumMedia    = '0'
   } = req.body || {};
 
-  const allOff      = req.query?.reply    === '0';
-  const genericOn   = req.query?.generic  !== '0';   // default ON
-  const storeName   = process.env.STORE_NAME || 'our store';
-  const apiKey      = process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY || '';
+  const allOff    = req.query?.reply   === '0';
+  const genericOn = req.query?.generic !== '0';   // default ON
+  const storeName = process.env.STORE_NAME || 'our store';
+  const apiKey    = process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY || '';
+  // Product context passed as ?ctx=ProductA,ProductB,... from iFlow Settings URL builder
+  const productCtx = req.query?.ctx ? decodeURIComponent(req.query.ctx) : '';
 
   console.log(JSON.stringify({
     event:    'twilio_incoming',
@@ -48,7 +50,7 @@ export default async function handler(req, res) {
 
   // Try AI first if key is configured
   if (apiKey && Body.trim()) {
-    const aiReply = await _callAi(Body, ProfileName, storeName, apiKey);
+    const aiReply = await _callAi(Body, ProfileName, storeName, apiKey, productCtx);
     if (aiReply) {
       return res.status(200).send(`<Response><Message>${escapeXml(aiReply)}</Message></Response>`);
     }
@@ -67,18 +69,23 @@ export default async function handler(req, res) {
   res.status(200).send('<Response></Response>');
 }
 
-async function _callAi(message, name, storeName, apiKey) {
+async function _callAi(message, name, storeName, apiKey, productCtx = '') {
+  const productSection = productCtx
+    ? `\nCurrent products in stock:\n${productCtx}\n\nWhen asked what products we have, list them directly from this list. Do not say you'll check — the list is above.`
+    : `\nYou don't have the product list right now. If asked, say you'll send the full list shortly.`;
+
   const system =
-`Your name is Alex. You are a sharp, friendly AI assistant for a store, responding to customer WhatsApp messages.
+`Your name is Alex. You are a sharp, friendly AI assistant for *${storeName}*, responding to customer WhatsApp messages.
+${productSection}
 
 Rules:
-- Answer the customer's question directly. No preamble, no "Hi there!", no "Great question!" — just the answer.
-- If the customer only sent a greeting (hi, hello, etc.), respond warmly and ask how you can help.
-- Be concise — this is WhatsApp. 1-3 sentences max unless more detail is genuinely needed.
-- Never invent specific prices or stock availability — say you'll confirm shortly.
+- Answer directly. No preamble, no "Hi there!", no "Great question!" — just the answer.
+- If the customer only sent a greeting, respond warmly and ask how you can help.
+- Be concise — this is WhatsApp. 1-3 sentences max unless real detail is needed.
+- Never invent prices you don't know — say you'll confirm.
 - Speak clear, natural English. You understand Nigerian English perfectly.
-- If directly asked if you're human, say you're an AI assistant.
-- NEVER sign off with the store name or add "— ${storeName}" to your replies. Keep signatures out of every message.`;
+- If asked if you're human, say you're an AI assistant for the store.
+- NEVER sign off with the store name mid-conversation.`;
 
   try {
     if (apiKey.startsWith('gsk_')) {

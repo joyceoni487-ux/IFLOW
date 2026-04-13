@@ -1355,6 +1355,56 @@
   .ls-code { font-family:monospace;font-size:0.78rem;color:#718096;flex-shrink:0; }
   .ls-name { flex:1;font-weight:600;color:var(--text,#1a202c); }
   .ls-qty { font-size:0.85rem;color:#e53e3e;font-weight:700;flex-shrink:0; }
+
+  /* ── Dispatch Tab ── */
+  #salesTableWrap { max-height:400px; overflow-y:auto; }
+  .dispatch-tabs { display:flex; gap:0; border-bottom:2px solid var(--border); padding:0 32px; background:var(--surface); flex-shrink:0; transition:background .35s,border-color .35s; }
+  .dispatch-tab { padding:13px 22px; font-size:0.84rem; font-weight:600; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; color:var(--muted); transition:color .2s,border-color .2s; }
+  .dispatch-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+  .dispatch-tab:hover:not(.active) { color:var(--text); }
+  .dispatch-body { flex:1; overflow-y:auto; padding:22px 32px 32px; display:flex; flex-direction:column; gap:18px; }
+  .order-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px 18px 16px 22px; display:flex; align-items:flex-start; gap:14px; transition:transform .2s,box-shadow .2s,border-color .35s,background .35s; position:relative; overflow:hidden; animation:slideInCard .3s ease both; }
+  .order-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; border-radius:4px 0 0 4px; }
+  .order-card.status-pending::before   { background:#d97706; }
+  .order-card.status-confirmed::before { background:#4f8ef7; }
+  .order-card.status-transit::before   { background:#7b5ea7; }
+  .order-card.status-delivered::before { background:#38a169; }
+  .order-card.status-cancelled::before { background:#e53e3e; }
+  .order-card:hover { transform:translateY(-2px); box-shadow:var(--shadow-md); }
+  .order-badge { padding:3px 9px; border-radius:20px; font-size:0.67rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; white-space:nowrap; }
+  .badge-pending   { background:rgba(217,119,6,.15);   color:#d97706; }
+  .badge-confirmed { background:rgba(79,142,247,.15);  color:#4f8ef7; }
+  .badge-transit   { background:rgba(123,94,167,.15);  color:#7b5ea7; }
+  .badge-delivered { background:rgba(56,161,105,.15);  color:#38a169; }
+  .badge-cancelled { background:rgba(229,62,62,.15);   color:#e53e3e; }
+  .order-info { flex:1; min-width:0; }
+  .order-id    { font-size:0.68rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px; }
+  .order-title { font-size:0.92rem; font-weight:700; color:var(--text); margin-bottom:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:color .35s; }
+  .order-meta  { font-size:0.74rem; color:var(--muted); display:flex; gap:12px; flex-wrap:wrap; transition:color .35s; }
+  .order-amount{ font-size:1.05rem; font-weight:700; color:var(--accent); flex-shrink:0; }
+  .order-actions { display:flex; gap:6px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; }
+  .order-btn { padding:6px 12px; border:none; border-radius:8px; font-size:0.73rem; font-weight:600; cursor:pointer; transition:all .15s; font-family:'Poppins',sans-serif; white-space:nowrap; }
+  .order-btn-primary { background:var(--accent); color:#fff; }
+  .order-btn-primary:hover { opacity:.85; }
+  .order-btn-ghost { background:var(--bg); color:var(--text); border:1px solid var(--border); }
+  .order-btn-ghost:hover { border-color:var(--accent); color:var(--accent); }
+  .order-btn-danger { background:rgba(229,62,62,.1); color:#e53e3e; border:1px solid transparent; }
+  .order-btn-danger:hover { background:rgba(229,62,62,.2); }
+  .order-btn-green { background:rgba(56,161,105,.12); color:#38a169; border:1px solid transparent; }
+  .order-btn-green:hover { background:rgba(56,161,105,.22); }
+  .rider-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px 18px; display:flex; align-items:center; gap:14px; transition:transform .2s,box-shadow .2s,background .35s,border-color .35s; animation:slideInCard .3s ease both; }
+  .rider-card:hover { transform:translateY(-2px); box-shadow:var(--shadow-sm); }
+  .rider-avatar { width:42px; height:42px; border-radius:50%; background:linear-gradient(135deg,#4f8ef7,#7b5ea7); display:flex; align-items:center; justify-content:center; font-size:1rem; font-weight:700; color:#fff; flex-shrink:0; }
+  .rider-status-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+  .rider-status-dot.available { background:#38a169; box-shadow:0 0 0 2px rgba(56,161,105,.25); }
+  .rider-status-dot.busy      { background:#d97706; box-shadow:0 0 0 2px rgba(217,119,6,.25); }
+  .dispatch-empty { text-align:center; padding:56px 20px; color:var(--muted); }
+  .dispatch-empty-icon { font-size:2.8rem; margin-bottom:12px; }
+  .dispatch-filter-bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .filter-chip { padding:5px 14px; border-radius:20px; font-size:0.74rem; font-weight:600; cursor:pointer; background:var(--bg); border:1.5px solid var(--border); color:var(--muted); transition:all .2s; white-space:nowrap; }
+  .filter-chip.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .filter-chip:hover:not(.active) { border-color:var(--accent); color:var(--accent); }
+  @keyframes slideInCard { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
   </style>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
@@ -1402,7 +1452,7 @@
 
     <div class="nav-item" onclick="setNav(this, 'orders')">
       <div class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
-      <span class="nav-label">Orders &amp; Sales</span>
+      <span class="nav-label">Dispatch &amp; Orders</span>
       <span class="nav-badge" id="ordersBadge" style="display:none">0</span>
     </div>
 
@@ -1571,70 +1621,162 @@
 
 </div><!-- end page-inventory -->
 
-<!-- Page: Orders & Sales -->
-<div id="page-orders" class="page-view" style="display:none;flex:1;min-width:0;overflow:hidden;">
+<!-- Page: Dispatch & Orders -->
+<div id="page-orders" class="page-view" style="display:none;flex:1;min-width:0;overflow:hidden;flex-direction:column;">
   <div class="orders-page">
 
-    <!-- Page Header -->
+    <!-- Header -->
     <div class="orders-header">
       <div>
-        <h1 class="orders-title">Orders &amp; Sales</h1>
+        <h1 class="orders-title">Dispatch &amp; Orders</h1>
         <p class="orders-date" id="ordersDate"></p>
       </div>
       <div class="orders-stats">
-        <div class="stat-card">
-          <span class="stat-label">Total Entries</span>
+        <div class="stat-card" style="cursor:pointer" onclick="filterDispatch('pending')">
+          <span class="stat-label">Pending</span>
+          <span class="stat-value" id="statPending" style="color:#d97706">0</span>
+        </div>
+        <div class="stat-card" style="cursor:pointer" onclick="filterDispatch('transit')">
+          <span class="stat-label">In Transit</span>
+          <span class="stat-value" id="statTransit" style="color:#7b5ea7">0</span>
+        </div>
+        <div class="stat-card" style="cursor:pointer" onclick="filterDispatch('delivered')">
+          <span class="stat-label">Delivered</span>
+          <span class="stat-value" id="statDelivered" style="color:#38a169">0</span>
+        </div>
+        <div class="stat-card" style="cursor:pointer" onclick="filterDispatch('all')">
+          <span class="stat-label">Total Orders</span>
           <span class="stat-value" id="statTotalOrders">0</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">Total Revenue</span>
-          <span class="stat-value" id="ordersRevenue" style="color:var(--accent)">$0.00</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">Highest Sale</span>
-          <span class="stat-value" id="statHighest" style="color:#38a169">$0.00</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-label">Avg Sale Value</span>
-          <span class="stat-value" id="statAvg" style="color:#d97706">$0.00</span>
         </div>
       </div>
     </div>
 
-    <!-- Table -->
-    <div class="orders-table-wrap">
-      <div class="orders-table-header">
-        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-          <p class="inventory-heading" style="margin:0">Sales Log</p>
-          <a class="open-sheets-btn" id="openOrdersSheetBtn" href="#" target="_blank" style="display:none">↗ Open in Sheets</a>
-        </div>
-        <div class="orders-filters">
-          <input class="orders-search" id="ordersSearch" type="text" placeholder="Search products…" oninput="renderOrders()" />
-        </div>
-      </div>
+    <!-- Sub-tabs -->
+    <div class="dispatch-tabs">
+      <div class="dispatch-tab active" id="dtab-orders" onclick="switchDispatchTab('orders')">📦 Orders</div>
+      <div class="dispatch-tab" id="dtab-riders" onclick="switchDispatchTab('riders')">🏍️ Riders</div>
+    </div>
 
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Date</th>
-              <th>Time</th>
-              <th>Customer</th>
-              <th>Product</th>
-              <th>Qty</th>
-              <th>Unit Price</th>
-              <th>Subtotal</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="ordersBody"></tbody>
-        </table>
+    <!-- Orders Panel -->
+    <div id="dispatch-orders-body" class="dispatch-body">
+      <div class="dispatch-filter-bar">
+        <span style="font-size:0.73rem;font-weight:600;color:var(--muted)">Filter:</span>
+        <span class="filter-chip active" id="fchip-all"       onclick="filterDispatch('all')">All</span>
+        <span class="filter-chip"        id="fchip-pending"   onclick="filterDispatch('pending')">Pending</span>
+        <span class="filter-chip"        id="fchip-confirmed" onclick="filterDispatch('confirmed')">Confirmed</span>
+        <span class="filter-chip"        id="fchip-transit"   onclick="filterDispatch('transit')">In Transit</span>
+        <span class="filter-chip"        id="fchip-delivered" onclick="filterDispatch('delivered')">Delivered</span>
+        <button class="order-btn order-btn-primary" style="margin-left:auto" onclick="openCreateOrder()">+ New Order</button>
       </div>
+      <div id="ordersList"></div>
+    </div>
+
+    <!-- Riders Panel -->
+    <div id="dispatch-riders-body" class="dispatch-body" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:4px">
+        <p class="inventory-heading" style="margin:0">Delivery Riders</p>
+        <button class="order-btn order-btn-primary" onclick="openAddRider()">+ Add Rider</button>
+      </div>
+      <div id="ridersList"></div>
     </div>
 
   </div>
 </div><!-- end page-orders -->
+
+<!-- Create / Edit Order Modal -->
+<div id="createOrderModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9800;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border-radius:18px;padding:28px;max-width:520px;width:94%;max-height:90vh;overflow-y:auto;box-shadow:0 16px 56px rgba(0,0,0,.4)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <h3 style="margin:0;font-size:1rem;font-weight:700;color:var(--text)" id="createOrderTitle">New Dispatch Order</h3>
+      <button onclick="closeCreateOrder()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted)">✕</button>
+    </div>
+    <input type="hidden" id="editOrderId" />
+    <div class="form-grid">
+      <div class="field">
+        <label>Customer Name</label>
+        <input type="text" id="orderCustomer" placeholder="e.g. Chioma Obi" />
+      </div>
+      <div class="field">
+        <label>Customer Phone</label>
+        <input type="tel" id="orderPhone" placeholder="e.g. 08012345678" />
+      </div>
+      <div class="field">
+        <label>Product</label>
+        <input type="text" id="orderProduct" placeholder="Product name" list="productsList" oninput="calcOrderAmount()" />
+      </div>
+      <div class="field">
+        <label>Quantity</label>
+        <input type="number" id="orderQty" min="1" placeholder="1" oninput="calcOrderAmount()" />
+      </div>
+      <div class="field">
+        <label>Amount</label>
+        <input type="number" id="orderAmount" min="0" step="0.01" placeholder="0.00" />
+      </div>
+      <div class="field">
+        <label>Assign Rider</label>
+        <select id="orderRider" style="border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;font-size:0.92rem;font-family:'Poppins',sans-serif;color:var(--text);background:var(--input-bg);outline:none;transition:border-color .2s,background .35s,color .35s">
+          <option value="">— Unassigned —</option>
+        </select>
+      </div>
+    </div>
+    <div class="field" style="margin-top:14px">
+      <label>Delivery Address</label>
+      <input type="text" id="orderAddress" placeholder="e.g. 12 Broad Street, Lagos Island" />
+    </div>
+    <div class="field" style="margin-top:14px">
+      <label>Notes</label>
+      <input type="text" id="orderNotes" placeholder="Optional instructions…" />
+    </div>
+    <div id="orderFormError" class="error-msg" style="margin-top:10px"></div>
+    <div style="display:flex;gap:10px;margin-top:20px">
+      <button class="order-btn order-btn-ghost" style="flex:1;padding:10px" onclick="closeCreateOrder()">Cancel</button>
+      <button class="order-btn order-btn-primary" style="flex:2;padding:10px" onclick="saveDispatchOrder()">Save Order</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add / Edit Rider Modal -->
+<div id="addRiderModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9800;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border-radius:18px;padding:28px;max-width:420px;width:94%;box-shadow:0 16px 56px rgba(0,0,0,.4)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <h3 style="margin:0;font-size:1rem;font-weight:700;color:var(--text)" id="addRiderTitle">Add Rider</h3>
+      <button onclick="closeAddRider()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted)">✕</button>
+    </div>
+    <input type="hidden" id="editRiderId" />
+    <div class="form-grid">
+      <div class="field">
+        <label>Rider Name</label>
+        <input type="text" id="riderName" placeholder="e.g. Emeka Okon" />
+      </div>
+      <div class="field">
+        <label>Phone Number</label>
+        <input type="tel" id="riderPhone" placeholder="e.g. 08099887766" />
+      </div>
+      <div class="field">
+        <label>Vehicle Type</label>
+        <select id="riderVehicle" style="border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;font-size:0.92rem;font-family:'Poppins',sans-serif;color:var(--text);background:var(--input-bg);outline:none;transition:border-color .2s,background .35s,color .35s">
+          <option value="Bike">Bike</option>
+          <option value="Car">Car</option>
+          <option value="Van">Van</option>
+          <option value="Keke">Keke Napep</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <select id="riderAvailable" style="border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;font-size:0.92rem;font-family:'Poppins',sans-serif;color:var(--text);background:var(--input-bg);outline:none;transition:border-color .2s,background .35s,color .35s">
+          <option value="1">Available</option>
+          <option value="0">Unavailable</option>
+        </select>
+      </div>
+    </div>
+    <div id="riderFormError" class="error-msg" style="margin-top:10px"></div>
+    <div style="display:flex;gap:10px;margin-top:20px">
+      <button class="order-btn order-btn-ghost" style="flex:1;padding:10px" onclick="closeAddRider()">Cancel</button>
+      <button class="order-btn order-btn-primary" style="flex:2;padding:10px" onclick="saveRider()">Save Rider</button>
+    </div>
+  </div>
+</div>
 
 <!-- Page: Products & Stock -->
 <div id="page-products" class="page-view" style="display:none;flex:1;min-width:0;overflow:hidden;">
@@ -4493,12 +4635,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       if (sales[i]) SheetsAPI.withToken(() => SheetsAPI.updateRow(i, sales[i]));
     }, 1200);
 
-    // Add a new blank row if the last row now has data
-    const tbody = document.getElementById('salesBody');
-    const lastRow = tbody.lastElementChild;
-    const lastIndex = parseInt(lastRow.dataset.index);
-    // Re-render to keep exactly 1 entry row below last committed sale
-    render();
+    // Update subtotal without re-rendering — keeps focus intact
   });
 
   // ── Cancel wipe timer when user returns to a row ──
@@ -5068,75 +5205,386 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
   }
 
   // ── Orders dummy data ──
+  // ── Dispatch & Orders ─────────────────────────────────────────────────
+  let _dispatchFilter = 'all';
+  let _dispatchTab    = 'orders';
+
+  const _STATUS_LABELS = { pending:'Pending', confirmed:'Confirmed', transit:'In Transit', delivered:'Delivered', cancelled:'Cancelled' };
+  const _STATUS_NEXT   = { pending:'confirmed', confirmed:'transit', transit:'delivered' };
+  const _STATUS_ACTION = { pending:'✓ Confirm', confirmed:'🏍 Dispatch', transit:'✔ Delivered' };
+
+  function _dOrders() {
+    try { return JSON.parse(localStorage.getItem('iflow_dispatch_orders') || '[]'); } catch(e) { return []; }
+  }
+  function _saveDispatch(arr) {
+    try { localStorage.setItem('iflow_dispatch_orders', JSON.stringify(arr)); } catch(e) {}
+  }
+  function _dRiders() {
+    try { return JSON.parse(localStorage.getItem('iflow_riders') || '[]'); } catch(e) { return []; }
+  }
+  function _saveRiders(arr) {
+    try { localStorage.setItem('iflow_riders', JSON.stringify(arr)); } catch(e) {}
+  }
+  function _nextOrderId() {
+    const orders = _dOrders();
+    const max = orders.reduce((m, o) => {
+      const n = parseInt((o.id || '').replace(/\D/g,'')) || 0;
+      return Math.max(m, n);
+    }, 0);
+    return 'ORD-' + String(max + 1).padStart(3, '0');
+  }
+
   function renderOrders() {
-    document.getElementById('ordersDate').textContent =
-      new Date().toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+    const dateEl = document.getElementById('ordersDate');
+    if (dateEl) dateEl.textContent = new Date().toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+    const orders = _dOrders();
+    const pending   = orders.filter(o => o.status === 'pending').length;
+    const transit   = orders.filter(o => o.status === 'transit').length;
+    const delivered = orders.filter(o => o.status === 'delivered').length;
+    const sp = document.getElementById('statPending');   if (sp) sp.textContent = pending;
+    const st = document.getElementById('statTransit');   if (st) st.textContent = transit;
+    const sd = document.getElementById('statDelivered'); if (sd) sd.textContent = delivered;
+    const so = document.getElementById('statTotalOrders'); if (so) so.textContent = orders.length;
+    if (_dispatchTab === 'orders') _renderOrderCards(orders);
+    if (_dispatchTab === 'riders') renderRiders();
+  }
 
-    const cur = getCurrency();
-    const query = (document.getElementById('ordersSearch')?.value || '').toLowerCase();
-    const orderToks = query.split(/\s+/).filter(Boolean);
-    const filtered = sales.filter(s => {
-      if (!orderToks.length) return true;
-      const hay = [s.product, s.customer, fmtDate(s.timestamp), fmtTime(s.timestamp), s.quantity, s.price].join(' ').toLowerCase();
-      return orderToks.every(t => hay.includes(t));
-    });
-
-    // Stat cards
-    const totalRevenue = filtered.reduce((s, o) => s + o.quantity * o.price, 0);
-    const subtotals = filtered.map(o => o.quantity * o.price);
-    const highest = subtotals.length ? Math.max(...subtotals) : 0;
-    const avg = subtotals.length ? totalRevenue / subtotals.length : 0;
-
-    document.getElementById('statTotalOrders').textContent = filtered.length;
-    document.getElementById('ordersRevenue').textContent = cur + fmtComma(totalRevenue);
-    document.getElementById('statHighest').textContent = cur + fmtComma(highest);
-    document.getElementById('statAvg').textContent = cur + fmtComma(avg);
-
-    // Table rows
-    const tbody = document.getElementById('ordersBody');
+  function _renderOrderCards(orders) {
+    const list = document.getElementById('ordersList');
+    if (!list) return;
+    const filtered = _dispatchFilter === 'all' ? orders : orders.filter(o => o.status === _dispatchFilter);
     if (filtered.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem;">No entries yet — add products from the Inventory page.</td></tr>`;
+      list.innerHTML = `<div class="dispatch-empty">
+        <div class="dispatch-empty-icon">${_dispatchFilter === 'all' ? '📦' : '🔍'}</div>
+        <div style="font-size:0.92rem;font-weight:600;margin-bottom:8px">
+          ${_dispatchFilter === 'all' ? 'No dispatch orders yet' : 'No ' + (_STATUS_LABELS[_dispatchFilter] || _dispatchFilter) + ' orders'}
+        </div>
+        <div style="font-size:0.8rem">${_dispatchFilter === 'all' ? 'Click <strong>+ New Order</strong> to create your first dispatch order.' : 'Try a different filter.'}</div>
+      </div>`;
       return;
     }
-    tbody.innerHTML = filtered.map((o, idx) => {
-      const sub = o.quantity * o.price;
-      const realIdx = sales.indexOf(o);
-      return `
-        <tr id="order-row-${realIdx}" style="transition:opacity .35s,background .35s">
-          <td class="row-num">${idx + 1}</td>
-          <td class="cell-datetime">${fmtDate(o.timestamp)}</td>
-          <td class="cell-datetime">${fmtTime(o.timestamp)}</td>
-          <td style="padding:10px 14px;color:var(--muted)">${escHtml(o.customer || '—')}</td>
-          <td style="padding:10px 14px;font-weight:600;color:var(--text)">${escHtml(o.product || '')}</td>
-          <td class="cell-datetime" style="text-align:center">${o.quantity}</td>
-          <td class="cell-datetime">${cur}${fmtComma(o.price)}</td>
-          <td class="cell-subtotal" data-val="${sub}">${cur}${fmtComma(sub)}</td>
-          <td class="cell-action"><button class="btn-terminate" onclick="confirmDeleteOrder(${realIdx})" title="Delete entry">&#9632;</button></td>
-        </tr>`;
+    const riders = _dRiders();
+    const cur = getCurrency();
+    list.innerHTML = filtered.slice().reverse().map((o, idx) => {
+      const rider     = riders.find(r => r.id === o.riderId);
+      const riderStr  = rider ? `🏍 ${escHtml(rider.name)}` : '🏍 Unassigned';
+      const badge     = `<span class="order-badge badge-${o.status}">${_STATUS_LABELS[o.status] || o.status}</span>`;
+      const nextBtn   = _STATUS_NEXT[o.status]
+        ? `<button class="order-btn order-btn-primary" onclick="advanceOrderStatus('${o.id}')">${_STATUS_ACTION[o.status]}</button>` : '';
+      const waRider   = rider?.phone
+        ? `<button class="order-btn order-btn-green" onclick="notifyRider('${o.id}')">💬 Rider</button>` : '';
+      const waCust    = o.phone
+        ? `<button class="order-btn order-btn-ghost" onclick="notifyCustomer('${o.id}')">💬 Customer</button>` : '';
+      const cancelBtn = (o.status !== 'delivered' && o.status !== 'cancelled')
+        ? `<button class="order-btn order-btn-danger" onclick="cancelDispatchOrder('${o.id}')" title="Cancel">✕</button>` : '';
+      const deleteBtn = (o.status === 'delivered' || o.status === 'cancelled')
+        ? `<button class="order-btn order-btn-danger" onclick="deleteDispatchOrder('${o.id}')" title="Delete">🗑</button>` : '';
+      const ts = new Date(o.createdAt).toLocaleDateString(undefined, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+      const delay = (idx % 8) * 40;
+      return `<div class="order-card status-${o.status}" id="ocard-${o.id}" style="animation-delay:${delay}ms">
+        <div class="order-info">
+          <div class="order-id">${escHtml(o.id)} · ${ts}</div>
+          <div class="order-title">${escHtml(o.product || '—')} × ${o.qty || 1}</div>
+          <div class="order-meta">
+            <span>👤 ${escHtml(o.customer || '—')}</span>
+            ${o.phone   ? `<span>📞 ${escHtml(o.phone)}</span>` : ''}
+            <span>${riderStr}</span>
+            ${o.address ? `<span>📍 ${escHtml(o.address)}</span>` : ''}
+            ${o.notes   ? `<span>📝 ${escHtml(o.notes)}</span>` : ''}
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
+          <div style="display:flex;align-items:center;gap:8px">
+            ${badge}
+            <span class="order-amount">${cur}${fmtComma(o.amount || 0)}</span>
+          </div>
+          <div class="order-actions">
+            ${nextBtn}${waRider}${waCust}
+            <button class="order-btn order-btn-ghost" onclick="openCreateOrder('${o.id}')" title="Edit">✏</button>
+            ${cancelBtn}${deleteBtn}
+          </div>
+        </div>
+      </div>`;
     }).join('');
+  }
+
+  function renderRiders() {
+    const list = document.getElementById('ridersList');
+    if (!list) return;
+    const riders = _dRiders();
+    const orders = _dOrders();
+    if (riders.length === 0) {
+      list.innerHTML = `<div class="dispatch-empty">
+        <div class="dispatch-empty-icon">🏍️</div>
+        <div style="font-size:0.92rem;font-weight:600;margin-bottom:8px">No riders yet</div>
+        <div style="font-size:0.8rem">Add your delivery riders to start assigning orders.</div>
+      </div>`;
+      return;
+    }
+    list.innerHTML = riders.map(r => {
+      const active = orders.filter(o => o.riderId === r.id && o.status === 'transit').length;
+      const done   = orders.filter(o => o.riderId === r.id && o.status === 'delivered').length;
+      const initials = (r.name || 'R').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+      return `<div class="rider-card">
+        <div class="rider-avatar">${escHtml(initials)}</div>
+        <div class="rider-status-dot ${r.available ? 'available' : 'busy'}"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;color:var(--text);margin-bottom:3px;transition:color .35s">${escHtml(r.name)}</div>
+          <div style="font-size:0.74rem;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap">
+            <span>📞 ${escHtml(r.phone || '—')}</span>
+            <span>🚗 ${escHtml(r.vehicle || 'Bike')}</span>
+            <span>${r.available ? '🟢 Available' : '🟡 Busy'}</span>
+            <span>In transit: ${active} · Delivered: ${done}</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="order-btn order-btn-ghost" onclick="openEditRider('${r.id}')">✏</button>
+          <button class="order-btn order-btn-danger" onclick="deleteRider('${r.id}')">🗑</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function switchDispatchTab(tab) {
+    _dispatchTab = tab;
+    document.getElementById('dtab-orders').classList.toggle('active', tab === 'orders');
+    document.getElementById('dtab-riders').classList.toggle('active', tab === 'riders');
+    document.getElementById('dispatch-orders-body').style.display = tab === 'orders' ? '' : 'none';
+    document.getElementById('dispatch-riders-body').style.display = tab === 'riders' ? '' : 'none';
+    if (tab === 'orders') _renderOrderCards(_dOrders());
+    if (tab === 'riders') renderRiders();
+  }
+
+  function filterDispatch(status) {
+    _dispatchFilter = status;
+    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+    const chip = document.getElementById('fchip-' + status);
+    if (chip) chip.classList.add('active');
+    _renderOrderCards(_dOrders());
+  }
+
+  function openCreateOrder(orderId) {
+    const modal = document.getElementById('createOrderModal');
+    modal.style.display = 'flex';
+    const errEl = document.getElementById('orderFormError');
+    if (errEl) errEl.style.display = 'none';
+    document.getElementById('editOrderId').value = orderId || '';
+    document.getElementById('createOrderTitle').textContent = orderId ? 'Edit Order' : 'New Dispatch Order';
+    const sel = document.getElementById('orderRider');
+    sel.innerHTML = '<option value="">— Unassigned —</option>' +
+      _dRiders().map(r => `<option value="${escAttr(r.id)}">${escHtml(r.name)} (${escHtml(r.vehicle || 'Bike')})</option>`).join('');
+    if (orderId) {
+      const order = _dOrders().find(o => o.id === orderId);
+      if (order) {
+        document.getElementById('orderCustomer').value = order.customer || '';
+        document.getElementById('orderPhone').value    = order.phone    || '';
+        document.getElementById('orderProduct').value  = order.product  || '';
+        document.getElementById('orderQty').value      = order.qty      || 1;
+        document.getElementById('orderAmount').value   = order.amount   || '';
+        document.getElementById('orderAddress').value  = order.address  || '';
+        document.getElementById('orderNotes').value    = order.notes    || '';
+        sel.value = order.riderId || '';
+        return;
+      }
+    }
+    ['orderCustomer','orderPhone','orderProduct','orderAddress','orderNotes'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = '';
+    });
+    document.getElementById('orderQty').value    = 1;
+    document.getElementById('orderAmount').value = '';
+    sel.value = '';
+  }
+
+  function closeCreateOrder() {
+    document.getElementById('createOrderModal').style.display = 'none';
+  }
+
+  function calcOrderAmount() {
+    const prodName = (document.getElementById('orderProduct')?.value || '').trim();
+    const qty = parseFloat(document.getElementById('orderQty')?.value) || 1;
+    if (!prodName) return;
+    const prod = findStockProduct(prodName);
+    if (prod?.unitPrice) document.getElementById('orderAmount').value = (prod.unitPrice * qty).toFixed(2);
+  }
+
+  function saveDispatchOrder() {
+    const errEl = document.getElementById('orderFormError');
+    errEl.style.display = 'none';
+    const customer = document.getElementById('orderCustomer').value.trim();
+    const phone    = document.getElementById('orderPhone').value.trim();
+    const product  = document.getElementById('orderProduct').value.trim();
+    const qty      = parseFloat(document.getElementById('orderQty').value) || 1;
+    const amount   = parseFloat(document.getElementById('orderAmount').value) || 0;
+    const address  = document.getElementById('orderAddress').value.trim();
+    const notes    = document.getElementById('orderNotes').value.trim();
+    const riderId  = document.getElementById('orderRider').value;
+    const editId   = document.getElementById('editOrderId').value;
+    if (!customer) { errEl.textContent = 'Customer name is required.'; errEl.style.display = ''; return; }
+    if (!product)  { errEl.textContent = 'Product is required.';       errEl.style.display = ''; return; }
+    const orders = _dOrders();
+    if (editId) {
+      const idx = orders.findIndex(o => o.id === editId);
+      if (idx !== -1) orders[idx] = { ...orders[idx], customer, phone, product, qty, amount, address, notes, riderId };
+    } else {
+      orders.push({ id:_nextOrderId(), customer, phone, product, qty, amount, address, notes, riderId,
+        status:'pending', createdAt:Date.now(), statusHistory:[{ status:'pending', ts:Date.now() }] });
+    }
+    _saveDispatch(orders);
+    closeCreateOrder();
+    renderOrders();
+    updateOrdersBadge();
+    showToast(editId ? 'Order updated ✓' : 'Order created ✓');
+  }
+
+  function advanceOrderStatus(id) {
+    const orders = _dOrders();
+    const order = orders.find(o => o.id === id);
+    if (!order) return;
+    const next = _STATUS_NEXT[order.status];
+    if (!next) return;
+    order.status = next;
+    order.statusHistory = order.statusHistory || [];
+    order.statusHistory.push({ status:next, ts:Date.now() });
+    _saveDispatch(orders);
+    const card = document.getElementById('ocard-' + id);
+    if (card) {
+      card.style.transition = 'opacity .25s,transform .25s';
+      card.style.opacity = '0'; card.style.transform = 'scale(.97)';
+      setTimeout(() => renderOrders(), 270);
+    } else { renderOrders(); }
+    updateOrdersBadge();
+    const labels = { confirmed:'Order confirmed ✓', transit:'Dispatched to rider ✓', delivered:'Marked as delivered ✓' };
+    showToast(labels[next] || 'Status updated ✓');
+  }
+
+  function cancelDispatchOrder(id) {
+    const orders = _dOrders();
+    const order = orders.find(o => o.id === id);
+    if (!order) return;
+    order.status = 'cancelled';
+    order.statusHistory = order.statusHistory || [];
+    order.statusHistory.push({ status:'cancelled', ts:Date.now() });
+    _saveDispatch(orders);
+    renderOrders(); updateOrdersBadge();
+    showToast('Order cancelled');
+  }
+
+  function deleteDispatchOrder(id) {
+    _saveDispatch(_dOrders().filter(o => o.id !== id));
+    renderOrders();
+    showToast('Order deleted');
+  }
+
+  function openAddRider() {
+    document.getElementById('addRiderModal').style.display = 'flex';
+    document.getElementById('riderFormError').style.display = 'none';
+    document.getElementById('addRiderTitle').textContent = 'Add Rider';
+    document.getElementById('editRiderId').value = '';
+    document.getElementById('riderName').value = '';
+    document.getElementById('riderPhone').value = '';
+    document.getElementById('riderVehicle').value = 'Bike';
+    document.getElementById('riderAvailable').value = '1';
+  }
+
+  function openEditRider(id) {
+    const rider = _dRiders().find(r => r.id === id);
+    if (!rider) return;
+    openAddRider();
+    document.getElementById('addRiderTitle').textContent = 'Edit Rider';
+    document.getElementById('editRiderId').value = id;
+    document.getElementById('riderName').value = rider.name;
+    document.getElementById('riderPhone').value = rider.phone || '';
+    document.getElementById('riderVehicle').value = rider.vehicle || 'Bike';
+    document.getElementById('riderAvailable').value = rider.available ? '1' : '0';
+  }
+
+  function closeAddRider() {
+    document.getElementById('addRiderModal').style.display = 'none';
+  }
+
+  function saveRider() {
+    const errEl = document.getElementById('riderFormError');
+    errEl.style.display = 'none';
+    const name      = document.getElementById('riderName').value.trim();
+    const phone     = document.getElementById('riderPhone').value.trim();
+    const vehicle   = document.getElementById('riderVehicle').value;
+    const available = document.getElementById('riderAvailable').value === '1';
+    const editId    = document.getElementById('editRiderId').value;
+    if (!name) { errEl.textContent = 'Rider name is required.'; errEl.style.display = ''; return; }
+    const riders = _dRiders();
+    if (editId) {
+      const idx = riders.findIndex(r => r.id === editId);
+      if (idx !== -1) riders[idx] = { ...riders[idx], name, phone, vehicle, available };
+    } else {
+      riders.push({ id:'rider-' + Date.now(), name, phone, vehicle, available, createdAt:Date.now() });
+    }
+    _saveRiders(riders);
+    closeAddRider();
+    renderRiders();
+    showToast(editId ? 'Rider updated ✓' : 'Rider added ✓');
+  }
+
+  function deleteRider(id) {
+    _saveRiders(_dRiders().filter(r => r.id !== id));
+    renderRiders();
+    showToast('Rider removed');
+  }
+
+  function notifyRider(orderId) {
+    const order = _dOrders().find(o => o.id === orderId);
+    if (!order) return;
+    const rider = _dRiders().find(r => r.id === order.riderId);
+    if (!rider?.phone) { showToast('No rider phone number saved'); return; }
+    const raw = rider.phone.replace(/\D/g, '');
+    const intl = raw.startsWith('0') ? '234' + raw.slice(1) : raw;
+    const cur = getCurrency();
+    const msg = encodeURIComponent(
+      `Hi ${rider.name}, you have a new delivery:\n\n` +
+      `Order: ${order.id}\n` +
+      `Product: ${order.product} × ${order.qty}\n` +
+      `Customer: ${order.customer}${order.phone ? ' (' + order.phone + ')' : ''}\n` +
+      (order.address ? `Address: ${order.address}\n` : '') +
+      (order.notes   ? `Notes: ${order.notes}\n`   : '') +
+      `Amount: ${cur}${fmtComma(order.amount)}\n\nPlease confirm pickup. 🚀`
+    );
+    window.open(`https://wa.me/${intl}?text=${msg}`, '_blank');
+  }
+
+  function notifyCustomer(orderId) {
+    const order = _dOrders().find(o => o.id === orderId);
+    if (!order?.phone) { showToast('No customer phone saved'); return; }
+    const rider = _dRiders().find(r => r.id === order.riderId);
+    const raw = order.phone.replace(/\D/g, '');
+    const intl = raw.startsWith('0') ? '234' + raw.slice(1) : raw;
+    const cur = getCurrency();
+    const statusMsg = {
+      pending:   'Your order has been received and is being processed.',
+      confirmed: 'Your order has been confirmed and will be dispatched soon. 📦',
+      transit:   `Your order is on its way!${rider ? ' Rider: ' + rider.name : ''} 🏍`,
+      delivered: 'Your order has been delivered. Thank you for your business! 🙏',
+      cancelled: 'Your order has been cancelled. Please contact us for assistance.'
+    };
+    const msg = encodeURIComponent(
+      `Hi ${order.customer || 'there'},\n\n` +
+      `${statusMsg[order.status] || 'Order update.'}\n\n` +
+      `Order: ${order.id}\n` +
+      `Product: ${order.product} × ${order.qty}\n` +
+      `Amount: ${cur}${fmtComma(order.amount)}\n\nThank you! 🙏`
+    );
+    window.open(`https://wa.me/${intl}?text=${msg}`, '_blank');
   }
 
   function deleteOrder(i) {
     if (sales[i]) {
       pushUndo('sales');
       moveToTrash('sale', sales[i], i);
+      const { product, quantity } = sales[i];
+      if (product && quantity) deductStock(product, -quantity);
+      SheetsAPI.withToken(() => SheetsAPI.deleteRow(i));
+      sales.splice(i, 1);
+      persist();
     }
-    const row = document.getElementById('order-row-' + i);
-    if (row) {
-      row.style.background = 'rgba(229,62,62,.15)';
-      row.style.opacity = '0';
-    }
-    setTimeout(() => {
-      if (sales[i]) {
-        const { product, quantity } = sales[i];
-        if (product && quantity) deductStock(product, -quantity);
-        SheetsAPI.withToken(() => SheetsAPI.deleteRow(i));
-        sales.splice(i, 1);
-        persist();
-      }
-      renderOrders();
-      updateOrdersBadge();
-    }, 350);
+    updateOrdersBadge();
   }
 
   // Apply saved theme + settings on load
@@ -5932,10 +6380,9 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
 
   // ── Orders & Sales sidebar badge (sales in last 5 mins) ──
   function updateOrdersBadge() {
-    const fiveMinsAgo = Date.now() - 5 * 60 * 1000;
-    const recent = sales.filter(s => s.timestamp > fiveMinsAgo).length;
+    const active = _dOrders().filter(o => o.status === 'pending' || o.status === 'confirmed' || o.status === 'transit').length;
     const badge = document.getElementById('ordersBadge');
-    if (badge) { badge.textContent = recent; badge.style.display = recent > 0 ? '' : 'none'; }
+    if (badge) { badge.textContent = active; badge.style.display = active > 0 ? '' : 'none'; }
   }
   setInterval(updateOrdersBadge, 30000);
 

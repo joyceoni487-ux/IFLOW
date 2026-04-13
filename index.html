@@ -1500,7 +1500,7 @@
       </div>
 
     <p class="inventory-heading">Inventory</p>
-    <div class="table-wrap" id="salesTableWrap" style="max-height:420px;overflow-y:auto;">
+    <div class="table-wrap" id="salesTableWrap">
       <table>
         <thead>
           <tr>
@@ -5283,44 +5283,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
   function stopListening() { _stopVoice(); }
 
   // ── Messages ──
-  const convos = [
-    {
-      id: 1, platform: 'whatsapp', name: 'Sarah K.', handle: '+1 (555) 021-4490',
-      avatar: 'SK', color: '#25d366', platformColor: '#25d366', platformIcon: 'W',
-      preview: 'Is the iPhone 14 case still available? 👀', time: '2m ago',
-      unread: 2, priority: true,
-      messages: [
-        { from: 'them', text: 'Hi there! 👋', time: '10:41 AM' },
-        { from: 'them', text: 'Is the iPhone 14 case still available? 👀', time: '10:42 AM' },
-        { from: 'ai',   text: 'Hi Sarah! Yes, the iPhone 14 case is in stock. We have it in Clear, Black, and Midnight Blue. Which color interests you?', time: '10:42 AM' },
-        { from: 'them', text: 'The clear one! How much is it?', time: '10:43 AM' },
-        { from: 'ai',   text: 'The clear case is $12.50. Would you like to place an order?', time: '10:43 AM' },
-        { from: 'them', text: 'Can I get 2? And can you deliver today?', time: '10:44 AM' },
-      ]
-    },
-    {
-      id: 2, platform: 'instagram', name: 'marco.buys', handle: '@marco.buys',
-      avatar: 'MB', color: '#e1306c', platformColor: '#e1306c', platformIcon: 'IG',
-      preview: 'How much for the earbuds? 🎧 Can you do a deal?', time: '8m ago',
-      unread: 1, priority: false,
-      messages: [
-        { from: 'them', text: 'Hey! Saw your post 🔥', time: '10:35 AM' },
-        { from: 'them', text: 'How much for the wireless earbuds? 🎧 Can you do a deal?', time: '10:36 AM' },
-        { from: 'ai',   text: 'Hey Marco! The Wireless Earbuds are $49.99 a pair. If you grab 2 or more we can do $45 each 🎉', time: '10:36 AM' },
-      ]
-    },
-    {
-      id: 3, platform: 'twitter', name: '@techdeals_fan', handle: '@techdeals_fan',
-      avatar: 'TD', color: '#1da1f2', platformColor: '#1da1f2', platformIcon: 'X',
-      preview: 'Do you ship internationally? Need 3 units.', time: '15m ago',
-      unread: 0, priority: false,
-      messages: [
-        { from: 'them', text: 'Do you ship internationally? Need 3 units of the USB-C cable.', time: '10:28 AM' },
-        { from: 'ai',   text: 'Hi! Yes, we ship internationally 🌍 The USB-C Cable is $8.99/unit, so 3 units would be $26.97 + shipping. Which country are you in?', time: '10:29 AM' },
-        { from: 'them', text: 'Canada 🇨🇦', time: '10:30 AM' },
-      ]
-    }
-  ];
+  const convos = [];   // populated by syncTwilioMessages() — starts empty
 
   let activeTab = 'all';
   let activeConvo = null;
@@ -5335,6 +5298,14 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
   function renderConvList() {
     const list = document.getElementById('convList');
     const filtered = activeTab === 'priorities' ? convos.filter(c => c.priority) : convos;
+    if (!filtered.length) {
+      list.innerHTML = `<div style="padding:32px 16px;text-align:center;color:var(--muted);font-size:0.8rem;line-height:1.7">${
+        convos.length === 0
+          ? '<div style="font-size:1.6rem;margin-bottom:10px">💬</div>No WhatsApp messages yet.<br>Click <strong>↻ Sync WhatsApp</strong> to load your conversations.'
+          : 'No priority conversations.'
+      }</div>`;
+      return;
+    }
     list.innerHTML = filtered.map(c => `
       <div class="conv-item ${activeConvo === c.id ? 'active' : ''}" onclick="openConvo(${c.id})">
         <div class="conv-avatar" style="background:${c.color}">

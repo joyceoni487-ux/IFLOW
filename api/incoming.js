@@ -7,9 +7,15 @@
  *   ?reply=0    — disable ALL replies (all off)
  *
  * Vercel Environment Variables:
- *   GROQ_API_KEY   — Groq API key (gsk_...) — AI replies
- *   GEMINI_API_KEY — Gemini key as fallback
- *   STORE_NAME     — store name in replies (e.g. "Joyce's Boutique")
+ *   GROQ_API_KEY     — Groq API key (gsk_...) — AI replies
+ *   GEMINI_API_KEY   — Gemini key as fallback
+ *   STORE_NAME       — store name in replies (e.g. "Joyce's Boutique")
+ *   PRODUCTS_JSON    — product list: "iPhone 15 (₦150000), Bags (₦5000), ..."
+ *   OWNER_WHATSAPP   — store owner's WhatsApp number e.g. "+2348012345678"
+ *                      (receives order alerts when a customer places an order)
+ *   TWILIO_SID       — Twilio Account SID (for sending owner alerts)
+ *   TWILIO_TOKEN     — Twilio Auth Token (for sending owner alerts)
+ *   TWILIO_FROM      — Twilio WhatsApp sender e.g. "whatsapp:+14155238886"
  */
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -41,6 +47,7 @@ export default async function handler(req, res) {
     body:     Body.slice(0, 200),
     media:    parseInt(NumMedia, 10) > 0,
     provider: apiKey.startsWith('gsk_') ? 'groq' : apiKey ? 'gemini' : 'none',
+    hasProducts: !!productCtx,
     genericOn,
     ts:       new Date().toISOString()
   }));
@@ -54,7 +61,13 @@ export default async function handler(req, res) {
   if (apiKey && Body.trim()) {
     const aiReply = await _callAi(Body, ProfileName, storeName, apiKey, productCtx);
     if (aiReply) {
-      return res.status(200).send(`<Response><Message>${escapeXml(aiReply)}</Message></Response>`);
+      // Detect order alert and notify store owner if configured
+      if (/ORDER ALERT:/i.test(aiReply)) {
+        _notifyOwner(aiReply, From, ProfileName, storeName).catch(() => {});
+      }
+      // Strip internal ORDER ALERT line before sending to customer
+      const customerReply = aiReply.replace(/\n?ORDER ALERT:.*$/im, '').trim();
+      return res.status(200).send(`<Response><Message>${escapeXml(customerReply)}</Message></Response>`);
     }
     // AI failed — fall through to generic if enabled, else silent
   }
@@ -73,21 +86,27 @@ export default async function handler(req, res) {
 
 async function _callAi(message, name, storeName, apiKey, productCtx = '') {
   const productSection = productCtx
-    ? `\nCurrent products in stock:\n${productCtx}\n\nWhen asked what products we have, list them directly from this list. Do not say you'll check — the list is above.`
-    : `\nYou don't have the product list right now. If asked, say you'll send the full list shortly.`;
+    ? `\nCurrent products in stock:\n${productCtx}\n\nWhen asked what products are available, list them from this list directly — do not say you'll check.`
+    : `\nYou don't have the inventory list. If a customer asks what you have, ask what specific item or category they're looking for.`;
 
   const system =
-`Your name is Alex. You are a sharp, friendly AI assistant for *${storeName}*, responding to customer WhatsApp messages.
+`Your name is Alex. You are a sharp, helpful AI assistant for *${storeName}*, responding to customer WhatsApp messages.
 ${productSection}
 
 Rules:
-- Answer directly. No preamble, no "Hi there!", no "Great question!" — just the answer.
-- If the customer only sent a greeting, respond warmly and ask how you can help.
-- Be concise — this is WhatsApp. 1-3 sentences max unless real detail is needed.
+- Answer directly. No preamble, no filler phrases — just the answer.
+- Greetings (hi, hello, good morning, etc.): ONE sentence only — e.g. "Hi! What can I help you with?" Then stop. Do NOT elaborate.
+- Be concise — WhatsApp. 1-3 sentences max unless an order needs detail.
 - Never invent prices you don't know — say you'll confirm.
-- Speak clear, natural English. You understand Nigerian English perfectly.
+- You understand Nigerian English and accents perfectly.
 - If asked if you're human, say you're an AI assistant for the store.
-- NEVER sign off with the store name mid-conversation.`;
+- NEVER sign off with the store name.
+
+Order handling — when a customer wants to buy, order, or receive a product:
+1. Confirm item and quantity.
+2. If no delivery address given, ask for it.
+3. Once you have item + quantity + address: reply "Order noted ✓ — [item] x[qty]. We'll reach out shortly to confirm payment and delivery."
+4. On that same reply, add a new line (invisible to conversation flow): ORDER ALERT: ${name || 'Customer'} | [item] x[qty] | Address: [address]`;
 
   try {
     if (apiKey.startsWith('gsk_')) {
@@ -100,7 +119,7 @@ Rules:
             model,
             messages:    [{ role: 'system', content: system }, { role: 'user', content: message }],
             max_tokens:  300,
-            temperature: 0.7
+            temperature: 0.65
           })
         });
         if (r.ok) {
@@ -121,7 +140,7 @@ Rules:
             body:    JSON.stringify({
               system_instruction: { parts: [{ text: system }] },
               contents:           [{ role: 'user', parts: [{ text: message }] }],
-              generationConfig:   { maxOutputTokens: 300, temperature: 0.7 }
+              generationConfig:   { maxOutputTokens: 300, temperature: 0.65 }
             })
           }
         );
@@ -137,6 +156,29 @@ Rules:
     console.error(JSON.stringify({ event: 'ai_error', error: String(err), ts: new Date().toISOString() }));
   }
   return null; // AI failed
+}
+
+/**
+ * Send an order alert to the store owner's WhatsApp number.
+ * Requires env vars: TWILIO_SID, TWILIO_TOKEN, TWILIO_FROM, OWNER_WHATSAPP
+ */
+async function _notifyOwner(aiReply, customerFrom, customerName, storeName) {
+  const sid      = process.env.TWILIO_SID;
+  const token    = process.env.TWILIO_TOKEN;
+  const from     = process.env.TWILIO_FROM;      // e.g. "whatsapp:+14155238886"
+  const ownerNum = process.env.OWNER_WHATSAPP;   // e.g. "+2348012345678"
+  if (!sid || !token || !from || !ownerNum) return;
+
+  const orderLine = (aiReply.match(/ORDER ALERT:(.*)/i) || [])[1]?.trim() || 'New order';
+  const body = `🛒 *New Order — ${storeName}*\n${orderLine}\nFrom: ${customerName || customerFrom}`;
+
+  const to = ownerNum.startsWith('whatsapp:') ? ownerNum : 'whatsapp:' + ownerNum;
+  const auth = 'Basic ' + Buffer.from(sid + ':' + token).toString('base64');
+  await fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Messages.json`, {
+    method:  'POST',
+    headers: { Authorization: auth, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body:    new URLSearchParams({ From: from, To: to, Body: body }).toString()
+  });
 }
 
 function escapeXml(str) {

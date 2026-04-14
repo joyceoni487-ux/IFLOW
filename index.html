@@ -3829,7 +3829,7 @@ Rules:
 5. Keep responses SHORT. No filler, no "Great!", no "Sure!", no preamble. Answer the question, then stop.
 6. You know the full stock list, sales history, and store data — use it to give useful advice.
 7. When recording sales, check if the product actually exists in stock and if quantity is available.
-8. If the user greets you by name (e.g. "Hey Alex", "Hi Alex"), respond warmly and ask how you can help.
+8. If the user greets you (e.g. "Hey Alex", "Hi"), reply in ONE short sentence only — e.g. "Hey! What do you need?" — then stop. No elaboration.
 9. During data entry (adding stock or recording a sale): DO NOT interrupt with confirmations or comments between each field given. Wait silently until you have enough data, then act. Only speak up if a value is missing or clearly wrong.
 10. When a direct question is asked (e.g. "how much did I make today?"), answer it immediately and directly — no lead-up, no pleasantries.`;
 
@@ -5820,11 +5820,12 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     const inp = document.getElementById('aiInput');
     if (inp) { inp.value = ''; inp.placeholder = 'Listening...'; }
     _speechRec = new _SR();
-    _speechRec.lang = 'en-NG';
+    _speechRec.lang = 'en-US';
     _speechRec.interimResults = false;
     _speechRec.maxAlternatives = 3;
     _speechRec.onresult = (e) => {
       const text = e.results[0][0].transcript;
+      clearTimeout(_alexNoInputTimer); _alexNoInputTimer = null;
       _stopVoice(false);
       if (_isDismissal(text)) {
         _clearConvMode();
@@ -5881,6 +5882,24 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
   let _wakeRec = null;
   let _wakeEnabled = false;
   let _wakeHeartbeat = null;
+  let _alexNoInputTimer = null;   // fires "I'm listening" only if user goes silent
+
+  // Short two-tone chime played when Alex is activated
+  function _playAlexChime() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      [[880, 0], [1174, 0.16]].forEach(([freq, when]) => {
+        const osc  = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = 'sine'; osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0, ctx.currentTime + when);
+        gain.gain.linearRampToValueAtTime(0.22, ctx.currentTime + when + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + when + 0.38);
+        osc.start(ctx.currentTime + when); osc.stop(ctx.currentTime + when + 0.42);
+      });
+    } catch(e) {}
+  }
 
   function _startWakeWord() {
     if (!_SR || _wakeRec || _voiceActive || _convMode) return;
@@ -5897,10 +5916,16 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
             _convMode = true;
             const modal = document.getElementById('aiChatModal');
             if (!modal || modal.style.display === 'none') openAiChat();
+            _playAlexChime();
+            // Start listening immediately — no speech announcement
+            clearTimeout(_alexNoInputTimer);
             setTimeout(() => {
-              _speakText("Hey! I'm listening.");
-              setTimeout(() => _startVoice(), 1000);
-            }, 300);
+              _startVoice();
+              // Only say "I'm listening" if the user goes silent for 4 seconds
+              _alexNoInputTimer = setTimeout(() => {
+                if (_voiceActive) _speakText("I'm listening.");
+              }, 4000);
+            }, 350);
             return;
           }
         }

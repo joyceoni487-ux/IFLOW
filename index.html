@@ -5730,7 +5730,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
   }
 
   function escHtml(str) {
-    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return (str == null ? '' : String(str)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
   function escAttr(str) {
@@ -5874,7 +5874,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       _wakeRec = new _SR();
       _wakeRec.continuous = true;
       _wakeRec.interimResults = true;
-      _wakeRec.lang = 'en-NG';
+      _wakeRec.lang = 'en-US';
       _wakeRec.onresult = (e) => {
         for (let i = e.resultIndex; i < e.results.length; i++) {
           const t = e.results[i][0].transcript.toLowerCase().trim();
@@ -5893,7 +5893,8 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       };
       _wakeRec.onerror = (e) => {
         _wakeRec = null;
-        if (_wakeEnabled && e.error !== 'not-allowed' && e.error !== 'service-not-allowed') {
+        const fatalErrs = ['not-allowed', 'service-not-allowed', 'language-not-supported'];
+        if (_wakeEnabled && !fatalErrs.includes(e.error)) {
           setTimeout(_startWakeWord, 2000);
         }
       };
@@ -6115,11 +6116,12 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
 
   // ── Products & Stock ──
   let products = JSON.parse(localStorage.getItem('iflow_products') || '[]');
-  // Migrate old products: ensure category + variant fields exist
+  // Migrate old products: ensure category + variant + code fields exist
   products = products.map(p => ({
     ...p,
     category: p.category || p.name,
-    variant:  p.variant  !== undefined ? p.variant : ''
+    variant:  p.variant  !== undefined ? p.variant : '',
+    code:     p.code     || generateProductCode(p.type || '')
   }));
   // Auto-detect variants from word prefixes in existing data and regroup
   // e.g. "iPhone 13 Black" + "iPhone 13 White" → both get category "iPhone 13"

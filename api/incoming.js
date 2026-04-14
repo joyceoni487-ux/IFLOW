@@ -28,8 +28,10 @@ export default async function handler(req, res) {
   const genericOn = req.query?.generic !== '0';   // default ON
   const storeName = process.env.STORE_NAME || 'our store';
   const apiKey    = process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY || '';
-  // Product context passed as ?ctx=ProductA,ProductB,... from iFlow Settings URL builder
-  const productCtx = req.query?.ctx ? decodeURIComponent(req.query.ctx) : '';
+  // Product context: URL ?ctx= param (auto-built by iFlow Settings) takes priority;
+  // falls back to PRODUCTS_JSON env var set once in Vercel dashboard.
+  const ctxFromUrl = req.query?.ctx ? decodeURIComponent(req.query.ctx) : '';
+  const productCtx = ctxFromUrl || (process.env.PRODUCTS_JSON || '');
 
   console.log(JSON.stringify({
     event:    'twilio_incoming',

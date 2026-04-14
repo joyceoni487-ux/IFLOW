@@ -134,7 +134,7 @@
     }
     .theme-toggle input:checked + .toggle-track .toggle-thumb { transform: translateX(22px); }
 
-    .app-body { display: flex; align-items: flex-start; height: calc(100vh - 64px); overflow: hidden; }
+    .app-body { display: flex; align-items: stretch; height: calc(100vh - 64px); overflow: hidden; }
     .container { width: 820px; min-width: 560px; flex-shrink: 0; margin: 28px 0; padding: 0 28px 80px; overflow-y: auto; height: 100%; }
 
     /* ── Entry Card ── */
@@ -1357,7 +1357,7 @@
   .ls-qty { font-size:0.85rem;color:#e53e3e;font-weight:700;flex-shrink:0; }
 
   /* ── Dispatch Tab ── */
-  #salesTableWrap { max-height:400px; overflow-y:auto; }
+  #salesTableWrap { overflow-x:auto; }
   .dispatch-tabs { display:flex; gap:0; border-bottom:2px solid var(--border); padding:0 32px; background:var(--surface); flex-shrink:0; transition:background .35s,border-color .35s; }
   .dispatch-tab { padding:13px 22px; font-size:0.84rem; font-weight:600; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; color:var(--muted); transition:color .2s,border-color .2s; }
   .dispatch-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
@@ -2273,10 +2273,15 @@
                   <li>Go to <strong>vercel.com → your iFlow project → Settings → Environment Variables</strong></li>
                   <li>Add: <code style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 6px;color:#818cf8">GROQ_API_KEY</code> = your Groq key (starts with <code style="font-size:0.68rem">gsk_</code>)</li>
                   <li>Add: <code style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 6px;color:#818cf8">STORE_NAME</code> = your store name</li>
+                  <li>Add: <code style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 6px;color:#25d366">PRODUCTS_JSON</code> = your product list (click <strong>Copy Products for WhatsApp</strong> below)</li>
                   <li>Click <strong>Save</strong> → Vercel auto-redeploys in ~30 seconds</li>
                   <li>Come back here and click <strong>↻ Refresh</strong> on the status badge above</li>
                 </ol>
                 <p style="font-size:0.7rem;color:var(--muted);margin:8px 0 0">Your Groq key is the same one you use for Alex in the AI Settings section above.</p>
+                <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+                  <button onclick="_copyProductsForWhatsApp()" style="background:rgba(37,211,102,.12);border:1px solid rgba(37,211,102,.35);color:#25d366;border-radius:7px;padding:6px 14px;font-size:0.75rem;font-weight:600;cursor:pointer">📋 Copy Products for WhatsApp</button>
+                  <span style="font-size:0.7rem;color:var(--muted);align-self:center">Paste this as <code style="font-size:0.68rem">PRODUCTS_JSON</code> in Vercel. Re-copy &amp; update when products change.</span>
+                </div>
               </div>
             </div>
 
@@ -3333,6 +3338,13 @@
     if (stEl) stEl.textContent = origin + '/api/status';
   }
 
+  function _copyProductsForWhatsApp() {
+    const prods = JSON.parse(localStorage.getItem('iflow_products') || '[]');
+    if (!prods.length) { showToast('No products to copy — add some stock first'); return; }
+    const text = prods.map(p => `${p.name}${p.unitPrice ? ' (\u20a6' + p.unitPrice + ')' : ''}`).join(', ');
+    navigator.clipboard.writeText(text).then(() => showToast('Products copied \u2713 — paste as PRODUCTS_JSON in Vercel')).catch(() => showToast('Copy failed — select the URL text manually'));
+  }
+
   async function _checkWaAiStatus() {
     const dot  = document.getElementById('waAiStatusDot');
     const text = document.getElementById('waAiStatusText');
@@ -4006,7 +4018,8 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
         localStorage.setItem('iflow_sales', JSON.stringify(sales));
         prod.stockQty -= qty;
         localStorage.setItem('iflow_products', JSON.stringify(products));
-        renderProducts(); updateTotal(); _refreshProfitStat();
+        renderProducts(); render(); renderOrders(); updateTotal(); _refreshProfitStat(); updateOrdersBadge();
+        SheetsAPI.withToken(() => SheetsAPI.appendRow(sale));
         return message || 'Sale recorded! ' + qty + 'x "' + prod.name + '" for ' + cur + fmtComma(salePrice) + '. E don go!';
       }
 
@@ -4037,7 +4050,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       }
 
       case 'navigate': {
-        const pages = ['home','products','orders','settings','trash'];
+        const pages = ['home','products','orders','dispatch','settings','trash'];
         const pg = (data.page || '').toLowerCase();
         if (!pages.includes(pg)) return 'I no know that page. Try: ' + pages.join(', ') + '.';
         navigateTo(pg);
@@ -4642,8 +4655,9 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       body.appendChild(tr);
     }
     updateTotal();
-    const wrap = document.getElementById('salesTableWrap');
-    if (wrap) wrap.scrollTop = wrap.scrollHeight;
+    // Scroll the container (not the table) so the new entry row is visible
+    const container = document.querySelector('.container');
+    if (container) container.scrollTop = container.scrollHeight;
   }
 
   // Delegate all cell-input changes
@@ -6474,6 +6488,8 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       }
     });
     tbody.innerHTML = rows.join('');
+    // Keep the WhatsApp webhook URL current whenever the product list changes
+    _syncAutoReplyUrl();
   }
 
   function toggleVariantGroup(catId) {

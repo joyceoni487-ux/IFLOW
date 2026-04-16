@@ -5828,7 +5828,9 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     _speechRec.lang = 'en-US';
     _speechRec.interimResults = false;
     _speechRec.maxAlternatives = 3;
+    let _gotResult = false;
     _speechRec.onresult = (e) => {
+      _gotResult = true;
       const text = e.results[0][0].transcript;
       clearTimeout(_alexNoInputTimer); _alexNoInputTimer = null;
       _stopVoice(false);
@@ -5845,10 +5847,15 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     _speechRec.onerror = (e) => {
       _stopVoice(false);
       if (e.error === 'not-allowed') showToast('Mic access denied. Allow mic in browser settings.');
-      else if (e.error === 'no-speech' && _convMode) _scheduleConvTimeout();
       else if (e.error !== 'no-speech' && e.error !== 'aborted') showToast('Voice error: ' + e.error);
+      // no-speech and aborted are handled by onend's retry
     };
-    _speechRec.onend = () => { if (_voiceActive) _stopVoice(false); };
+    _speechRec.onend = () => {
+      const hadResult = _gotResult;
+      if (_voiceActive) _stopVoice(false);
+      // If in conversation mode and recognition ended without capturing anything, re-listen
+      if (_convMode && !hadResult) setTimeout(_startVoice, 400);
+    };
     _speechRec.start();
     if (_convMode) _scheduleConvTimeout();
   }
@@ -5929,7 +5936,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
               _alexNoInputTimer = setTimeout(() => {
                 if (_voiceActive) _speakText("I'm listening.");
               }, 4000);
-            }, 120);
+            }, 450);
             return;
           }
         }

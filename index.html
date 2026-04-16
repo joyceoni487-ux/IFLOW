@@ -5921,15 +5921,13 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
             const modal = document.getElementById('aiChatModal');
             if (!modal || modal.style.display === 'none') openAiChat();
             _playAlexChime();
-            // Start listening immediately — no speech announcement
             clearTimeout(_alexNoInputTimer);
             setTimeout(() => {
               _startVoice();
-              // Only say "I'm listening" if the user goes silent for 4 seconds
               _alexNoInputTimer = setTimeout(() => {
                 if (_voiceActive) _speakText("I'm listening.");
               }, 4000);
-            }, 350);
+            }, 120);
             return;
           }
         }
@@ -5938,12 +5936,12 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
         _wakeRec = null;
         const fatalErrs = ['not-allowed', 'service-not-allowed', 'language-not-supported'];
         if (_wakeEnabled && !fatalErrs.includes(e.error)) {
-          setTimeout(_startWakeWord, 2000);
+          setTimeout(_startWakeWord, 300);
         }
       };
       _wakeRec.onend = () => {
         _wakeRec = null;
-        if (_wakeEnabled && !_voiceActive && !_convMode) setTimeout(_startWakeWord, 500);
+        if (_wakeEnabled && !_voiceActive && !_convMode) setTimeout(_startWakeWord, 50);
       };
       _wakeEnabled = true;
       _wakeRec.start();
@@ -5955,15 +5953,15 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     if (_wakeRec) { try { _wakeRec.stop(); } catch(e){} _wakeRec = null; }
   }
 
-  // Heartbeat: Chrome kills continuous recognition after ~60s. Proactively restart every 45s.
+  // Heartbeat: Chrome kills continuous recognition after ~60s. Proactively restart every 20s.
   function _startWakeHeartbeat() {
     clearInterval(_wakeHeartbeat);
     _wakeHeartbeat = setInterval(() => {
       if (_wakeEnabled && !_voiceActive && !_convMode) {
         if (_wakeRec) { try { _wakeRec.stop(); } catch(e){} _wakeRec = null; }
-        setTimeout(_startWakeWord, 400);
+        setTimeout(_startWakeWord, 100);
       }
-    }, 45000);
+    }, 20000);
   }
 
   // Start wake word + heartbeat on page load

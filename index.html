@@ -5853,8 +5853,18 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     _speechRec.onend = () => {
       const hadResult = _gotResult;
       if (_voiceActive) _stopVoice(false);
-      // If in conversation mode and recognition ended without capturing anything, re-listen
-      if (_convMode && !hadResult) setTimeout(_startVoice, 400);
+      if (hadResult) { _voiceRetryCount = 0; return; }
+      // Recognition ended without a result — in conv mode, re-listen (up to 3 retries)
+      if (_convMode) {
+        if (_voiceRetryCount < 3) {
+          _voiceRetryCount++;
+          setTimeout(_startVoice, 500);
+        } else {
+          _voiceRetryCount = 0;
+          const status = document.getElementById('aiVoiceStatus');
+          if (status) status.textContent = 'Tap mic when ready';
+        }
+      }
     };
     _speechRec.start();
     if (_convMode) _scheduleConvTimeout();
@@ -5895,6 +5905,8 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
   let _wakeEnabled = false;
   let _wakeHeartbeat = null;
   let _alexNoInputTimer = null;   // fires "I'm listening" only if user goes silent
+  let _pendingVoiceStart = false; // set when wake word detected; drains in _wakeRec.onend
+  let _voiceRetryCount = 0;       // caps auto-restart loop if mic keeps dying
 
   // Short two-tone chime played when Alex is activated
   function _playAlexChime() {
@@ -5925,18 +5937,14 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
         for (let i = e.resultIndex; i < e.results.length; i++) {
           const t = e.results[i][0].transcript.toLowerCase().trim();
           if (/\balex\b/i.test(t)) {
-            _stopWakeWord();
             _convMode = true;
+            _pendingVoiceStart = true;     // drains in _wakeRec.onend once mic releases
+            _voiceRetryCount = 0;
+            _stopWakeWord();                // triggers onend → startVoice
             const modal = document.getElementById('aiChatModal');
             if (!modal || modal.style.display === 'none') openAiChat();
             _playAlexChime();
             clearTimeout(_alexNoInputTimer);
-            setTimeout(() => {
-              _startVoice();
-              _alexNoInputTimer = setTimeout(() => {
-                if (_voiceActive) _speakText("I'm listening.");
-              }, 4000);
-            }, 450);
             return;
           }
         }
@@ -5950,6 +5958,17 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       };
       _wakeRec.onend = () => {
         _wakeRec = null;
+        // If wake word just fired, start voice NOW — we know the mic is released.
+        if (_pendingVoiceStart) {
+          _pendingVoiceStart = false;
+          setTimeout(() => {
+            _startVoice();
+            _alexNoInputTimer = setTimeout(() => {
+              if (_voiceActive) _speakText("I'm listening.");
+            }, 4000);
+          }, 150);
+          return;
+        }
         if (_wakeEnabled && !_voiceActive && !_convMode) setTimeout(_startWakeWord, 50);
       };
       _wakeEnabled = true;

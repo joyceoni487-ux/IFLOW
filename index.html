@@ -3317,6 +3317,7 @@
     const genericOn = document.getElementById('waGenericReply')?.checked !== false;
     const inEl = document.getElementById('incomingWebhookUrl');
     const stEl = document.getElementById('statusCallbackUrl');
+    const s    = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
 
     let url = origin + '/api/incoming';
     const params = [];
@@ -3324,14 +3325,17 @@
       params.push('reply=0');
     } else {
       if (!genericOn) params.push('generic=0');
-      // Embed compact product list so the AI knows actual stock
+      // Embed product list so the AI knows current stock
       try {
         const prods = JSON.parse(localStorage.getItem('iflow_products') || '[]');
         if (prods.length) {
-          const ctx = prods.map(p => `${p.name}${p.unitPrice ? ' (₦' + p.unitPrice + ')' : ''}`).join(', ');
+          const ctx = prods.map(p => `${p.name}${p.unitPrice ? ' (\u20a6' + p.unitPrice + ')' : ''}`).join(', ');
           params.push('ctx=' + encodeURIComponent(ctx));
         }
       } catch(e) {}
+      // Embed owner notification number (from Settings → Phone) so no Vercel env var needed
+      const notifyNum = (s.phone || '').replace(/\s+/g, '');
+      if (notifyNum) params.push('notify=' + encodeURIComponent(notifyNum));
     }
     if (params.length) url += '?' + params.join('&');
     if (inEl) inEl.textContent = url;

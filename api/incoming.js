@@ -63,7 +63,8 @@ export default async function handler(req, res) {
     const aiReply  = await _callAi(Body, ProfileName, storeName, apiKey, productCtx, history);
     if (aiReply) {
       if (/ORDER ALERT:/i.test(aiReply)) {
-        _notifyOwner(aiReply, From, ProfileName, storeName, sid, token).catch(() => {});
+        const notifyNum = req.query?.notify ? decodeURIComponent(req.query.notify) : '';
+        _notifyOwner(aiReply, From, ProfileName, storeName, sid, token, notifyNum).catch(() => {});
       }
       const customerReply = aiReply.replace(/\n?ORDER ALERT:.*$/im, '').trim();
       return res.status(200).send(`<Response><Message>${escapeXml(customerReply)}</Message></Response>`);
@@ -202,9 +203,9 @@ Order handling — when a customer wants to buy or order anything:
  * Send an order alert to the store owner's WhatsApp.
  * Requires: TWILIO_SID, TWILIO_TOKEN, TWILIO_FROM, OWNER_WHATSAPP
  */
-async function _notifyOwner(aiReply, customerFrom, customerName, storeName, sid, token) {
+async function _notifyOwner(aiReply, customerFrom, customerName, storeName, sid, token, notifyFromUrl = '') {
   const from     = process.env.TWILIO_FROM;
-  const ownerNum = process.env.OWNER_WHATSAPP;
+  const ownerNum = notifyFromUrl || process.env.OWNER_WHATSAPP;
   if (!sid || !token || !from || !ownerNum) return;
 
   const orderLine = (aiReply.match(/ORDER ALERT:(.*)/i) || [])[1]?.trim() || 'New order';

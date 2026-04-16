@@ -5811,6 +5811,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
 
   function _startVoice() {
     if (!_SR) { showToast('Voice not supported on this browser. Use text input.'); return; }
+    if (_voiceActive) return;
     if (_wakeRec) { try { _wakeRec.stop(); } catch(e){} _wakeRec = null; }
     const modal = document.getElementById('aiChatModal');
     if (modal && modal.style.display === 'none') openAiChat();
@@ -5913,6 +5914,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       _wakeRec.interimResults = true;
       _wakeRec.lang = 'en-US';
       _wakeRec.onresult = (e) => {
+        if (_convMode || !_wakeEnabled) return;
         for (let i = e.resultIndex; i < e.results.length; i++) {
           const t = e.results[i][0].transcript.toLowerCase().trim();
           if (/\balex\b/i.test(t)) {

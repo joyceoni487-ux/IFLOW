@@ -5823,12 +5823,23 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
   }
 
   function toggleVoiceInput() {
-    if (_convMode || _voiceActive) {
+    if (_voiceActive) {
+      // Actively recording — tap stops it
       _clearConvMode();
       _stopVoice(false);
-      const status = document.getElementById('aiVoiceStatus');
-      if (status) status.textContent = 'Tap mic to speak';
+      const s = document.getElementById('aiVoiceStatus');
+      if (s) s.textContent = 'Tap mic to speak';
+    } else if (_convMode && !window.speechSynthesis?.speaking) {
+      // In conversation, between turns — tap re-opens mic
+      _startVoice();
+    } else if (_convMode && window.speechSynthesis?.speaking) {
+      // Alex is speaking — tap cancels TTS and ends conversation
+      window.speechSynthesis.cancel();
+      _clearConvMode();
+      const s = document.getElementById('aiVoiceStatus');
+      if (s) s.textContent = 'Tap mic to speak';
     } else {
+      // Fresh start
       _convMode = true;
       _playAlexChime();
       _startVoice();
@@ -5851,9 +5862,9 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     if (inp)      { inp.value = ''; inp.placeholder = 'Listening...'; }
 
     _speechRec = new _SR();
-    _speechRec.lang       = 'en-US';
-    _speechRec.continuous = true;      // don't cut off on natural mid-sentence pauses
-    _speechRec.interimResults = true;  // show words live
+    _speechRec.lang           = 'en-US';
+    _speechRec.continuous     = true;
+    _speechRec.interimResults = true;
     _speechRec.maxAlternatives = 1;
 
     let transcript   = '';
@@ -5861,13 +5872,11 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
 
     _speechRec.onresult = (e) => {
       clearTimeout(silenceTimer);
-      // Rebuild full speech from every result Chrome has — no isFinal dependency
       let full = '';
       for (let i = 0; i < e.results.length; i++) full += e.results[i][0].transcript + ' ';
       transcript = full.trim();
       if (inp) inp.placeholder = transcript || 'Listening...';
-      // Fire stop after 2s of true silence
-      silenceTimer = setTimeout(() => { try { _speechRec.stop(); } catch(e){} }, 2000);
+      silenceTimer = setTimeout(() => { try { _speechRec.stop(); } catch(ex){} }, 2000);
     };
 
     _speechRec.onerror = (e) => {
@@ -5877,7 +5886,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
         transcript = '';
         if (_voiceActive) _stopVoice(false);
       }
-      // aborted / no-speech / network: DON'T clear transcript — onend will process it
+      // all other errors: let onend handle cleanup + any captured transcript
     };
 
     _speechRec.onend = () => {
@@ -5886,8 +5895,12 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       transcript = '';
       if (_voiceActive) _stopVoice(false);
       if (inp) inp.placeholder = 'or type here…';
-      // _convMode is false if user cancelled via the mic button — skip processing
-      if (!text || !_convMode) return;
+      if (!text) {
+        // Nothing captured — reset conv mode so next tap starts fresh
+        _clearConvMode();
+        return;
+      }
+      if (!_convMode) return; // user cancelled via tap
       if (_isDismissal(text)) {
         _clearConvMode();
         _speakText('Got it. Call me anytime!');

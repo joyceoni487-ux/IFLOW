@@ -4182,13 +4182,13 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       }
     } catch(err) {
       if (typingDiv) { typingDiv.textContent = '⚠️ ' + err.message; typingDiv.classList.remove('typing'); }
-      // Even on error, resume listening in conversation mode
-      if (_convMode && !_aiTtsOn) setTimeout(_afterAlexSpoke, 600);
+      // On error, TTS was never called so utt.onend won't fire — re-open mic manually
+      if (_convMode) setTimeout(_afterAlexSpoke, 800);
     } finally {
       if (btn) btn.disabled = false;
       document.getElementById('aiInput')?.focus();
-      // If TTS is off, still resume conv-mode listening after AI responds
-      if (_convMode && !_aiTtsOn) setTimeout(_afterAlexSpoke, 600);
+      // TTS off: re-open mic after AI text response (TTS on: utt.onend handles it)
+      if (_convMode && !_aiTtsOn) setTimeout(_afterAlexSpoke, 400);
     }
   }
 
@@ -5805,6 +5805,8 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       _speakText('Got it. Call me anytime!');
       setTimeout(_startWakeWord, 2500);
     } else {
+      _convMode = true;
+      _voiceRetryCount = 0;
       _startVoice();
     }
   }
@@ -5812,6 +5814,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
   function _startVoice() {
     if (!_SR) { showToast('Voice not supported on this browser. Use text input.'); return; }
     if (_voiceActive) return;
+    _voiceRetryCount = 0;
     if (_wakeRec) { try { _wakeRec.stop(); } catch(e){} _wakeRec = null; }
     const modal = document.getElementById('aiChatModal');
     if (modal && modal.style.display === 'none') openAiChat();
@@ -5889,15 +5892,15 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     if (!_convMode || !_SR || _voiceActive) return;
     const status = document.getElementById('aiVoiceStatus');
     if (status) status.textContent = 'Listening for follow-up…';
-    // Wait until speech synthesis is fully done before opening mic
+    // Poll until speechSynthesis is fully idle (Chrome fires onend slightly early)
     const tryStart = (attempts) => {
       if (window.speechSynthesis?.speaking) {
-        if (attempts > 0) setTimeout(() => tryStart(attempts - 1), 350);
+        if (attempts > 0) setTimeout(() => tryStart(attempts - 1), 200);
         return;
       }
       if (_convMode && !_voiceActive) _startVoice();
     };
-    setTimeout(() => tryStart(8), 600);
+    setTimeout(() => tryStart(10), 250);
   }
 
   // ── Wake Word "Hey Alex" / "Hi Alex" ──
@@ -5966,7 +5969,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
             _alexNoInputTimer = setTimeout(() => {
               if (_voiceActive) _speakText("I'm listening.");
             }, 4000);
-          }, 150);
+          }, 300);
           return;
         }
         if (_wakeEnabled && !_voiceActive && !_convMode) setTimeout(_startWakeWord, 50);

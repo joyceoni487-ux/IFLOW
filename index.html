@@ -4120,7 +4120,6 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     _clearConvMode();
     _stopVoice(false);
-    setTimeout(_startWakeWord, 1500);
   }
   function _aiAppendMsg(role, text, typing) {
     const box = document.getElementById('aiMessages');
@@ -5770,11 +5769,18 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
 
   // ── AI Panel ──
   // ── Voice Input (SpeechRecognition) ──
+  //
+  // Tap-to-talk model. Chrome's Web Speech API cannot stay on
+  // continuously — it restarts every ~60s, which blinks the OS mic
+  // indicator. So we only take the mic when the user taps the button.
+  // Conversation mode keeps re-opening the mic after Alex replies, for
+  // a natural back-and-forth without needing to tap again.
+  //
   let _speechRec = null;
   let _voiceActive = false;
   const _SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-  // ── Conversation mode (30-second active window) ──
+  // ── Conversation mode (30-second idle window) ──
   let _convMode = false;
   let _convTimeout = null;
   const _CONV_IDLE_MS = 30000;
@@ -5784,8 +5790,9 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     _convTimeout = setTimeout(() => {
       if (_convMode) {
         _clearConvMode();
-        _speakText("I'll be here if you need me — just say Hey Alex.");
-        setTimeout(_startWakeWord, 3000);
+        _stopVoice(false);
+        const status = document.getElementById('aiVoiceStatus');
+        if (status) status.textContent = 'Tap mic to speak';
       }
     }, _CONV_IDLE_MS);
   }
@@ -5798,120 +5805,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     return /\b(bye|goodbye|that'?s (all|it|enough)|stop|go away|you'?re dismissed|good night|thanks? (bye|that'?s (all|it))|leave|exit|close)\b/i.test(t);
   }
 
-  function toggleVoiceInput() {
-    if (_convMode || _voiceActive) {
-      _clearConvMode();
-      _stopVoice(false);
-      _speakText('Got it. Call me anytime!');
-      setTimeout(_startWakeWord, 2500);
-    } else {
-      _convMode = true;
-      _voiceRetryCount = 0;
-      _startVoice();
-    }
-  }
-
-  function _startVoice() {
-    if (!_SR) { showToast('Voice not supported on this browser. Use text input.'); return; }
-    if (_voiceActive) return;
-    _voiceRetryCount = 0;
-    if (_wakeRec) { try { _wakeRec.stop(); } catch(e){} _wakeRec = null; }
-    const modal = document.getElementById('aiChatModal');
-    if (modal && modal.style.display === 'none') openAiChat();
-    _voiceActive = true;
-    const micBtn = document.getElementById('aiMicBtn');
-    const pulse  = document.getElementById('aiMicPulse');
-    const status = document.getElementById('aiVoiceStatus');
-    if (micBtn) micBtn.classList.add('ai-listening');
-    if (pulse)  pulse.style.display = '';
-    if (status) status.textContent = 'Listening… speak now';
-    const inp = document.getElementById('aiInput');
-    if (inp) { inp.value = ''; inp.placeholder = 'Listening...'; }
-    _speechRec = new _SR();
-    _speechRec.lang = 'en-US';
-    _speechRec.interimResults = false;
-    _speechRec.maxAlternatives = 3;
-    let _gotResult = false;
-    _speechRec.onresult = (e) => {
-      _gotResult = true;
-      const text = e.results[0][0].transcript;
-      clearTimeout(_alexNoInputTimer); _alexNoInputTimer = null;
-      _stopVoice(false);
-      if (_isDismissal(text)) {
-        _clearConvMode();
-        _speakText('Got it. Call me anytime!');
-        setTimeout(_startWakeWord, 2500);
-        return;
-      }
-      _aiAppendMsg('user', text);
-      _aiDispatch(text);
-      if (_convMode) _scheduleConvTimeout();
-    };
-    _speechRec.onerror = (e) => {
-      _stopVoice(false);
-      if (e.error === 'not-allowed') showToast('Mic access denied. Allow mic in browser settings.');
-      else if (e.error !== 'no-speech' && e.error !== 'aborted') showToast('Voice error: ' + e.error);
-      // no-speech and aborted are handled by onend's retry
-    };
-    _speechRec.onend = () => {
-      const hadResult = _gotResult;
-      if (_voiceActive) _stopVoice(false);
-      if (hadResult) { _voiceRetryCount = 0; return; }
-      // Recognition ended without a result — in conv mode, re-listen (up to 3 retries)
-      if (_convMode) {
-        if (_voiceRetryCount < 3) {
-          _voiceRetryCount++;
-          setTimeout(_startVoice, 500);
-        } else {
-          _voiceRetryCount = 0;
-          const status = document.getElementById('aiVoiceStatus');
-          if (status) status.textContent = 'Tap mic when ready';
-        }
-      }
-    };
-    _speechRec.start();
-    if (_convMode) _scheduleConvTimeout();
-  }
-
-  function _stopVoice(resumeWake = true) {
-    _voiceActive = false;
-    if (_speechRec) { try { _speechRec.stop(); } catch(e){} _speechRec = null; }
-    const micBtn = document.getElementById('aiMicBtn');
-    const pulse  = document.getElementById('aiMicPulse');
-    const status = document.getElementById('aiVoiceStatus');
-    if (micBtn) micBtn.classList.remove('ai-listening');
-    if (pulse)  pulse.style.display = 'none';
-    if (status) status.textContent = _convMode ? 'Alex is thinking…' : 'Tap mic to speak';
-    const inp = document.getElementById('aiInput');
-    if (inp) inp.placeholder = 'or type here…';
-    if (resumeWake && _wakeEnabled && !_convMode) setTimeout(_startWakeWord, 1000);
-  }
-
-  // Called when TTS finishes — re-opens ear in conversation mode
-  function _afterAlexSpoke() {
-    if (!_convMode || !_SR || _voiceActive) return;
-    const status = document.getElementById('aiVoiceStatus');
-    if (status) status.textContent = 'Listening for follow-up…';
-    // Poll until speechSynthesis is fully idle (Chrome fires onend slightly early)
-    const tryStart = (attempts) => {
-      if (window.speechSynthesis?.speaking) {
-        if (attempts > 0) setTimeout(() => tryStart(attempts - 1), 200);
-        return;
-      }
-      if (_convMode && !_voiceActive) _startVoice();
-    };
-    setTimeout(() => tryStart(10), 250);
-  }
-
-  // ── Wake Word "Hey Alex" / "Hi Alex" ──
-  let _wakeRec = null;
-  let _wakeEnabled = false;
-  let _wakeHeartbeat = null;
-  let _alexNoInputTimer = null;   // fires "I'm listening" only if user goes silent
-  let _pendingVoiceStart = false; // set when wake word detected; drains in _wakeRec.onend
-  let _voiceRetryCount = 0;       // caps auto-restart loop if mic keeps dying
-
-  // Short two-tone chime played when Alex is activated
+  // Two-tone chime confirming the mic just opened.
   function _playAlexChime() {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -5928,80 +5822,93 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     } catch(e) {}
   }
 
-  function _startWakeWord() {
-    if (!_SR || _wakeRec || _voiceActive || _convMode) return;
-    try {
-      _wakeRec = new _SR();
-      _wakeRec.continuous = true;
-      _wakeRec.interimResults = true;
-      _wakeRec.lang = 'en-US';
-      _wakeRec.onresult = (e) => {
-        if (_convMode || !_wakeEnabled) return;
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          const t = e.results[i][0].transcript.toLowerCase().trim();
-          if (/\balex\b/i.test(t)) {
-            _convMode = true;
-            _pendingVoiceStart = true;     // drains in _wakeRec.onend once mic releases
-            _voiceRetryCount = 0;
-            _stopWakeWord();                // triggers onend → startVoice
-            const modal = document.getElementById('aiChatModal');
-            if (!modal || modal.style.display === 'none') openAiChat();
-            _playAlexChime();
-            clearTimeout(_alexNoInputTimer);
-            return;
-          }
-        }
-      };
-      _wakeRec.onerror = (e) => {
-        _wakeRec = null;
-        const fatalErrs = ['not-allowed', 'service-not-allowed', 'language-not-supported'];
-        if (_wakeEnabled && !fatalErrs.includes(e.error)) {
-          setTimeout(_startWakeWord, 300);
-        }
-      };
-      _wakeRec.onend = () => {
-        _wakeRec = null;
-        // If wake word just fired, start voice NOW — we know the mic is released.
-        if (_pendingVoiceStart) {
-          _pendingVoiceStart = false;
-          setTimeout(() => {
-            _startVoice();
-            _alexNoInputTimer = setTimeout(() => {
-              if (_voiceActive) _speakText("I'm listening.");
-            }, 4000);
-          }, 300);
-          return;
-        }
-        if (_wakeEnabled && !_voiceActive && !_convMode) setTimeout(_startWakeWord, 50);
-      };
-      _wakeEnabled = true;
-      _wakeRec.start();
-    } catch(e) { _wakeRec = null; }
+  function toggleVoiceInput() {
+    if (_convMode || _voiceActive) {
+      _clearConvMode();
+      _stopVoice(false);
+      const status = document.getElementById('aiVoiceStatus');
+      if (status) status.textContent = 'Tap mic to speak';
+    } else {
+      _convMode = true;
+      _playAlexChime();
+      setTimeout(_startVoice, 180);
+    }
   }
 
-  function _stopWakeWord() {
-    _wakeEnabled = false;
-    if (_wakeRec) { try { _wakeRec.stop(); } catch(e){} _wakeRec = null; }
-  }
-
-  // Heartbeat: Chrome kills continuous recognition after ~60s. Proactively restart every 20s.
-  function _startWakeHeartbeat() {
-    clearInterval(_wakeHeartbeat);
-    _wakeHeartbeat = setInterval(() => {
-      if (_wakeEnabled && !_voiceActive && !_convMode) {
-        if (_wakeRec) { try { _wakeRec.stop(); } catch(e){} _wakeRec = null; }
-        setTimeout(_startWakeWord, 100);
+  function _startVoice() {
+    if (!_SR) { showToast('Voice not supported on this browser. Use text input.'); return; }
+    if (_voiceActive) return;
+    const modal = document.getElementById('aiChatModal');
+    if (modal && modal.style.display === 'none') openAiChat();
+    _voiceActive = true;
+    const micBtn = document.getElementById('aiMicBtn');
+    const pulse  = document.getElementById('aiMicPulse');
+    const status = document.getElementById('aiVoiceStatus');
+    if (micBtn) micBtn.classList.add('ai-listening');
+    if (pulse)  pulse.style.display = '';
+    if (status) status.textContent = 'Listening… speak now';
+    const inp = document.getElementById('aiInput');
+    if (inp) { inp.value = ''; inp.placeholder = 'Listening...'; }
+    _speechRec = new _SR();
+    _speechRec.lang = 'en-US';
+    _speechRec.interimResults = false;
+    _speechRec.maxAlternatives = 3;
+    _speechRec.onresult = (e) => {
+      const text = e.results[0][0].transcript;
+      _stopVoice(false);
+      if (_isDismissal(text)) {
+        _clearConvMode();
+        _speakText('Got it. Call me anytime!');
+        return;
       }
-    }, 20000);
+      _aiAppendMsg('user', text);
+      _aiDispatch(text);
+      if (_convMode) _scheduleConvTimeout();
+    };
+    _speechRec.onerror = (e) => {
+      _stopVoice(false);
+      if (e.error === 'not-allowed') showToast('Mic access denied. Allow mic in browser settings.');
+      else if (e.error !== 'no-speech' && e.error !== 'aborted') showToast('Voice error: ' + e.error);
+    };
+    _speechRec.onend = () => {
+      if (_voiceActive) _stopVoice(false);
+      // We intentionally do NOT auto-restart on no-speech — that would
+      // blink the OS mic indicator every ~6s. Mic reopens naturally
+      // after Alex replies (via _afterAlexSpoke), or when user taps.
+    };
+    try { _speechRec.start(); } catch(e) { _stopVoice(false); }
+    if (_convMode) _scheduleConvTimeout();
   }
 
-  // Start wake word + heartbeat on page load
-  if (_SR) {
-    setTimeout(_startWakeWord, 2500);
-    _startWakeHeartbeat();
+  function _stopVoice(_resumeWake = true) {
+    _voiceActive = false;
+    if (_speechRec) { try { _speechRec.stop(); } catch(e){} _speechRec = null; }
+    const micBtn = document.getElementById('aiMicBtn');
+    const pulse  = document.getElementById('aiMicPulse');
+    const status = document.getElementById('aiVoiceStatus');
+    if (micBtn) micBtn.classList.remove('ai-listening');
+    if (pulse)  pulse.style.display = 'none';
+    if (status) status.textContent = _convMode ? 'Alex is thinking…' : 'Tap mic to speak';
+    const inp = document.getElementById('aiInput');
+    if (inp) inp.placeholder = 'or type here…';
   }
 
-  // Legacy stubs (the old panel no longer exists but keep names to avoid errors)
+  // Called when TTS finishes — re-opens the mic for a follow-up
+  function _afterAlexSpoke() {
+    if (!_convMode || !_SR || _voiceActive) return;
+    const status = document.getElementById('aiVoiceStatus');
+    if (status) status.textContent = 'Listening for follow-up…';
+    const tryStart = (attempts) => {
+      if (window.speechSynthesis?.speaking) {
+        if (attempts > 0) setTimeout(() => tryStart(attempts - 1), 200);
+        return;
+      }
+      if (_convMode && !_voiceActive) _startVoice();
+    };
+    setTimeout(() => tryStart(10), 250);
+  }
+
+  // Legacy stubs (kept to avoid breaking any old event handlers)
   function openAI() { openAiChat(); }
   function closeAI() { closeAiChat(); }
   function handleOverlayClick() {}

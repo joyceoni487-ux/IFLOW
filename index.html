@@ -5851,38 +5851,43 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     if (inp)      { inp.value = ''; inp.placeholder = 'Listening...'; }
 
     _speechRec = new _SR();
-    _speechRec.lang = 'en-US';
-    _speechRec.continuous = false;   // Chrome handles end-of-speech naturally
-    _speechRec.interimResults = true; // show words live as user speaks
+    _speechRec.lang       = 'en-US';
+    _speechRec.continuous = true;      // don't cut off on natural mid-sentence pauses
+    _speechRec.interimResults = true;  // show words live
     _speechRec.maxAlternatives = 1;
 
-    // Best transcript seen — final preferred, last interim as fallback
-    let captured = '';
+    let transcript   = '';
+    let silenceTimer = null;
 
     _speechRec.onresult = (e) => {
-      let finalText = '', interimText = '';
-      for (let i = 0; i < e.results.length; i++) {
-        if (e.results[i].isFinal) finalText += e.results[i][0].transcript;
-        else interimText = e.results[i][0].transcript;
-      }
-      captured = (finalText || interimText).trim();
-      if (inp) inp.placeholder = captured || 'Listening...';
+      clearTimeout(silenceTimer);
+      // Rebuild full speech from every result Chrome has — no isFinal dependency
+      let full = '';
+      for (let i = 0; i < e.results.length; i++) full += e.results[i][0].transcript + ' ';
+      transcript = full.trim();
+      if (inp) inp.placeholder = transcript || 'Listening...';
+      // Fire stop after 2s of true silence
+      silenceTimer = setTimeout(() => { try { _speechRec.stop(); } catch(e){} }, 2000);
     };
 
     _speechRec.onerror = (e) => {
-      captured = '';
-      _stopVoice(false);
-      if (e.error === 'not-allowed') showToast('Mic access denied. Allow mic in browser settings.');
-      else if (e.error !== 'no-speech' && e.error !== 'aborted') showToast('Voice error: ' + e.error);
+      clearTimeout(silenceTimer);
+      if (e.error === 'not-allowed') {
+        showToast('Mic access denied. Allow mic in browser settings.');
+        transcript = '';
+        if (_voiceActive) _stopVoice(false);
+      }
+      // aborted / no-speech / network: DON'T clear transcript — onend will process it
     };
 
-    // onend fires when Chrome is fully done — process everything collected
     _speechRec.onend = () => {
-      const text = captured.trim();
-      captured = '';
+      clearTimeout(silenceTimer);
+      const text = transcript.trim();
+      transcript = '';
       if (_voiceActive) _stopVoice(false);
       if (inp) inp.placeholder = 'or type here…';
-      if (!text) return;
+      // _convMode is false if user cancelled via the mic button — skip processing
+      if (!text || !_convMode) return;
       if (_isDismissal(text)) {
         _clearConvMode();
         _speakText('Got it. Call me anytime!');

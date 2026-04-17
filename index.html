@@ -5851,11 +5851,25 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     if (inp) { inp.value = ''; inp.placeholder = 'Listening...'; }
     _speechRec = new _SR();
     _speechRec.lang = 'en-US';
-    _speechRec.interimResults = false;
-    _speechRec.maxAlternatives = 3;
+    _speechRec.continuous = true;     // don't stop on short pauses mid-sentence
+    _speechRec.interimResults = true; // show live transcript so user knows it heard them
+    _speechRec.maxAlternatives = 1;
+    const inp2 = document.getElementById('aiInput');
     _speechRec.onresult = (e) => {
-      const text = e.results[0][0].transcript;
+      let interim = '', final = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) final += e.results[i][0].transcript;
+        else interim += e.results[i][0].transcript;
+      }
+      // Show live transcript while user speaks
+      if (inp2) inp2.placeholder = (final || interim) || 'Listening...';
+      if (!final) return; // still speaking — wait for isFinal
+      // Got a complete utterance — stop and process
+      try { _speechRec.stop(); } catch(e) {}
       _stopVoice(false);
+      if (inp2) inp2.placeholder = 'or type here…';
+      const text = final.trim();
+      if (!text) return;
       if (_isDismissal(text)) {
         _clearConvMode();
         _speakText('Got it. Call me anytime!');
@@ -5872,9 +5886,6 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     };
     _speechRec.onend = () => {
       if (_voiceActive) _stopVoice(false);
-      // We intentionally do NOT auto-restart on no-speech — that would
-      // blink the OS mic indicator every ~6s. Mic reopens naturally
-      // after Alex replies (via _afterAlexSpoke), or when user taps.
     };
     try { _speechRec.start(); } catch(e) { _stopVoice(false); }
     if (_convMode) _scheduleConvTimeout();

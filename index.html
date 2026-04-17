@@ -5831,7 +5831,7 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     } else {
       _convMode = true;
       _playAlexChime();
-      _startVoice(); // start immediately — no delay needed
+      _startVoice();
     }
   }
 
@@ -5841,32 +5841,46 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
     const modal = document.getElementById('aiChatModal');
     if (modal && modal.style.display === 'none') openAiChat();
     _voiceActive = true;
-    const micBtn  = document.getElementById('aiMicBtn');
-    const pulse   = document.getElementById('aiMicPulse');
+    const micBtn   = document.getElementById('aiMicBtn');
+    const pulse    = document.getElementById('aiMicPulse');
     const statusEl = document.getElementById('aiVoiceStatus');
-    const inp     = document.getElementById('aiInput');
+    const inp      = document.getElementById('aiInput');
     if (micBtn)   micBtn.classList.add('ai-listening');
     if (pulse)    pulse.style.display = '';
-    if (statusEl) statusEl.textContent = 'Listening… speak now';
+    if (statusEl) statusEl.textContent = 'Listening…';
     if (inp)      { inp.value = ''; inp.placeholder = 'Listening...'; }
 
     _speechRec = new _SR();
     _speechRec.lang = 'en-US';
-    _speechRec.continuous = true;
-    _speechRec.interimResults = true;
+    _speechRec.continuous = false;   // Chrome handles end-of-speech naturally
+    _speechRec.interimResults = true; // show words live as user speaks
     _speechRec.maxAlternatives = 1;
 
-    let collected = '';     // accumulates all isFinal chunks
-    let silenceTimer = null;
+    // Best transcript seen — final preferred, last interim as fallback
+    let captured = '';
 
-    // Called after user goes silent for 1.8s — processes whatever was said
-    const _commit = () => {
-      clearTimeout(silenceTimer);
-      silenceTimer = null;
-      const text = collected.trim();
-      collected = '';
-      try { _speechRec.stop(); } catch(e) {}
+    _speechRec.onresult = (e) => {
+      let finalText = '', interimText = '';
+      for (let i = 0; i < e.results.length; i++) {
+        if (e.results[i].isFinal) finalText += e.results[i][0].transcript;
+        else interimText = e.results[i][0].transcript;
+      }
+      captured = (finalText || interimText).trim();
+      if (inp) inp.placeholder = captured || 'Listening...';
+    };
+
+    _speechRec.onerror = (e) => {
+      captured = '';
       _stopVoice(false);
+      if (e.error === 'not-allowed') showToast('Mic access denied. Allow mic in browser settings.');
+      else if (e.error !== 'no-speech' && e.error !== 'aborted') showToast('Voice error: ' + e.error);
+    };
+
+    // onend fires when Chrome is fully done — process everything collected
+    _speechRec.onend = () => {
+      const text = captured.trim();
+      captured = '';
+      if (_voiceActive) _stopVoice(false);
       if (inp) inp.placeholder = 'or type here…';
       if (!text) return;
       if (_isDismissal(text)) {
@@ -5877,32 +5891,6 @@ Last 5 sales: ${sales.slice(-5).map(x=>x.product+' x'+x.quantity+' @'+cur+x.pric
       _aiAppendMsg('user', text);
       _aiDispatch(text);
       if (_convMode) _scheduleConvTimeout();
-    };
-
-    _speechRec.onresult = (e) => {
-      clearTimeout(silenceTimer);
-      let interim = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) collected += e.results[i][0].transcript + ' ';
-        else interim = e.results[i][0].transcript;
-      }
-      // Show live what's being captured
-      if (inp) inp.placeholder = (collected + interim).trim() || 'Listening...';
-      // Reset silence window after every new speech activity
-      silenceTimer = setTimeout(_commit, 1800);
-    };
-
-    _speechRec.onerror = (e) => {
-      clearTimeout(silenceTimer);
-      _stopVoice(false);
-      if (e.error === 'not-allowed') showToast('Mic access denied. Allow mic in browser settings.');
-      else if (e.error !== 'no-speech' && e.error !== 'aborted') showToast('Voice error: ' + e.error);
-    };
-
-    _speechRec.onend = () => {
-      clearTimeout(silenceTimer);
-      if (collected.trim()) { _commit(); return; } // session ended with unprocessed text
-      if (_voiceActive) _stopVoice(false);
     };
 
     try { _speechRec.start(); } catch(e) { _stopVoice(false); }

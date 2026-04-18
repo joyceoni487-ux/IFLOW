@@ -118,20 +118,25 @@ async function _getConversationHistory(customerNum, ourNum, sid, token, limit = 
 }
 
 async function _callAi(message, name, storeName, apiKey, productCtx = '', history = []) {
+  // Product context includes name, price and [stock:N] — parse availability inline
   const productSection = productCtx
-    ? `\nProducts in stock:\n${productCtx}\n\nList them directly when asked — never say you'll check.`
-    : `\nYou don't have the product list. Ask what specific item the customer wants.`;
+    ? `\nCurrent product catalogue (name, price, stock quantity):\n${productCtx}\n\n` +
+      `Stock rules:\n` +
+      `- If [stock:0] or stock is 0 — item is OUT OF STOCK. Tell the customer clearly.\n` +
+      `- If stock > 0 — item is AVAILABLE. Confirm price and stock in your reply.\n` +
+      `- List prices and availability directly — never say "I'll check" or "I'll confirm".`
+    : `\nYou don't have the product catalogue yet. Ask what specific item the customer wants.`;
 
   const system =
-`Your name is Alex. You are a helpful AI assistant for *${storeName}* on WhatsApp.
+`Your name is Nova. You are the AI assistant for *${storeName}* on WhatsApp.
 ${productSection}
 
 Rules:
 - Answer directly. No preamble. No filler words.
 - Greetings: ONE sentence only — "Hi! What can I help you with?" — then stop.
 - Be concise. 1-3 sentences max.
-- Never invent prices — say you'll confirm.
-- You understand Nigerian English perfectly.
+- Use the exact prices and stock figures from the catalogue above. Never guess or say you'll check.
+- You understand Nigerian English and Naija slang perfectly.
 - If asked if you're human: say you're an AI assistant for the store.
 
 Order handling — when a customer wants to buy or order anything:

@@ -36,9 +36,10 @@ export default async function handler(req, res) {
   const sid       = process.env.TWILIO_SID   || '';
   const token     = process.env.TWILIO_TOKEN || '';
 
-  // Product context: URL ?ctx= param takes priority, then PRODUCTS_JSON env var
-  const ctxFromUrl = req.query?.ctx ? decodeURIComponent(req.query.ctx) : '';
-  const productCtx = ctxFromUrl || (process.env.PRODUCTS_JSON || '');
+  // Product context priority: Blob (live) → URL ?ctx= → PRODUCTS_JSON env var
+  const ctxFromUrl   = req.query?.ctx ? decodeURIComponent(req.query.ctx) : '';
+  const blobCtxP     = _fetchBlobProducts();   // starts immediately, non-blocking
+  const productCtx   = (await blobCtxP) || ctxFromUrl || (process.env.PRODUCTS_JSON || '');
 
   // Fetch last 8 messages between this customer and the store for context.
   // Runs in parallel with other setup so it doesn't add net latency.
@@ -231,4 +232,29 @@ function escapeXml(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+/**
+ * Fetch the live product catalogue from Vercel Blob.
+ * Returns a compact string like "iPhone 15 (₦150000) [stock:3], Bag (₦5000) [stock:12]"
+ * or empty string if the Blob URL isn't set or the fetch fails.
+ */
+async function _fetchBlobProducts() {
+  const url = process.env.PRODUCTS_BLOB_URL;
+  if (!url) return '';
+  try {
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) return '';
+    const data = await r.json();
+    const prods = Array.isArray(data) ? data : (data.products || []);
+    if (!prods.length) return '';
+    return prods.map(p => {
+      const price = p.unitPrice ? ' (₦' + p.unitPrice + ')' : (p.price ? ' (₦' + p.price + ')' : '');
+      const qty   = p.stockQty !== undefined ? p.stockQty : (p.qty !== undefined ? p.qty : null);
+      const stock = qty !== null ? ' [stock:' + qty + ']' : '';
+      return (p.name || '') + price + stock;
+    }).filter(Boolean).join(', ');
+  } catch {
+    return '';
+  }
 }

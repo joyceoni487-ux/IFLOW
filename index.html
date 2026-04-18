@@ -3325,6 +3325,39 @@
     if (stEl) stEl.textContent = origin + '/api/status';
   }
 
+  // ── Vercel Blob Auto-Sync ──────────────────────────────────────────────────
+  // Push the current product list to /api/products (Vercel Blob) so the
+  // WhatsApp bot always reads live inventory without any manual URL work.
+  var _novaSyncDebounce = null;
+  function _novaSyncProducts(immediate) {
+    clearTimeout(_novaSyncDebounce);
+    var delay = immediate ? 0 : 2000;
+    _novaSyncDebounce = setTimeout(function() {
+      try {
+        var prods = JSON.parse(localStorage.getItem('iflow_products') || '[]');
+        if (!prods.length) return;
+        fetch('/api/products', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(prods)
+        }).then(function(r) {
+          if (!r.ok) console.warn('[iFlow] blob sync failed', r.status);
+        }).catch(function(e) {
+          console.warn('[iFlow] blob sync error', e);
+        });
+      } catch(e) {}
+    }, delay);
+  }
+
+  // Intercept localStorage.setItem to detect product changes
+  (function() {
+    var _origSet = localStorage.setItem.bind(localStorage);
+    localStorage.setItem = function(key, value) {
+      _origSet(key, value);
+      if (key === 'iflow_products') _novaSyncProducts(false);
+    };
+  })();
+
   function _copyProductsForWhatsApp() {
     const prods = JSON.parse(localStorage.getItem('iflow_products') || '[]');
     if (!prods.length) { showToast('No products to copy — add some stock first'); return; }
@@ -4780,6 +4813,8 @@
     _syncAutoReplyUrl();
     // AI Assistant
     _loadAiSettings();
+    // Push current products to Blob on first load
+    _novaSyncProducts(true);
   }
 
   function toggleThemeFromSettings(cb) {

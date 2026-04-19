@@ -15,7 +15,7 @@
  *   TWILIO_SID            — Twilio Account SID
  *   TWILIO_TOKEN          — Twilio Auth Token
  *   TWILIO_FROM           — Twilio WhatsApp sender e.g. "whatsapp:+14155238886"
- *   BLOB_READ_WRITE_TOKEN — Vercel Blob token (for storing orders)
+ *   BLOB_READ_WRITE_TOKEN — Vercel Blob token (for storing chats + orders)
  */
 import { put } from '@vercel/blob';
 
@@ -37,18 +37,16 @@ export default async function handler(req, res) {
   const genericOn = req.query?.generic !== '0';
   const storeName = process.env.STORE_NAME || 'our store';
   const apiKey    = process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY || '';
-  const sid       = process.env.TWILIO_SID   || '';
-  const token     = process.env.TWILIO_TOKEN || '';
   const notifyNum = req.query?.notify ? decodeURIComponent(req.query.notify) : '';
 
-  // Fetch Blob data (live products + payment info + rider emails) in parallel with history
   const ctxFromUrl  = req.query?.ctx ? decodeURIComponent(req.query.ctx) : '';
-  const blobPromise = _fetchBlobData();
-  const historyPromise = (sid && token && From && To)
-    ? _getConversationHistory(From, To, sid, token, 10)
-    : Promise.resolve([]);
+  const blobBase    = (process.env.PRODUCTS_BLOB_URL || '').replace('iflow-products.json', '');
 
-  const [blobData, history] = await Promise.all([blobPromise, historyPromise]);
+  // Load store data + this customer's conversation memory in parallel
+  const [blobData, history] = await Promise.all([
+    _fetchBlobData(),
+    _loadChatMemory(From, blobBase)
+  ]);
 
   const productCtx  = blobData.ctx || ctxFromUrl || (process.env.PRODUCTS_JSON || '');
   const paymentInfo = blobData.paymentInfo || {};
@@ -57,40 +55,50 @@ export default async function handler(req, res) {
   console.log(JSON.stringify({
     event: 'twilio_incoming', sid: MessageSid, from: From,
     name: ProfileName, body: Body.slice(0, 200),
-    media: parseInt(NumMedia, 10) > 0,
     provider: apiKey.startsWith('gsk_') ? 'groq' : apiKey ? 'gemini' : 'none',
     hasProducts: !!productCtx, hasPayment: !!(paymentInfo.bank),
-    historyCount: history.length, ts: new Date().toISOString()
+    memoryMessages: history.length, ts: new Date().toISOString()
   }));
 
   res.setHeader('Content-Type', 'text/xml');
   if (allOff) return res.status(200).send('<Response></Response>');
 
-  // If the message is NOT a pure greeting but the AI returns a greeting response, retry with a stronger hint
-  const isPureGreeting = /^\s*(hi|hello|hey|sup|howdy|good\s*(morning|afternoon|evening))\s*[!?.]?\s*$/i.test(Body);
+  const isPureGreeting = /^\s*(hi+|hello|hey+|sup|howdy|good\s*(morning|afternoon|evening|day))\s*[!?.]?\s*$/i.test(Body);
 
   if (apiKey && Body.trim()) {
     let aiReply = await _callAi(Body, ProfileName, storeName, apiKey, productCtx, history, paymentInfo);
 
-    // Guard: if AI greeted on a non-greeting message, retry with an explicit nudge
+    // Guard: if AI greeted on a non-greeting message, retry with explicit nudge
     if (aiReply && !isPureGreeting && /^Hi[!,]?\s+How can I help/i.test(aiReply.trim())) {
       const nudge = history.length
-        ? `[System: The customer just said "${Body}". This is NOT a greeting — it continues the conversation above. Do NOT greet. Respond based on the conversation history.]`
-        : `[System: The customer said "${Body}". This is not a greeting. Ask what they'd like to order or how you can help with a specific question.]`;
-      aiReply = await _callAi(nudge + ' ' + Body, ProfileName, storeName, apiKey, productCtx, history, paymentInfo) || aiReply;
+        ? `[System: The customer just said "${Body}". This continues the conversation — do NOT greet. Respond in context.]`
+        : `[System: "${Body}" is not a greeting. Ask what they need help with.]`;
+      aiReply = await _callAi(nudge + '\n' + Body, ProfileName, storeName, apiKey, productCtx, history, paymentInfo) || aiReply;
     }
 
     if (aiReply) {
       if (/ORDER ALERT:/i.test(aiReply)) {
+        const sid   = process.env.TWILIO_SID   || '';
+        const token = process.env.TWILIO_TOKEN || '';
         _notifyOwner(aiReply, From, ProfileName, storeName, sid, token, notifyNum).catch(() => {});
       }
       if (/PAYMENT ALERT:/i.test(aiReply)) {
+        const sid   = process.env.TWILIO_SID   || '';
+        const token = process.env.TWILIO_TOKEN || '';
         _handlePaymentAlert(aiReply, From, ProfileName, storeName, sid, token, notifyNum, riderEmails).catch(() => {});
       }
       const customerReply = aiReply
         .replace(/\n?ORDER ALERT:.*$/im, '')
         .replace(/\n?PAYMENT ALERT:.*$/im, '')
         .trim();
+
+      // Save this exchange to memory (fire-and-forget)
+      _saveChatMemory(From, blobBase, [
+        ...history,
+        { role: 'user',      content: Body },
+        { role: 'assistant', content: customerReply }
+      ]).catch(() => {});
+
       return res.status(200).send(`<Response><Message>${escapeXml(customerReply)}</Message></Response>`);
     }
   }
@@ -106,39 +114,35 @@ export default async function handler(req, res) {
 }
 
 /**
- * Fetch last `limit` messages in this conversation from Twilio.
- * Returns [{role:"user"|"assistant", content:"..."}] oldest→newest.
+ * Load this customer's conversation memory from Blob.
+ * Each customer has their own file: iflow-chat-{digits}.json
+ * Returns last 20 messages as [{role, content}]
  */
-async function _getConversationHistory(customerNum, ourNum, sid, token, limit = 10) {
+async function _loadChatMemory(from, blobBase) {
+  if (!from || !blobBase) return [];
   try {
-    const auth = 'Basic ' + Buffer.from(sid + ':' + token).toString('base64');
-    const base = `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Messages.json`;
-    const [inRes, outRes] = await Promise.all([
-      fetch(`${base}?From=${encodeURIComponent(customerNum)}&To=${encodeURIComponent(ourNum)}&PageSize=${limit}`,
-        { headers: { Authorization: auth } }),
-      fetch(`${base}?From=${encodeURIComponent(ourNum)}&To=${encodeURIComponent(customerNum)}&PageSize=${limit}`,
-        { headers: { Authorization: auth } })
-    ]);
-    const [inData, outData] = await Promise.all([
-      inRes.ok  ? inRes.json()  : { messages: [] },
-      outRes.ok ? outRes.json() : { messages: [] }
-    ]);
-    const all = [
-      ...(inData.messages  || []).map(m => ({ ...m, role: 'user' })),
-      ...(outData.messages || []).map(m => ({ ...m, role: 'assistant' }))
-    ];
-    all.sort((a, b) => new Date(a.date_sent) - new Date(b.date_sent));
-    const history = all.slice(0, -1).slice(-(limit - 1));
-    return history.map(m => ({
-      role:    m.role,
-      content: (m.body || '')
-        .replace(/\n?ORDER ALERT:.*$/im, '')
-        .replace(/\n?PAYMENT ALERT:.*$/im, '')
-        .trim()
-    }));
+    const key = 'iflow-chat-' + from.replace(/^whatsapp:/i, '').replace(/\D/g, '') + '.json';
+    const r   = await fetch(blobBase + key, { cache: 'no-store' });
+    if (!r.ok) return [];
+    const data = await r.json();
+    return Array.isArray(data) ? data.slice(-20) : [];
   } catch {
     return [];
   }
+}
+
+/**
+ * Save updated conversation memory back to Blob (keep last 30 messages).
+ */
+async function _saveChatMemory(from, blobBase, messages) {
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!token || !from || !blobBase) return;
+  const key  = 'iflow-chat-' + from.replace(/^whatsapp:/i, '').replace(/\D/g, '') + '.json';
+  const kept = messages.slice(-30);
+  await put(key, JSON.stringify(kept), {
+    access: 'public', token,
+    contentType: 'application/json', addRandomSuffix: false
+  });
 }
 
 async function _callAi(message, name, storeName, apiKey, productCtx = '', history = [], paymentInfo = {}) {

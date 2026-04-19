@@ -66,7 +66,7 @@ export default async function handler(req, res) {
   const isPureGreeting = /^\s*(hi+|hello|hey+|sup|howdy|good\s*(morning|afternoon|evening|day))\s*[!?.]?\s*$/i.test(Body);
 
   // Server-side payment proof detection — don't rely solely on AI appending PAYMENT ALERT
-  const looksLikePaymentProof = /\b(paid|payment|transferred|sent money|done|receipt|proof|screenshot|transfer|deposited|i've paid|i have paid|check it|already paid)\b/i.test(Body);
+  const looksLikePaymentProof = /\b(paid|payment|transferred|sent money|done|receipt|proof|screenshot|transfer|deposited|i've paid|i have paid|check it|already paid|i don pay|i done pay|i send am|e don done|money don enter|i dey come pick|i'll pick it up|coming to pick|pick it up|picking up|on my way|i dey road|i dey come|collecting it|self pickup|will pick up|come get it)\b/i.test(Body);
   const hasActiveOrderInMemory = history.some(m =>
     /ORDER ALERT:|Got it.*✅|delivery address|please pay|make payment/i.test(m.content)
   );

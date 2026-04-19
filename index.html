@@ -2730,8 +2730,14 @@
   </div>
 </div>
 
+<!-- Unread payment count badge — always visible when there are pending alerts -->
+<div id="payAlertCountBadge" style="display:none;position:fixed;top:12px;right:80px;z-index:9939;background:#ef4444;color:#fff;font-size:0.72rem;font-weight:800;border-radius:20px;padding:5px 12px;box-shadow:0 2px 10px rgba(239,68,68,.55);cursor:pointer;align-items:center;gap:5px;white-space:nowrap;animation:nova-ring 2s ease-out infinite"
+  onclick="_checkPendingOrders()">
+  💰 <span id="payAlertBadgeNum">1</span> payment alert
+</div>
+
 <!-- Payment Alert — full overlay + side drawer -->
-<!-- Semi-transparent backdrop (lets you see app behind, click-through) -->
+<!-- Semi-transparent backdrop -->
 <div id="payAlertBackdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9940;backdrop-filter:blur(2px)"></div>
 
 <!-- Pulsing top banner -->
@@ -6209,6 +6215,7 @@ function checkAuth() {
 // ── Payment Alert System ──────────────────────────────────────────────────────
 var _currentPayAlert = null;
 var _orderPollingStarted = false;
+var _chimeInterval = null;
 
 function _playNotificationChime() {
   try {
@@ -6226,39 +6233,40 @@ function _playNotificationChime() {
   } catch(e) {}
 }
 
-var _chimeInterval = null;
+function _updatePayBadge(count) {
+  var badge = document.getElementById('payAlertCountBadge');
+  var num   = document.getElementById('payAlertBadgeNum');
+  if (!badge) return;
+  if (count > 0) {
+    badge.style.display = 'flex';
+    if (num) num.textContent = count;
+  } else {
+    badge.style.display = 'none';
+  }
+}
 
 function _showPaymentAlert(order) {
   if (_currentPayAlert && _currentPayAlert.id === order.id) return;
   _currentPayAlert = order;
-
   var elapsed = Math.round((Date.now() - new Date(order.createdAt).getTime()) / 60000);
   var timeStr = elapsed < 1 ? 'Just now' : elapsed + ' min ago';
-
-  // Top banner
   var banner = document.getElementById('payAlertBanner');
   if (banner) {
     banner.style.display = 'flex';
-    var bannerTime = document.getElementById('payAlertBannerTime');
-    if (bannerTime) bannerTime.textContent = '— ' + timeStr;
+    var bt = document.getElementById('payAlertBannerTime');
+    if (bt) bt.textContent = '— ' + timeStr;
   }
-
-  // Backdrop
   var backdrop = document.getElementById('payAlertBackdrop');
   if (backdrop) backdrop.style.display = 'block';
-
-  // Side drawer
-  var panel   = document.getElementById('payAlertPanel');
-  var details = document.getElementById('payAlertDetails');
-  var timeEl  = document.getElementById('payAlertTime');
-  var btn     = document.getElementById('payAlertConfirmBtn');
+  var panel = document.getElementById('payAlertPanel');
   if (!panel) return;
-  if (details) details.textContent = order.details || 'Payment received';
-  if (timeEl)  timeEl.textContent  = timeStr;
-  if (btn)     { btn.textContent = '✓ Confirm Payment & Notify Customer'; btn.disabled = false; }
+  var det = document.getElementById('payAlertDetails');
+  var tel = document.getElementById('payAlertTime');
+  var btn = document.getElementById('payAlertConfirmBtn');
+  if (det) det.textContent = order.details || 'Payment received';
+  if (tel) tel.textContent = timeStr;
+  if (btn) { btn.textContent = '✓ Confirm Payment & Notify Customer'; btn.disabled = false; }
   panel.style.display = 'flex';
-
-  // Play chime now and repeat every 60s until dismissed
   _playNotificationChime();
   clearInterval(_chimeInterval);
   _chimeInterval = setInterval(_playNotificationChime, 60000);
@@ -6267,8 +6275,7 @@ function _showPaymentAlert(order) {
 function _dismissPayAlert() {
   clearInterval(_chimeInterval);
   ['payAlertPanel','payAlertBackdrop','payAlertBanner'].forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) el.style.display = 'none';
+    var el = document.getElementById(id); if (el) el.style.display = 'none';
   });
   if (_currentPayAlert) {
     fetch('/api/orders?id=' + encodeURIComponent(_currentPayAlert.id) + '&action=dismiss', { method: 'PATCH' }).catch(function(){});
@@ -6276,28 +6283,90 @@ function _dismissPayAlert() {
   }
 }
 
+// Parse "Customer | item x1 | ₦price | Address: addr" into fields
+function _parseOrderDetails(details) {
+  var parts = (details || '').split('|').map(function(p){ return p.trim(); });
+  var customer = parts[0] || 'WhatsApp Customer';
+  var itemStr  = parts[1] || '';
+  var product  = itemStr.replace(/\s*x\d+$/i,'').trim() || 'Product';
+  var quantity = parseInt((itemStr.match(/x(\d+)$/i) || ['','1'])[1]) || 1;
+  var priceStr = parts.find(function(p){ return /₦/.test(p); }) || '';
+  var price    = parseInt((priceStr.match(/₦([\d,]+)/) || ['','0'])[1].replace(/,/g,'')) || 0;
+  var addrStr  = parts.find(function(p){ return /address:/i.test(p); }) || parts[parts.length-1] || '';
+  var address  = addrStr.replace(/^address:\s*/i,'').trim();
+  return { customer: customer, product: product, quantity: quantity, price: price, address: address };
+}
+
+function _lookupProductPrice(name) {
+  if (!name) return 0;
+  var prods = JSON.parse(localStorage.getItem('iflow_products') || '[]');
+  var n = name.toLowerCase();
+  var hit = prods.find(function(p){ return p.name && n.includes(p.name.toLowerCase().slice(0,5)); })
+         || prods.find(function(p){ return p.name && p.name.toLowerCase().includes(n.slice(0,5)); });
+  return hit ? (hit.unitPrice || hit.price || 0) : 0;
+}
+
 async function _confirmPayment() {
   if (!_currentPayAlert) return;
   var btn = document.getElementById('payAlertConfirmBtn');
   btn.textContent = 'Confirming…'; btn.disabled = true;
   try {
-    var r = await fetch('/api/orders?id=' + encodeURIComponent(_currentPayAlert.id) + '&action=confirm', { method: 'PATCH' });
+    var r    = await fetch('/api/orders?id=' + encodeURIComponent(_currentPayAlert.id) + '&action=confirm', { method: 'PATCH' });
     var data = await r.json();
     if (data.success) {
-      // Email riders
+      // ── 1. Record sale in iflow_sales ──────────────────────────────────────
+      var parsed   = _parseOrderDetails(_currentPayAlert.details || '');
+      var salesArr = JSON.parse(localStorage.getItem('iflow_sales') || '[]');
+      salesArr.push({
+        customer:  parsed.customer,
+        product:   parsed.product,
+        quantity:  parsed.quantity,
+        price:     parsed.price || _lookupProductPrice(parsed.product),
+        timestamp: Date.now()
+      });
+      localStorage.setItem('iflow_sales', JSON.stringify(salesArr));
+
+      // ── 2. Create dispatch order ────────────────────────────────────────────
+      var dispId  = 'wa_' + _currentPayAlert.id;
+      var dispArr = JSON.parse(localStorage.getItem('iflow_dispatch_orders') || '[]');
+      if (!dispArr.find(function(d){ return d.id === dispId; })) {
+        dispArr.push({
+          id:        dispId,
+          customer:  parsed.customer,
+          product:   parsed.product,
+          qty:       parsed.quantity,
+          amount:    (parsed.price || _lookupProductPrice(parsed.product)) * parsed.quantity,
+          phone:     _currentPayAlert.customerNum || '',
+          address:   parsed.address,
+          status:    'pending',
+          riderId:   null,
+          createdAt: new Date().toISOString(),
+          notes:     'WhatsApp order — payment confirmed'
+        });
+        localStorage.setItem('iflow_dispatch_orders', JSON.stringify(dispArr));
+      }
+
+      // ── 3. Email riders with accept/complete links ──────────────────────────
       var riderEmails = data.riderEmails || [];
       if (riderEmails.length) {
         var s       = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-        var subject = 'New Delivery Order — ' + (s.storeName || 'iFlow Store');
-        var body    = 'A new delivery is ready!\n\n' + (_currentPayAlert.details || '') + '\n\nFirst rider to reply gets the job. Reply YES to accept.';
-        _emailRiders(riderEmails, subject, body, s);
+        var subject = 'New Delivery — ' + (s.storeName || 'iFlow Store');
+        var bodyTxt = 'New delivery order!\n\n' + (parsed.product + ' x' + parsed.quantity) + '\nDeliver to: ' + (parsed.address || 'TBC') + '\nCustomer: ' + parsed.customer + '\n\nFirst to accept gets the job!';
+        _emailRiders(riderEmails, subject, bodyTxt, s, _currentPayAlert.id);
       }
-      if (typeof showToast === 'function') showToast('Payment confirmed! Customer notified ✓');
+
+      // ── 4. Refresh UI ───────────────────────────────────────────────────────
+      if (typeof renderOrders   === 'function') renderOrders();
+      if (typeof renderDispatch === 'function') renderDispatch();
+      if (typeof updateOrdersBadge === 'function') updateOrdersBadge();
+
+      if (typeof showToast === 'function') showToast('Payment confirmed! Sale recorded ✓');
       _currentPayAlert = null;
       clearInterval(_chimeInterval);
       ['payAlertPanel','payAlertBackdrop','payAlertBanner'].forEach(function(id){
         var el = document.getElementById(id); if (el) el.style.display = 'none';
       });
+      _updatePayBadge(0);
     } else {
       if (typeof showToast === 'function') showToast('Could not confirm — try again');
       btn.textContent = '✓ Confirm Payment & Notify Customer'; btn.disabled = false;
@@ -6308,17 +6377,23 @@ async function _confirmPayment() {
   }
 }
 
-function _emailRiders(emails, subject, body, s) {
-  if (s && s.emailjsServiceId && s.emailjsTemplateId && s.emailjsPublicKey && typeof emailjs !== 'undefined') {
-    emails.forEach(function(email) {
+function _emailRiders(emails, subject, body, s, orderId) {
+  var origin = window.location.origin;
+  emails.forEach(function(email) {
+    var riderBody = body
+      + '\n\n▶ Accept this delivery:\n'
+      + origin + '/api/rider-confirm?id=' + encodeURIComponent(orderId || '') + '&rider=' + encodeURIComponent(email) + '&action=accept'
+      + '\n\n✅ Mark as delivered (after completing):\n'
+      + origin + '/api/rider-confirm?id=' + encodeURIComponent(orderId || '') + '&rider=' + encodeURIComponent(email) + '&action=complete';
+    if (s && s.emailjsServiceId && s.emailjsTemplateId && s.emailjsPublicKey && typeof emailjs !== 'undefined') {
       emailjs.send(s.emailjsServiceId, s.emailjsTemplateId, {
         to_email: email, to_name: 'Rider', subject: subject,
-        message: body, store_name: s.storeName || 'iFlow'
+        message: riderBody, store_name: s.storeName || 'iFlow'
       }).catch(function(){});
-    });
-  } else {
-    window.open('mailto:' + emails.join(',') + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body));
-  }
+    } else {
+      window.open('mailto:' + email + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(riderBody));
+    }
+  });
 }
 
 function _startOrderPolling() {
@@ -6334,8 +6409,35 @@ async function _checkPendingOrders() {
     if (!r.ok) return;
     var orders = await r.json();
     if (!Array.isArray(orders)) return;
-    var pending = orders.filter(function(o) { return o.status === 'payment_proof'; });
+
+    var pending = orders.filter(function(o){ return o.status === 'payment_proof'; });
+    _updatePayBadge(pending.length);
     if (pending.length > 0) _showPaymentAlert(pending[0]);
+
+    // Rider accepted — move dispatch to transit
+    orders.filter(function(o){ return o.status === 'rider_accepted'; }).forEach(function(o) {
+      var arr = JSON.parse(localStorage.getItem('iflow_dispatch_orders') || '[]');
+      var d   = arr.find(function(x){ return x.id === 'wa_' + o.id; });
+      if (d && d.status !== 'transit' && d.status !== 'delivered') {
+        d.status  = 'transit';
+        d.riderId = o.riderId;
+        localStorage.setItem('iflow_dispatch_orders', JSON.stringify(arr));
+        if (typeof renderDispatch === 'function') renderDispatch();
+        if (typeof showToast === 'function') showToast('🚴 ' + o.riderId + ' accepted the delivery!');
+      }
+    });
+
+    // Rider delivered — mark complete
+    orders.filter(function(o){ return o.status === 'delivered'; }).forEach(function(o) {
+      var arr = JSON.parse(localStorage.getItem('iflow_dispatch_orders') || '[]');
+      var d   = arr.find(function(x){ return x.id === 'wa_' + o.id; });
+      if (d && d.status !== 'delivered') {
+        d.status = 'delivered';
+        localStorage.setItem('iflow_dispatch_orders', JSON.stringify(arr));
+        if (typeof renderDispatch === 'function') renderDispatch();
+        if (typeof showToast === 'function') showToast('📦 Order delivered by ' + (o.riderId || 'rider') + '!');
+      }
+    });
   } catch(e) {}
 }
 </script>

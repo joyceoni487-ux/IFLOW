@@ -3725,12 +3725,12 @@
         _seenPaymentSids.add(sid);
         localStorage.setItem('iflow_seen_payments', JSON.stringify([..._seenPaymentSids]));
         _paymentBeep();
-        _showPaymentAlert(c, lastMsg);
+        _showTwilioPaymentBanner(c, lastMsg);
       }
     }
   }
 
-  function _showPaymentAlert(convo, msg) {
+  function _showTwilioPaymentBanner(convo, msg) {
     const existing = document.getElementById('paymentAlertBanner');
     if (existing) existing.remove();
     const banner = document.createElement('div');
@@ -3745,7 +3745,7 @@
           <p style="margin:0 0 2px;font-weight:700;color:#48c774;font-size:0.9rem">Payment Received</p>
           <p style="margin:0 0 8px;font-size:0.8rem;color:#ccc">${escHtml(convo.name)}: "${escHtml(msg.text.slice(0,80))}${msg.text.length>80?'…':''}"</p>
           <div style="display:flex;gap:8px">
-            <button onclick="_confirmPayment('${convo.id}','${msg.sid}')" style="flex:1;padding:7px;background:#48c774;color:#000;border:none;border-radius:8px;font-weight:700;font-size:0.8rem;cursor:pointer">✓ Confirm Payment</button>
+            <button onclick="_confirmTwilioPayment('${convo.id}','${msg.sid}')" style="flex:1;padding:7px;background:#48c774;color:#000;border:none;border-radius:8px;font-weight:700;font-size:0.8rem;cursor:pointer">✓ Confirm Payment</button>
             <button onclick="document.getElementById('paymentAlertBanner').remove()" style="padding:7px 12px;background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:8px;font-size:0.8rem;cursor:pointer">Dismiss</button>
           </div>
         </div>
@@ -3764,7 +3764,7 @@
     if (activeConvo === convo.id) openConvo(convo.id);
   }
 
-  async function _confirmPayment(convoId, sid) {
+  async function _confirmTwilioPayment(convoId, sid) {
     document.getElementById('paymentAlertBanner')?.remove();
     const c = convos.find(x => String(x.id) === String(convoId));
     if (!c) return;

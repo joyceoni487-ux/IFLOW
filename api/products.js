@@ -7,7 +7,7 @@
  * Required Vercel environment variable:
  *   BLOB_READ_WRITE_TOKEN     — from Vercel Storage → Blob → your store → .env.local token
  */
-import { put, head } from '@vercel/blob';
+import { put } from '@vercel/blob';
 
 const BLOB_PATHNAME = 'iflow-products.json';
 

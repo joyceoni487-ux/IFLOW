@@ -2255,8 +2255,8 @@
                 <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
                   <input type="checkbox" id="waAutoReply" checked style="width:15px;height:15px;accent-color:#818cf8;margin-top:2px;flex-shrink:0" onchange="_syncAutoReplyUrl()" />
                   <div>
-                    <span style="font-size:0.82rem;font-weight:600;color:var(--text)">AI auto-reply (Alex)</span>
-                    <p style="font-size:0.72rem;color:var(--muted);margin:2px 0 0">Alex replies to every incoming customer message using Groq AI. Requires <code style="font-size:0.68rem">GROQ_API_KEY</code> in Vercel environment variables — see setup below.</p>
+                    <span style="font-size:0.82rem;font-weight:600;color:var(--text)">AI auto-reply (Nova)</span>
+                    <p style="font-size:0.72rem;color:var(--muted);margin:2px 0 0">Nova replies to every incoming customer message using Groq AI. Requires <code style="font-size:0.68rem">GROQ_API_KEY</code> in Vercel environment variables — see setup below.</p>
                   </div>
                 </label>
 
@@ -2601,6 +2601,46 @@
         </div>
       </div>
 
+      <!-- Payment & Delivery Settings -->
+      <div class="settings-section">
+        <div class="settings-section-title">
+          <span class="settings-icon">💳</span>
+          <div>
+            <h3>Payment &amp; Delivery</h3>
+            <p>Nova sends these details to customers when they order via WhatsApp. Riders are emailed when you confirm a payment.</p>
+          </div>
+        </div>
+        <div class="settings-fields">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="settings-field">
+              <label>Bank Name</label>
+              <input type="text" id="settingsPayBank" placeholder="e.g. GTBank"
+                style="padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:0.85rem;width:100%;box-sizing:border-box"
+                oninput="savePaymentSettings()" />
+            </div>
+            <div class="settings-field">
+              <label>Account Number</label>
+              <input type="text" id="settingsPayAcct" placeholder="e.g. 0123456789"
+                style="padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:0.85rem;width:100%;box-sizing:border-box"
+                oninput="savePaymentSettings()" />
+            </div>
+          </div>
+          <div class="settings-field" style="margin-top:10px">
+            <label>Account Name</label>
+            <input type="text" id="settingsPayName" placeholder="e.g. Joyce Boutique Ltd"
+              style="padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:0.85rem;width:100%;box-sizing:border-box"
+              oninput="savePaymentSettings()" />
+          </div>
+          <div class="settings-field" style="margin-top:10px">
+            <label>Rider Emails <small style="font-weight:400;color:var(--muted)">— comma-separated, all get emailed when you confirm a payment</small></label>
+            <textarea id="settingsRiderEmails" rows="2" placeholder="rider1@gmail.com, rider2@gmail.com"
+              style="padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:0.85rem;width:100%;box-sizing:border-box;resize:vertical;font-family:inherit"
+              oninput="savePaymentSettings()"></textarea>
+            <p style="font-size:0.72rem;color:var(--muted);margin:4px 0 0">First rider to reply accepts the delivery. iFlow emails them automatically when you confirm payment.</p>
+          </div>
+        </div>
+      </div>
+
       <!-- Save Bar -->
       <div class="settings-save-bar">
         <span class="settings-save-hint">Changes are saved automatically</span>
@@ -2683,6 +2723,32 @@
       onkeydown="if(event.key==='Enter'&&!event.shiftKey){sendAiMessage();event.preventDefault()}" />
     <button onclick="sendAiMessage()"
       style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#818cf8,#6366f1);border:none;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff">➤</button>
+  </div>
+</div>
+
+<!-- Payment Alert Notification Panel -->
+<div id="payAlertPanel" style="display:none;position:fixed;top:0;right:0;width:min(380px,100vw);height:100%;background:var(--surface);border-left:2px solid #f59e0b;z-index:9950;flex-direction:column;box-shadow:-6px 0 30px rgba(0,0,0,.3)">
+  <div style="background:linear-gradient(135deg,#f59e0b,#ef4444);padding:20px 20px 16px;display:flex;align-items:center;gap:12px">
+    <div id="payAlertDot" style="width:13px;height:13px;border-radius:50%;background:#fff;animation:nova-ring 1s ease-out infinite;flex-shrink:0"></div>
+    <div style="flex:1">
+      <div style="font-size:1rem;font-weight:700;color:#fff">Payment Proof Received</div>
+      <div id="payAlertTime" style="font-size:0.73rem;color:rgba(255,255,255,.85)">Just now</div>
+    </div>
+    <button onclick="_dismissPayAlert()" style="background:rgba(255,255,255,.2);border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;color:#fff;font-size:1.2rem;display:flex;align-items:center;justify-content:center;flex-shrink:0">×</button>
+  </div>
+  <div style="padding:20px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:14px">
+    <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:12px;padding:16px">
+      <div id="payAlertDetails" style="font-size:0.87rem;color:var(--text);line-height:1.85;white-space:pre-wrap"></div>
+    </div>
+    <p style="font-size:0.79rem;color:var(--muted);margin:0">Verify payment in your banking app, then confirm below. The customer will be notified automatically and riders will be emailed.</p>
+    <button id="payAlertConfirmBtn" onclick="_confirmPayment()"
+      style="padding:14px;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;border-radius:12px;color:#fff;font-size:0.95rem;font-weight:700;cursor:pointer">
+      ✓ Confirm Payment &amp; Notify Customer
+    </button>
+    <button onclick="_dismissPayAlert()"
+      style="padding:10px;background:transparent;border:1px solid var(--border);border-radius:12px;color:var(--muted);font-size:0.85rem;cursor:pointer">
+      Dismiss
+    </button>
   </div>
 </div>
 
@@ -3325,9 +3391,19 @@
     if (stEl) stEl.textContent = origin + '/api/status';
   }
 
+  // ── Payment Settings ────────────────────────────────────────────────────────
+  function savePaymentSettings() {
+    var s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    s.payBank        = (document.getElementById('settingsPayBank')?.value  || '').trim();
+    s.payAccountNum  = (document.getElementById('settingsPayAcct')?.value  || '').trim();
+    s.payAccountName = (document.getElementById('settingsPayName')?.value  || '').trim();
+    s.riderEmails    = (document.getElementById('settingsRiderEmails')?.value || '').trim();
+    localStorage.setItem('iflow_settings', JSON.stringify(s));
+    _novaSyncProducts(false);
+  }
+
   // ── Vercel Blob Auto-Sync ──────────────────────────────────────────────────
-  // Push the current product list to /api/products (Vercel Blob) so the
-  // WhatsApp bot always reads live inventory without any manual URL work.
+  // Push the current product list + payment info to /api/products (Vercel Blob)
   var _novaSyncDebounce = null;
   function _novaSyncProducts(immediate) {
     clearTimeout(_novaSyncDebounce);
@@ -3335,11 +3411,20 @@
     _novaSyncDebounce = setTimeout(function() {
       try {
         var prods = JSON.parse(localStorage.getItem('iflow_products') || '[]');
-        if (!prods.length) return;
+        var s     = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+        var payload = {
+          products: prods,
+          paymentInfo: {
+            bank:          s.payBank        || '',
+            accountNumber: s.payAccountNum  || '',
+            accountName:   s.payAccountName || ''
+          },
+          riderEmails: (s.riderEmails || '').split(',').map(function(e){ return e.trim(); }).filter(Boolean)
+        };
         fetch('/api/products', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(prods)
+          body: JSON.stringify(payload)
         }).then(function(r) {
           if (!r.ok) console.warn('[iFlow] blob sync failed', r.status);
         }).catch(function(e) {
@@ -4809,6 +4894,11 @@
       const prev = document.getElementById('settingsLogoPreview');
       if (prev) prev.innerHTML = `<img src="${logo}" style="width:100%;height:100%;object-fit:cover;border-radius:10px" />`;
     }
+    // Payment & Delivery fields
+    const pbEl = document.getElementById('settingsPayBank');      if (pbEl) pbEl.value = s.payBank        || '';
+    const paEl = document.getElementById('settingsPayAcct');      if (paEl) paEl.value = s.payAccountNum  || '';
+    const pnEl = document.getElementById('settingsPayName');      if (pnEl) pnEl.value = s.payAccountName || '';
+    const reEl = document.getElementById('settingsRiderEmails');  if (reEl) reEl.value = s.riderEmails    || '';
     // Populate Vercel webhook URLs dynamically
     _syncAutoReplyUrl();
     // AI Assistant
@@ -6074,6 +6164,10 @@ function showApp(user) {
   if (GOOGLE_CLIENT_ID !== 'YOUR_CLIENT_ID_HERE') {
     DriveBackup.init(GOOGLE_CLIENT_ID);
   }
+  // Show Nova FAB immediately if enabled
+  setTimeout(function(){ if (typeof _loadAiSettings === 'function') _loadAiSettings(); }, 0);
+  // Start polling for payment alerts
+  setTimeout(function(){ if (typeof _startOrderPolling === 'function') _startOrderPolling(); }, 3000);
 }
 
 function signOut() {
@@ -6092,6 +6186,115 @@ function checkAuth() {
     document.getElementById('loginScreen').style.display = 'flex';
     initGoogleAuth();
   }
+}
+</script>
+
+<script>
+// ── Payment Alert System ──────────────────────────────────────────────────────
+var _currentPayAlert = null;
+var _orderPollingStarted = false;
+
+function _playNotificationChime() {
+  try {
+    var ac = new (window.AudioContext || window.webkitAudioContext)();
+    [523, 659, 784, 1047].forEach(function(freq, i) {
+      var osc = ac.createOscillator(), gain = ac.createGain();
+      osc.connect(gain); gain.connect(ac.destination);
+      osc.frequency.value = freq; osc.type = 'sine';
+      var t = ac.currentTime + i * 0.18;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.25, t + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+      osc.start(t); osc.stop(t + 0.6);
+    });
+  } catch(e) {}
+}
+
+function _showPaymentAlert(order) {
+  if (_currentPayAlert && _currentPayAlert.id === order.id) return;
+  _currentPayAlert = order;
+  var panel    = document.getElementById('payAlertPanel');
+  var details  = document.getElementById('payAlertDetails');
+  var timeEl   = document.getElementById('payAlertTime');
+  var btn      = document.getElementById('payAlertConfirmBtn');
+  if (!panel) return;
+  details.textContent = order.details || 'Payment received';
+  var elapsed = Math.round((Date.now() - new Date(order.createdAt).getTime()) / 60000);
+  timeEl.textContent  = elapsed < 1 ? 'Just now' : elapsed + ' min ago';
+  btn.textContent     = '✓ Confirm Payment & Notify Customer';
+  btn.disabled        = false;
+  panel.style.display = 'flex';
+  _playNotificationChime();
+}
+
+function _dismissPayAlert() {
+  var panel = document.getElementById('payAlertPanel');
+  if (panel) panel.style.display = 'none';
+  if (_currentPayAlert) {
+    fetch('/api/orders?id=' + encodeURIComponent(_currentPayAlert.id) + '&action=dismiss', { method: 'PATCH' }).catch(function(){});
+    _currentPayAlert = null;
+  }
+}
+
+async function _confirmPayment() {
+  if (!_currentPayAlert) return;
+  var btn = document.getElementById('payAlertConfirmBtn');
+  btn.textContent = 'Confirming…'; btn.disabled = true;
+  try {
+    var r = await fetch('/api/orders?id=' + encodeURIComponent(_currentPayAlert.id) + '&action=confirm', { method: 'PATCH' });
+    var data = await r.json();
+    if (data.success) {
+      // Email riders
+      var riderEmails = data.riderEmails || [];
+      if (riderEmails.length) {
+        var s       = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+        var subject = 'New Delivery Order — ' + (s.storeName || 'iFlow Store');
+        var body    = 'A new delivery is ready!\n\n' + (_currentPayAlert.details || '') + '\n\nFirst rider to reply gets the job. Reply YES to accept.';
+        _emailRiders(riderEmails, subject, body, s);
+      }
+      if (typeof showToast === 'function') showToast('Payment confirmed! Customer notified ✓');
+      _currentPayAlert = null;
+      var panel = document.getElementById('payAlertPanel');
+      if (panel) panel.style.display = 'none';
+    } else {
+      if (typeof showToast === 'function') showToast('Could not confirm — try again');
+      btn.textContent = '✓ Confirm Payment & Notify Customer'; btn.disabled = false;
+    }
+  } catch(e) {
+    if (typeof showToast === 'function') showToast('Error — check connection');
+    btn.textContent = '✓ Confirm Payment & Notify Customer'; btn.disabled = false;
+  }
+}
+
+function _emailRiders(emails, subject, body, s) {
+  if (s && s.emailjsServiceId && s.emailjsTemplateId && s.emailjsPublicKey && typeof emailjs !== 'undefined') {
+    emails.forEach(function(email) {
+      emailjs.send(s.emailjsServiceId, s.emailjsTemplateId, {
+        to_email: email, to_name: 'Rider', subject: subject,
+        message: body, store_name: s.storeName || 'iFlow'
+      }).catch(function(){});
+    });
+  } else {
+    window.open('mailto:' + emails.join(',') + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body));
+  }
+}
+
+function _startOrderPolling() {
+  if (_orderPollingStarted) return;
+  _orderPollingStarted = true;
+  _checkPendingOrders();
+  setInterval(_checkPendingOrders, 30000);
+}
+
+async function _checkPendingOrders() {
+  try {
+    var r = await fetch('/api/orders');
+    if (!r.ok) return;
+    var orders = await r.json();
+    if (!Array.isArray(orders)) return;
+    var pending = orders.filter(function(o) { return o.status === 'payment_proof'; });
+    if (pending.length > 0) _showPaymentAlert(pending[0]);
+  } catch(e) {}
 }
 </script>
 

@@ -6,15 +6,19 @@
  *   ?reply=0    — disable ALL replies
  *
  * Vercel Environment Variables:
- *   GROQ_API_KEY     — Groq API key (gsk_...) — AI replies
- *   GEMINI_API_KEY   — Gemini key as fallback
- *   STORE_NAME       — store name in replies (e.g. "Joyce's Boutique")
- *   PRODUCTS_JSON    — product list: "iPhone 15 (₦150000), Bags (₦5000), ..."
- *   OWNER_WHATSAPP   — store owner's WhatsApp e.g. "+2348012345678" (order alerts)
- *   TWILIO_SID       — Twilio Account SID  (enables conversation memory + order alerts)
- *   TWILIO_TOKEN     — Twilio Auth Token   (enables conversation memory + order alerts)
- *   TWILIO_FROM      — Twilio WhatsApp sender e.g. "whatsapp:+14155238886"
+ *   GROQ_API_KEY          — Groq API key (gsk_...) — AI replies
+ *   GEMINI_API_KEY        — Gemini key as fallback
+ *   STORE_NAME            — store name in replies (e.g. "Joyce's Boutique")
+ *   PRODUCTS_BLOB_URL     — public Blob URL for live product/payment data
+ *   PRODUCTS_JSON         — fallback product list if Blob not set
+ *   OWNER_WHATSAPP        — store owner's WhatsApp e.g. "+2348012345678"
+ *   TWILIO_SID            — Twilio Account SID
+ *   TWILIO_TOKEN          — Twilio Auth Token
+ *   TWILIO_FROM           — Twilio WhatsApp sender e.g. "whatsapp:+14155238886"
+ *   BLOB_READ_WRITE_TOKEN — Vercel Blob token (for storing orders)
  */
+import { put } from '@vercel/blob';
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).end('Method Not Allowed');
@@ -22,7 +26,7 @@ export default async function handler(req, res) {
 
   const {
     From        = '',
-    To          = '',   // our Twilio number — used to fetch conversation history
+    To          = '',
     Body        = '',
     ProfileName = '',
     MessageSid  = '',
@@ -35,39 +39,46 @@ export default async function handler(req, res) {
   const apiKey    = process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY || '';
   const sid       = process.env.TWILIO_SID   || '';
   const token     = process.env.TWILIO_TOKEN || '';
+  const notifyNum = req.query?.notify ? decodeURIComponent(req.query.notify) : '';
 
-  // Product context priority: Blob (live) → URL ?ctx= → PRODUCTS_JSON env var
-  const ctxFromUrl   = req.query?.ctx ? decodeURIComponent(req.query.ctx) : '';
-  const blobCtxP     = _fetchBlobProducts();   // starts immediately, non-blocking
-  const productCtx   = (await blobCtxP) || ctxFromUrl || (process.env.PRODUCTS_JSON || '');
-
-  // Fetch last 8 messages between this customer and the store for context.
-  // Runs in parallel with other setup so it doesn't add net latency.
+  // Fetch Blob data (live products + payment info + rider emails) in parallel with history
+  const ctxFromUrl  = req.query?.ctx ? decodeURIComponent(req.query.ctx) : '';
+  const blobPromise = _fetchBlobData();
   const historyPromise = (sid && token && From && To)
-    ? _getConversationHistory(From, To, sid, token, 8)
+    ? _getConversationHistory(From, To, sid, token, 10)
     : Promise.resolve([]);
+
+  const [blobData, history] = await Promise.all([blobPromise, historyPromise]);
+
+  const productCtx  = blobData.ctx || ctxFromUrl || (process.env.PRODUCTS_JSON || '');
+  const paymentInfo = blobData.paymentInfo || {};
+  const riderEmails = blobData.riderEmails || [];
 
   console.log(JSON.stringify({
     event: 'twilio_incoming', sid: MessageSid, from: From,
     name: ProfileName, body: Body.slice(0, 200),
     media: parseInt(NumMedia, 10) > 0,
     provider: apiKey.startsWith('gsk_') ? 'groq' : apiKey ? 'gemini' : 'none',
-    hasProducts: !!productCtx, hasHistory: !!(sid && token),
-    genericOn, ts: new Date().toISOString()
+    hasProducts: !!productCtx, hasPayment: !!(paymentInfo.bank),
+    historyCount: history.length, ts: new Date().toISOString()
   }));
 
   res.setHeader('Content-Type', 'text/xml');
   if (allOff) return res.status(200).send('<Response></Response>');
 
   if (apiKey && Body.trim()) {
-    const history  = await historyPromise;
-    const aiReply  = await _callAi(Body, ProfileName, storeName, apiKey, productCtx, history);
+    const aiReply = await _callAi(Body, ProfileName, storeName, apiKey, productCtx, history, paymentInfo);
     if (aiReply) {
       if (/ORDER ALERT:/i.test(aiReply)) {
-        const notifyNum = req.query?.notify ? decodeURIComponent(req.query.notify) : '';
         _notifyOwner(aiReply, From, ProfileName, storeName, sid, token, notifyNum).catch(() => {});
       }
-      const customerReply = aiReply.replace(/\n?ORDER ALERT:.*$/im, '').trim();
+      if (/PAYMENT ALERT:/i.test(aiReply)) {
+        _handlePaymentAlert(aiReply, From, ProfileName, storeName, sid, token, notifyNum, riderEmails).catch(() => {});
+      }
+      const customerReply = aiReply
+        .replace(/\n?ORDER ALERT:.*$/im, '')
+        .replace(/\n?PAYMENT ALERT:.*$/im, '')
+        .trim();
       return res.status(200).send(`<Response><Message>${escapeXml(customerReply)}</Message></Response>`);
     }
   }
@@ -83,14 +94,13 @@ export default async function handler(req, res) {
 }
 
 /**
- * Fetch the last `limit` messages in this conversation from Twilio's history.
- * Returns OpenAI-format messages: [{role:"user"|"assistant", content:"..."}]
+ * Fetch last `limit` messages in this conversation from Twilio.
+ * Returns [{role:"user"|"assistant", content:"..."}] oldest→newest.
  */
-async function _getConversationHistory(customerNum, ourNum, sid, token, limit = 8) {
+async function _getConversationHistory(customerNum, ourNum, sid, token, limit = 10) {
   try {
     const auth = 'Basic ' + Buffer.from(sid + ':' + token).toString('base64');
     const base = `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Messages.json`;
-    // Fetch inbound (customer→us) and outbound (us→customer) in parallel
     const [inRes, outRes] = await Promise.all([
       fetch(`${base}?From=${encodeURIComponent(customerNum)}&To=${encodeURIComponent(ourNum)}&PageSize=${limit}`,
         { headers: { Authorization: auth } }),
@@ -101,56 +111,68 @@ async function _getConversationHistory(customerNum, ourNum, sid, token, limit = 
       inRes.ok  ? inRes.json()  : { messages: [] },
       outRes.ok ? outRes.json() : { messages: [] }
     ]);
-    // Merge, sort oldest→newest, exclude the very last message (that's the current one)
     const all = [
       ...(inData.messages  || []).map(m => ({ ...m, role: 'user' })),
       ...(outData.messages || []).map(m => ({ ...m, role: 'assistant' }))
     ];
     all.sort((a, b) => new Date(a.date_sent) - new Date(b.date_sent));
-    // Drop the most recent message (the one we're currently handling)
     const history = all.slice(0, -1).slice(-(limit - 1));
     return history.map(m => ({
       role:    m.role,
-      content: (m.body || '').replace(/\n?ORDER ALERT:.*$/im, '').trim()
+      content: (m.body || '')
+        .replace(/\n?ORDER ALERT:.*$/im, '')
+        .replace(/\n?PAYMENT ALERT:.*$/im, '')
+        .trim()
     }));
-  } catch (e) {
+  } catch {
     return [];
   }
 }
 
-async function _callAi(message, name, storeName, apiKey, productCtx = '', history = []) {
-  // Product context includes name, price and [stock:N] — parse availability inline
+async function _callAi(message, name, storeName, apiKey, productCtx = '', history = [], paymentInfo = {}) {
   const productSection = productCtx
-    ? `\nCurrent product catalogue (name, price, stock quantity):\n${productCtx}\n\n` +
-      `Stock rules:\n` +
-      `- If [stock:0] or stock is 0 — item is OUT OF STOCK. Tell the customer clearly.\n` +
-      `- If stock > 0 — item is AVAILABLE. Confirm price and stock in your reply.\n` +
-      `- List prices and availability directly — never say "I'll check" or "I'll confirm".`
-    : `\nYou don't have the product catalogue yet. Ask what specific item the customer wants.`;
+    ? `\nProduct catalogue (name, price, stock):\n${productCtx}\n\n` +
+      `Stock rules: If [stock:0] → OUT OF STOCK. If stock > 0 → AVAILABLE. ` +
+      `State prices and availability directly — never say "I'll check".`
+    : `\nNo product catalogue yet. Ask what the customer wants.`;
+
+  const hasPayment = !!(paymentInfo.bank && paymentInfo.accountNumber);
+  const paymentSection = hasPayment
+    ? `\nPayment details (send to customer when they want to pay):\nBank: ${paymentInfo.bank}\nAccount No: ${paymentInfo.accountNumber}\nAccount Name: ${paymentInfo.accountName || storeName}`
+    : '';
 
   const system =
-`Your name is Nova. You are the AI assistant for *${storeName}* on WhatsApp.
+`Your name is Nova. You are the warm, human-sounding sales assistant for *${storeName}* on WhatsApp.
 ${productSection}
+${paymentSection}
 
-Rules:
-- Answer directly. No preamble. No filler words.
-- Greetings: ONE sentence only — "Hi! What can I help you with?" — then stop.
-- Be concise. 1-3 sentences max.
-- Use the exact prices and stock figures from the catalogue above. Never guess or say you'll check.
-- You understand Nigerian English and Naija slang perfectly.
-- If asked if you're human: say you're an AI assistant for the store.
+Personality & style:
+- Sound like a real, friendly sales rep — not a bot.
+- Natural Nigerian English / Naija pidgin is totally fine.
+- Keep replies short (2-4 sentences max).
+- Never say "I'll check", "I'll confirm", or "let me verify". You have all the info.
+- If asked if you're human: say you're Nova, the AI assistant.
+- Only say "Hi! How can I help you today?" when the message is PURELY a greeting (Hi / Hello / Hey / Good morning / etc.) — never on a product question, address, or any other content.
 
-Order handling — when a customer wants to buy or order anything:
-1. Confirm item and quantity from the conversation.
-2. If delivery address is missing, ask for it.
-3. Once you have item + qty + address, reply: "Order noted ✓ — [item] x[qty]. We'll reach out shortly to confirm payment and delivery."
-4. Append on a new line: ORDER ALERT: ${name || 'Customer'} | [item] x[qty] | Address: [address]`;
+Reading history — CRITICAL:
+- Read the FULL conversation history before replying.
+- If the customer already mentioned a product earlier, remember it — don't ask them to repeat.
+- If they say "I want to order one" or "ship to this address", look back to find what item they discussed.
 
-  // Build message list: system + conversation history + current message
-  const userMessages = [
-    ...history,
-    { role: 'user', content: message }
-  ];
+Order flow — follow steps in order, skip what's already been given:
+1. Confirm item + quantity (check history first — they may have already mentioned it).
+2. If delivery address hasn't been given, ask for it. One question at a time.
+3. Once you have item + qty + address, confirm:
+   "Got it! ✅ [item] x[qty] to [address]."
+   Append: ORDER ALERT: ${name || 'Customer'} | [item] x[qty] | Address: [address]
+${hasPayment ? `4. Right after confirming the order, send payment details in the same message:
+   "Please make payment to:\\n*Bank:* ${paymentInfo.bank}\\n*Account No:* ${paymentInfo.accountNumber}\\n*Account Name:* ${paymentInfo.accountName || storeName}\\n\\nSend a screenshot or type *Paid* once you've transferred. 🙏"` : ''}
+
+Payment confirmation — when customer says they paid / sent money / shares receipt / says "done":
+Reply: "Thank you! 🙏 We've got your payment notification — our team is verifying it now. We'll confirm shortly."
+Append on a new line: PAYMENT ALERT: ${name || 'Customer'} | [item from history] x[qty] | Address: [address from history]`;
+
+  const userMessages = [...history, { role: 'user', content: message }];
 
   try {
     if (apiKey.startsWith('gsk_')) {
@@ -161,8 +183,8 @@ Order handling — when a customer wants to buy or order anything:
           body:    JSON.stringify({
             model,
             messages:    [{ role: 'system', content: system }, ...userMessages],
-            max_tokens:  300,
-            temperature: 0.6
+            max_tokens:  400,
+            temperature: 0.65
           })
         });
         if (r.ok) {
@@ -173,7 +195,6 @@ Order handling — when a customer wants to buy or order anything:
         if (r.status === 401 || r.status === 403) break;
       }
     } else {
-      // Gemini: convert history to Gemini format
       const contents = userMessages.map(m => ({
         role:  m.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: m.content }]
@@ -187,7 +208,7 @@ Order handling — when a customer wants to buy or order anything:
             body:    JSON.stringify({
               system_instruction: { parts: [{ text: system }] },
               contents,
-              generationConfig:   { maxOutputTokens: 300, temperature: 0.6 }
+              generationConfig:   { maxOutputTokens: 400, temperature: 0.65 }
             })
           }
         );
@@ -205,10 +226,6 @@ Order handling — when a customer wants to buy or order anything:
   return null;
 }
 
-/**
- * Send an order alert to the store owner's WhatsApp.
- * Requires: TWILIO_SID, TWILIO_TOKEN, TWILIO_FROM, OWNER_WHATSAPP
- */
 async function _notifyOwner(aiReply, customerFrom, customerName, storeName, sid, token, notifyFromUrl = '') {
   const from     = process.env.TWILIO_FROM;
   const ownerNum = notifyFromUrl || process.env.OWNER_WHATSAPP;
@@ -226,6 +243,50 @@ async function _notifyOwner(aiReply, customerFrom, customerName, storeName, sid,
   });
 }
 
+async function _handlePaymentAlert(aiReply, customerFrom, customerName, storeName, sid, token, notifyFromUrl, riderEmails) {
+  const alertLine = (aiReply.match(/PAYMENT ALERT:(.*)/i) || [])[1]?.trim() || 'Payment received';
+
+  // Store order in Blob
+  const blobToken  = process.env.BLOB_READ_WRITE_TOKEN;
+  const blobBase   = (process.env.PRODUCTS_BLOB_URL || '').replace('iflow-products.json', '');
+  if (blobToken && blobBase) {
+    const ordersUrl = blobBase + 'iflow-orders.json';
+    let orders = [];
+    try {
+      const r = await fetch(ordersUrl, { cache: 'no-store' });
+      if (r.ok) orders = await r.json();
+    } catch {}
+    if (!Array.isArray(orders)) orders = [];
+    orders.push({
+      id:           'order_' + Date.now(),
+      customerNum:  customerFrom,
+      customerName: customerName || customerFrom,
+      details:      alertLine,
+      status:       'payment_proof',
+      riderEmails:  riderEmails,
+      createdAt:    new Date().toISOString()
+    });
+    await put('iflow-orders.json', JSON.stringify(orders), {
+      access: 'public', token: blobToken,
+      contentType: 'application/json', addRandomSuffix: false
+    }).catch(() => {});
+  }
+
+  // Notify owner via WhatsApp
+  const from     = process.env.TWILIO_FROM;
+  const ownerNum = notifyFromUrl || process.env.OWNER_WHATSAPP;
+  if (!sid || !token || !from || !ownerNum) return;
+
+  const body = `💰 *Payment Proof — ${storeName}*\n${alertLine}\nFrom: ${customerName || customerFrom}\n\nOpen iFlow to verify & confirm.`;
+  const to   = ownerNum.startsWith('whatsapp:') ? ownerNum : 'whatsapp:' + ownerNum;
+  const auth = 'Basic ' + Buffer.from(sid + ':' + token).toString('base64');
+  await fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Messages.json`, {
+    method:  'POST',
+    headers: { Authorization: auth, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body:    new URLSearchParams({ From: from, To: to, Body: body }).toString()
+  }).catch(() => {});
+}
+
 function escapeXml(str) {
   return str
     .replace(/&/g, '&amp;')
@@ -235,26 +296,26 @@ function escapeXml(str) {
 }
 
 /**
- * Fetch the live product catalogue from Vercel Blob.
- * Returns a compact string like "iPhone 15 (₦150000) [stock:3], Bag (₦5000) [stock:12]"
- * or empty string if the Blob URL isn't set or the fetch fails.
+ * Fetch live data from Vercel Blob: products ctx string, paymentInfo, riderEmails.
  */
-async function _fetchBlobProducts() {
+async function _fetchBlobData() {
   const url = process.env.PRODUCTS_BLOB_URL;
-  if (!url) return '';
+  if (!url) return { ctx: '', paymentInfo: {}, riderEmails: [] };
   try {
     const r = await fetch(url, { cache: 'no-store' });
-    if (!r.ok) return '';
+    if (!r.ok) return { ctx: '', paymentInfo: {}, riderEmails: [] };
     const data = await r.json();
     const prods = Array.isArray(data) ? data : (data.products || []);
-    if (!prods.length) return '';
-    return prods.map(p => {
+    const paymentInfo = data.paymentInfo || {};
+    const riderEmails = Array.isArray(data.riderEmails) ? data.riderEmails : [];
+    const ctx = prods.map(p => {
       const price = p.unitPrice ? ' (₦' + p.unitPrice + ')' : (p.price ? ' (₦' + p.price + ')' : '');
       const qty   = p.stockQty !== undefined ? p.stockQty : (p.qty !== undefined ? p.qty : null);
       const stock = qty !== null ? ' [stock:' + qty + ']' : '';
       return (p.name || '') + price + stock;
     }).filter(Boolean).join(', ');
+    return { ctx, paymentInfo, riderEmails };
   } catch {
-    return '';
+    return { ctx: '', paymentInfo: {}, riderEmails: [] };
   }
 }

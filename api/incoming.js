@@ -113,33 +113,38 @@ export default async function handler(req, res) {
   res.status(200).send('<Response></Response>');
 }
 
-/**
- * Load this customer's conversation memory from Blob.
- * Each customer has their own file: iflow-chat-{digits}.json
- * Returns last 20 messages as [{role, content}]
- */
+// Chat memory file prefix — increment (v3, v4…) to wipe all stored histories
+const CHAT_PREFIX = 'iflow-mem2-';
+const CHAT_TTL_MS = 24 * 60 * 60 * 1000; // messages older than 24h are dropped
+
+function _chatKey(from) {
+  return CHAT_PREFIX + from.replace(/^whatsapp:/i, '').replace(/\D/g, '') + '.json';
+}
+
 async function _loadChatMemory(from, blobBase) {
   if (!from || !blobBase) return [];
   try {
-    const key = 'iflow-chat-' + from.replace(/^whatsapp:/i, '').replace(/\D/g, '') + '.json';
-    const r   = await fetch(blobBase + key, { cache: 'no-store' });
+    const r = await fetch(blobBase + _chatKey(from), { cache: 'no-store' });
     if (!r.ok) return [];
     const data = await r.json();
-    return Array.isArray(data) ? data.slice(-20) : [];
+    if (!Array.isArray(data)) return [];
+    // Drop messages older than TTL, keep last 16
+    const cutoff = Date.now() - CHAT_TTL_MS;
+    return data
+      .filter(m => !m.ts || new Date(m.ts).getTime() > cutoff)
+      .slice(-16)
+      .map(m => ({ role: m.role, content: m.content })); // strip timestamps before sending to AI
   } catch {
     return [];
   }
 }
 
-/**
- * Save updated conversation memory back to Blob (keep last 30 messages).
- */
 async function _saveChatMemory(from, blobBase, messages) {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
   if (!token || !from || !blobBase) return;
-  const key  = 'iflow-chat-' + from.replace(/^whatsapp:/i, '').replace(/\D/g, '') + '.json';
-  const kept = messages.slice(-30);
-  await put(key, JSON.stringify(kept), {
+  // Stamp each new message so TTL works; keep last 30
+  const stamped = messages.map(m => ({ ...m, ts: m.ts || new Date().toISOString() })).slice(-30);
+  await put(_chatKey(from), JSON.stringify(stamped), {
     access: 'public', token,
     contentType: 'application/json', addRandomSuffix: false
   });

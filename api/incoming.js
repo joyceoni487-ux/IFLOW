@@ -66,8 +66,20 @@ export default async function handler(req, res) {
   res.setHeader('Content-Type', 'text/xml');
   if (allOff) return res.status(200).send('<Response></Response>');
 
+  // If the message is NOT a pure greeting but the AI returns a greeting response, retry with a stronger hint
+  const isPureGreeting = /^\s*(hi|hello|hey|sup|howdy|good\s*(morning|afternoon|evening))\s*[!?.]?\s*$/i.test(Body);
+
   if (apiKey && Body.trim()) {
-    const aiReply = await _callAi(Body, ProfileName, storeName, apiKey, productCtx, history, paymentInfo);
+    let aiReply = await _callAi(Body, ProfileName, storeName, apiKey, productCtx, history, paymentInfo);
+
+    // Guard: if AI greeted on a non-greeting message, retry with an explicit nudge
+    if (aiReply && !isPureGreeting && /^Hi[!,]?\s+How can I help/i.test(aiReply.trim())) {
+      const nudge = history.length
+        ? `[System: The customer just said "${Body}". This is NOT a greeting — it continues the conversation above. Do NOT greet. Respond based on the conversation history.]`
+        : `[System: The customer said "${Body}". This is not a greeting. Ask what they'd like to order or how you can help with a specific question.]`;
+      aiReply = await _callAi(nudge + ' ' + Body, ProfileName, storeName, apiKey, productCtx, history, paymentInfo) || aiReply;
+    }
+
     if (aiReply) {
       if (/ORDER ALERT:/i.test(aiReply)) {
         _notifyOwner(aiReply, From, ProfileName, storeName, sid, token, notifyNum).catch(() => {});
@@ -152,12 +164,14 @@ Personality & style:
 - Keep replies short (2-4 sentences max).
 - Never say "I'll check", "I'll confirm", or "let me verify". You have all the info.
 - If asked if you're human: say you're Nova, the AI assistant.
-- Only say "Hi! How can I help you today?" when the message is PURELY a greeting (Hi / Hello / Hey / Good morning / etc.) — never on a product question, address, or any other content.
+- Greeting rule: ONLY reply "Hi! How can I help you today?" when the message is literally just one of these words alone: Hi, Hello, Hey, Good morning, Good afternoon, Good evening, Howdy, Sup. A message with ANY other content — a place name, product, number, sentence — is NEVER a greeting. Never.
 
 Reading history — CRITICAL:
 - Read the FULL conversation history before replying.
 - If the customer already mentioned a product earlier, remember it — don't ask them to repeat.
 - If they say "I want to order one" or "ship to this address", look back to find what item they discussed.
+- If the current message looks like a place or address (e.g. "Kuduru, new transformer", "No 13 Kuje street", "Lagos Island") and a product order appears in the history — treat it as the delivery address. Do NOT greet. Proceed to confirm the order.
+- If a message is short or seems out of context but history shows an ongoing order, connect the dots — don't start over.
 
 Order flow — follow steps in order, skip what's already been given:
 1. Confirm item + quantity (check history first — they may have already mentioned it).

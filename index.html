@@ -1396,6 +1396,10 @@
   .filter-chip:hover:not(.active) { border-color:var(--accent); color:var(--accent); }
   @keyframes slideInCard { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
 
+  /* Payment alert animations */
+  @keyframes pay-banner-slide { 0%{background-position:0 0} 100%{background-position:200% 0} }
+  @keyframes pay-slide-in { from{transform:translateX(100%)} to{transform:translateX(0)} }
+
   /* Nova AI animations */
   @keyframes nova-ring {
     0%   { box-shadow: 0 0 0 0 rgba(129,140,248,.7),  0 4px 20px rgba(99,102,241,.45); }
@@ -2726,28 +2730,40 @@
   </div>
 </div>
 
-<!-- Payment Alert Notification Panel -->
-<div id="payAlertPanel" style="display:none;position:fixed;top:0;right:0;width:min(380px,100vw);height:100%;background:var(--surface);border-left:2px solid #f59e0b;z-index:9950;flex-direction:column;box-shadow:-6px 0 30px rgba(0,0,0,.3)">
-  <div style="background:linear-gradient(135deg,#f59e0b,#ef4444);padding:20px 20px 16px;display:flex;align-items:center;gap:12px">
-    <div id="payAlertDot" style="width:13px;height:13px;border-radius:50%;background:#fff;animation:nova-ring 1s ease-out infinite;flex-shrink:0"></div>
+<!-- Payment Alert — full overlay + side drawer -->
+<!-- Semi-transparent backdrop (lets you see app behind, click-through) -->
+<div id="payAlertBackdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9940;backdrop-filter:blur(2px)"></div>
+
+<!-- Pulsing top banner -->
+<div id="payAlertBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9960;background:linear-gradient(90deg,#ef4444,#f59e0b,#ef4444);background-size:200% 100%;animation:pay-banner-slide 2s linear infinite;padding:10px 20px;display:none;align-items:center;gap:10px;justify-content:center;cursor:pointer" onclick="document.getElementById('payAlertPanel').style.display='flex'">
+  <span style="font-size:1.1rem">💰</span>
+  <span style="color:#fff;font-weight:700;font-size:0.9rem;letter-spacing:.5px">PAYMENT RECEIVED — Tap to review</span>
+  <span id="payAlertBannerTime" style="color:rgba(255,255,255,.8);font-size:0.78rem;margin-left:6px"></span>
+</div>
+
+<!-- Side drawer -->
+<div id="payAlertPanel" style="display:none;position:fixed;top:0;right:0;width:min(400px,100vw);height:100%;background:var(--surface);z-index:9961;flex-direction:column;box-shadow:-8px 0 40px rgba(0,0,0,.5);border-left:3px solid #f59e0b;animation:pay-slide-in .3s ease-out both">
+  <div style="background:linear-gradient(135deg,#ef4444,#f59e0b);padding:22px 20px 18px;display:flex;align-items:center;gap:12px">
+    <div style="width:14px;height:14px;border-radius:50%;background:#fff;animation:nova-ring .8s ease-out infinite;flex-shrink:0"></div>
     <div style="flex:1">
-      <div style="font-size:1rem;font-weight:700;color:#fff">Payment Proof Received</div>
-      <div id="payAlertTime" style="font-size:0.73rem;color:rgba(255,255,255,.85)">Just now</div>
+      <div style="font-size:1.05rem;font-weight:800;color:#fff;letter-spacing:.3px">💰 Payment Proof Received!</div>
+      <div id="payAlertTime" style="font-size:0.75rem;color:rgba(255,255,255,.9);margin-top:2px">Just now</div>
     </div>
-    <button onclick="_dismissPayAlert()" style="background:rgba(255,255,255,.2);border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;color:#fff;font-size:1.2rem;display:flex;align-items:center;justify-content:center;flex-shrink:0">×</button>
+    <button onclick="_dismissPayAlert()" title="Dismiss" style="background:rgba(255,255,255,.25);border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;color:#fff;font-size:1.3rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-weight:300">×</button>
   </div>
-  <div style="padding:20px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:14px">
-    <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:12px;padding:16px">
-      <div id="payAlertDetails" style="font-size:0.87rem;color:var(--text);line-height:1.85;white-space:pre-wrap"></div>
+  <div style="padding:20px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:16px">
+    <div style="background:rgba(245,158,11,.1);border:1.5px solid rgba(245,158,11,.4);border-radius:12px;padding:16px">
+      <p style="font-size:0.72rem;font-weight:700;color:#f59e0b;margin:0 0 8px;text-transform:uppercase;letter-spacing:.8px">Order Details</p>
+      <div id="payAlertDetails" style="font-size:0.88rem;color:var(--text);line-height:1.9;white-space:pre-wrap"></div>
     </div>
-    <p style="font-size:0.79rem;color:var(--muted);margin:0">Verify payment in your banking app, then confirm below. The customer will be notified automatically and riders will be emailed.</p>
+    <p style="font-size:0.8rem;color:var(--muted);margin:0;line-height:1.6">Check your banking app to verify, then confirm. Customer gets a WhatsApp confirmation and riders are emailed.</p>
     <button id="payAlertConfirmBtn" onclick="_confirmPayment()"
-      style="padding:14px;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;border-radius:12px;color:#fff;font-size:0.95rem;font-weight:700;cursor:pointer">
+      style="padding:15px;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;border-radius:12px;color:#fff;font-size:1rem;font-weight:800;cursor:pointer;letter-spacing:.3px;box-shadow:0 4px 16px rgba(34,197,94,.4)">
       ✓ Confirm Payment &amp; Notify Customer
     </button>
     <button onclick="_dismissPayAlert()"
-      style="padding:10px;background:transparent;border:1px solid var(--border);border-radius:12px;color:var(--muted);font-size:0.85rem;cursor:pointer">
-      Dismiss
+      style="padding:11px;background:transparent;border:1.5px solid var(--border);border-radius:12px;color:var(--muted);font-size:0.85rem;cursor:pointer">
+      Dismiss (check later)
     </button>
   </div>
 </div>
@@ -6210,26 +6226,50 @@ function _playNotificationChime() {
   } catch(e) {}
 }
 
+var _chimeInterval = null;
+
 function _showPaymentAlert(order) {
   if (_currentPayAlert && _currentPayAlert.id === order.id) return;
   _currentPayAlert = order;
-  var panel    = document.getElementById('payAlertPanel');
-  var details  = document.getElementById('payAlertDetails');
-  var timeEl   = document.getElementById('payAlertTime');
-  var btn      = document.getElementById('payAlertConfirmBtn');
-  if (!panel) return;
-  details.textContent = order.details || 'Payment received';
+
   var elapsed = Math.round((Date.now() - new Date(order.createdAt).getTime()) / 60000);
-  timeEl.textContent  = elapsed < 1 ? 'Just now' : elapsed + ' min ago';
-  btn.textContent     = '✓ Confirm Payment & Notify Customer';
-  btn.disabled        = false;
+  var timeStr = elapsed < 1 ? 'Just now' : elapsed + ' min ago';
+
+  // Top banner
+  var banner = document.getElementById('payAlertBanner');
+  if (banner) {
+    banner.style.display = 'flex';
+    var bannerTime = document.getElementById('payAlertBannerTime');
+    if (bannerTime) bannerTime.textContent = '— ' + timeStr;
+  }
+
+  // Backdrop
+  var backdrop = document.getElementById('payAlertBackdrop');
+  if (backdrop) backdrop.style.display = 'block';
+
+  // Side drawer
+  var panel   = document.getElementById('payAlertPanel');
+  var details = document.getElementById('payAlertDetails');
+  var timeEl  = document.getElementById('payAlertTime');
+  var btn     = document.getElementById('payAlertConfirmBtn');
+  if (!panel) return;
+  if (details) details.textContent = order.details || 'Payment received';
+  if (timeEl)  timeEl.textContent  = timeStr;
+  if (btn)     { btn.textContent = '✓ Confirm Payment & Notify Customer'; btn.disabled = false; }
   panel.style.display = 'flex';
+
+  // Play chime now and repeat every 60s until dismissed
   _playNotificationChime();
+  clearInterval(_chimeInterval);
+  _chimeInterval = setInterval(_playNotificationChime, 60000);
 }
 
 function _dismissPayAlert() {
-  var panel = document.getElementById('payAlertPanel');
-  if (panel) panel.style.display = 'none';
+  clearInterval(_chimeInterval);
+  ['payAlertPanel','payAlertBackdrop','payAlertBanner'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
   if (_currentPayAlert) {
     fetch('/api/orders?id=' + encodeURIComponent(_currentPayAlert.id) + '&action=dismiss', { method: 'PATCH' }).catch(function(){});
     _currentPayAlert = null;
@@ -6254,8 +6294,10 @@ async function _confirmPayment() {
       }
       if (typeof showToast === 'function') showToast('Payment confirmed! Customer notified ✓');
       _currentPayAlert = null;
-      var panel = document.getElementById('payAlertPanel');
-      if (panel) panel.style.display = 'none';
+      clearInterval(_chimeInterval);
+      ['payAlertPanel','payAlertBackdrop','payAlertBanner'].forEach(function(id){
+        var el = document.getElementById(id); if (el) el.style.display = 'none';
+      });
     } else {
       if (typeof showToast === 'function') showToast('Could not confirm — try again');
       btn.textContent = '✓ Confirm Payment & Notify Customer'; btn.disabled = false;

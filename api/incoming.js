@@ -65,6 +65,13 @@ export default async function handler(req, res) {
 
   const isPureGreeting = /^\s*(hi+|hello|hey+|sup|howdy|good\s*(morning|afternoon|evening|day))\s*[!?.]?\s*$/i.test(Body);
 
+  // Server-side payment proof detection — don't rely solely on AI appending PAYMENT ALERT
+  const looksLikePaymentProof = /\b(paid|payment|transferred|sent money|done|receipt|proof|screenshot|transfer|deposited|i've paid|i have paid|check it|already paid)\b/i.test(Body);
+  const hasActiveOrderInMemory = history.some(m =>
+    /ORDER ALERT:|Got it.*✅|delivery address|please pay|make payment/i.test(m.content)
+  );
+  const serverDetectedPayment = looksLikePaymentProof && hasActiveOrderInMemory;
+
   if (apiKey && Body.trim()) {
     let aiReply = await _callAi(Body, ProfileName, storeName, apiKey, productCtx, history, paymentInfo);
 
@@ -77,16 +84,24 @@ export default async function handler(req, res) {
     }
 
     if (aiReply) {
+      const sid   = process.env.TWILIO_SID   || '';
+      const token = process.env.TWILIO_TOKEN || '';
+
       if (/ORDER ALERT:/i.test(aiReply)) {
-        const sid   = process.env.TWILIO_SID   || '';
-        const token = process.env.TWILIO_TOKEN || '';
         _notifyOwner(aiReply, From, ProfileName, storeName, sid, token, notifyNum).catch(() => {});
       }
-      if (/PAYMENT ALERT:/i.test(aiReply)) {
-        const sid   = process.env.TWILIO_SID   || '';
-        const token = process.env.TWILIO_TOKEN || '';
-        _handlePaymentAlert(aiReply, From, ProfileName, storeName, sid, token, notifyNum, riderEmails).catch(() => {});
+
+      // Trigger payment alert if AI detected it OR server-side detection fired
+      if (/PAYMENT ALERT:/i.test(aiReply) || serverDetectedPayment) {
+        // Build alert line from AI reply or extract from history
+        const alertFromAi = (aiReply.match(/PAYMENT ALERT:(.*)/i) || [])[1]?.trim();
+        const orderFromHistory = history.filter(m => /ORDER ALERT:/i.test(m.content)).pop();
+        const orderLine = alertFromAi
+          || (orderFromHistory ? (orderFromHistory.content.match(/ORDER ALERT:(.*)/i) || [])[1]?.trim() : null)
+          || `${ProfileName || 'Customer'} | details in conversation`;
+        _handlePaymentAlert(orderLine, From, ProfileName, storeName, sid, token, notifyNum, riderEmails).catch(() => {});
       }
+
       const customerReply = aiReply
         .replace(/\n?ORDER ALERT:.*$/im, '')
         .replace(/\n?PAYMENT ALERT:.*$/im, '')
@@ -283,8 +298,8 @@ async function _notifyOwner(aiReply, customerFrom, customerName, storeName, sid,
   });
 }
 
-async function _handlePaymentAlert(aiReply, customerFrom, customerName, storeName, sid, token, notifyFromUrl, riderEmails) {
-  const alertLine = (aiReply.match(/PAYMENT ALERT:(.*)/i) || [])[1]?.trim() || 'Payment received';
+async function _handlePaymentAlert(orderLine, customerFrom, customerName, storeName, sid, token, notifyFromUrl, riderEmails) {
+  const alertLine = (typeof orderLine === 'string' ? orderLine : '') || 'Payment received';
 
   // Store order in Blob
   const blobToken  = process.env.BLOB_READ_WRITE_TOKEN;

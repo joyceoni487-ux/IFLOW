@@ -1400,7 +1400,42 @@
   @keyframes pay-banner-slide { 0%{background-position:0 0} 100%{background-position:200% 0} }
   @keyframes pay-slide-in { from{transform:translateX(100%)} to{transform:translateX(0)} }
 
-  /* Nova AI animations */
+  /* ── Role Picker + Rider App ──────────────────────────────────────────── */
+  #rolePickerModal,#riderApp{position:fixed;inset:0;z-index:9000;background:#0b0d14;display:none;flex-direction:column;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#e2e8f0}
+  #rolePickerModal{align-items:center;justify-content:center;padding:32px;text-align:center}
+  .role-logo{font-size:2rem;font-weight:800;letter-spacing:1px;margin-bottom:8px}.role-logo span{color:#4f8ef7}
+  .role-tagline{color:#64748b;font-size:.9rem;margin-bottom:40px}
+  .role-card{background:#1a1d2e;border:1.5px solid rgba(255,255,255,.1);border-radius:20px;padding:28px 24px;margin-bottom:16px;width:100%;max-width:340px;cursor:pointer;text-align:left;transition:border-color .2s,transform .1s}
+  .role-card:active{transform:scale(.98)}
+  .role-card:hover{border-color:#4f8ef7}
+  .role-card-icon{font-size:2rem;margin-bottom:10px}
+  .role-card-title{font-size:1.05rem;font-weight:700;margin-bottom:4px}
+  .role-card-desc{font-size:.82rem;color:#64748b;line-height:1.5}
+  /* Rider App */
+  #riderApp{overflow-y:auto}
+  .rider-header{background:#111827;padding:20px 20px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.07)}
+  .rider-avatar{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#4f8ef7,#7b5ea7);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1rem;flex-shrink:0}
+  .rider-name{font-weight:700;font-size:1rem}
+  .rider-status{font-size:.75rem;color:#22c55e;display:flex;align-items:center;gap:4px}
+  .rider-status::before{content:'';width:7px;height:7px;border-radius:50%;background:#22c55e;display:inline-block}
+  .rider-body{flex:1;padding:20px 16px;display:flex;flex-direction:column;gap:20px}
+  .rider-section-title{font-size:.7rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#64748b;margin-bottom:10px}
+  .rider-card{background:#1a1d2e;border-radius:16px;padding:18px;border:1px solid rgba(255,255,255,.07)}
+  .rider-card.active-delivery{border-color:#4f8ef7;background:linear-gradient(135deg,rgba(79,142,247,.1),rgba(123,94,167,.1))}
+  .rider-card-product{font-size:1rem;font-weight:700;margin-bottom:6px}
+  .rider-card-address{font-size:.85rem;color:#94a3b8;margin-bottom:12px;display:flex;align-items:flex-start;gap:6px}
+  .rider-card-customer{font-size:.8rem;color:#64748b;margin-bottom:14px}
+  .rider-btn{width:100%;padding:13px;border:none;border-radius:12px;font-size:.95rem;font-weight:700;cursor:pointer;margin-top:8px}
+  .rider-btn-accept{background:#4f8ef7;color:#fff}
+  .rider-btn-deliver{background:#22c55e;color:#000}
+  .rider-btn-sm{background:rgba(255,255,255,.07);color:#94a3b8;font-size:.8rem;padding:8px 16px;border:none;border-radius:8px;cursor:pointer}
+  .rider-empty{text-align:center;padding:40px 20px;color:#475569}
+  .rider-empty-icon{font-size:2.5rem;margin-bottom:10px}
+  .rider-footer{padding:16px;border-top:1px solid rgba(255,255,255,.07);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+  @keyframes rider-pulse{0%,100%{opacity:1}50%{opacity:.5}}
+  .rider-new-badge{background:#ef4444;color:#fff;border-radius:999px;padding:2px 8px;font-size:.7rem;font-weight:700;margin-left:8px;animation:rider-pulse 1.5s ease-in-out infinite}
+
+  /* ── Nova AI animations ──────────────────────────────────────────────── */
   @keyframes nova-ring {
     0%   { box-shadow: 0 0 0 0 rgba(129,140,248,.7),  0 4px 20px rgba(99,102,241,.45); }
     70%  { box-shadow: 0 0 0 12px rgba(129,140,248,0), 0 4px 20px rgba(99,102,241,.45); }
@@ -1424,6 +1459,7 @@
 </head>
 <body>
 
+<div id="mainAppWrapper">
 <header>
   <div style="display:flex;align-items:center;gap:12px">
     <div class="header-store-avatar" id="headerLogoAvatar" style="background:linear-gradient(135deg,#4f8ef7,#7b5ea7);display:flex;align-items:center;justify-content:center;border-radius:10px;width:38px;height:38px;flex-shrink:0">
@@ -2780,6 +2816,7 @@
   onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">✨</button>
 
 </div><!-- end .app-body -->
+</div><!-- end #mainAppWrapper -->
 
 <script>
   let sales = JSON.parse(localStorage.getItem('iflow_sales') || '[]');
@@ -3432,7 +3469,9 @@
     var delay = immediate ? 0 : 2000;
     _novaSyncDebounce = setTimeout(function() {
       try {
-        var prods = JSON.parse(localStorage.getItem('iflow_products') || '[]');
+        var _rawProds = localStorage.getItem('iflow_products');
+        if (_rawProds === null) return; // not initialized yet — don't wipe blob
+        var prods = JSON.parse(_rawProds || '[]');
         var s     = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
         var payload = {
           products: prods,
@@ -6169,6 +6208,8 @@ function devSignIn() {
 
 function showApp(user) {
   document.getElementById('loginScreen').style.display = 'none';
+  // Mobile role check — may redirect to role picker or rider app
+  if (typeof _checkMobileRole === 'function' && _checkMobileRole(user)) return;
   // Populate sidebar user info
   const nameEl = document.getElementById('sidebarUserName');
   const emailEl = document.getElementById('sidebarUserEmail');
@@ -6277,10 +6318,9 @@ function _dismissPayAlert() {
   ['payAlertPanel','payAlertBackdrop','payAlertBanner'].forEach(function(id) {
     var el = document.getElementById(id); if (el) el.style.display = 'none';
   });
-  if (_currentPayAlert) {
-    fetch('/api/orders?id=' + encodeURIComponent(_currentPayAlert.id) + '&action=dismiss', { method: 'PATCH' }).catch(function(){});
-    _currentPayAlert = null;
-  }
+  // Don't call dismiss API — keep order as payment_proof so it re-appears on next poll
+  // Badge count remains so owner knows there's a pending alert
+  _currentPayAlert = null;
 }
 
 // Parse "Customer | item x1 | ₦price | Address: addr" into fields
@@ -6944,6 +6984,276 @@ async function _callAiApi(system, messages) {
 </script>
 
 <script>
+// ── Role Picker + Rider App ──────────────────────────────────────────────────
+</script>
+
+<!-- Role Picker Modal -->
+<div id="rolePickerModal">
+  <div class="role-logo">i<span>Flow</span></div>
+  <p class="role-tagline">Who's using this device?</p>
+  <div class="role-card" onclick="setAppRole('owner')">
+    <div class="role-card-icon">🏪</div>
+    <div class="role-card-title">Store Owner / Manager</div>
+    <div class="role-card-desc">Full access — manage products, orders, sales, dispatch and settings.</div>
+  </div>
+  <div class="role-card" onclick="setAppRole('rider')">
+    <div class="role-card-icon">🏍️</div>
+    <div class="role-card-title">Dispatch Rider</div>
+    <div class="role-card-desc">See available deliveries, accept jobs, and mark them as delivered.</div>
+  </div>
+</div>
+
+<!-- Rider App -->
+<div id="riderApp">
+  <div class="rider-header">
+    <div class="rider-avatar" id="riderAvatar">R</div>
+    <div>
+      <div class="rider-name" id="riderName">Rider</div>
+      <div class="rider-status" id="riderOnlineStatus">Online</div>
+    </div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+      <span id="riderNewBadge" style="display:none" class="rider-new-badge">NEW</span>
+      <button class="rider-btn-sm" onclick="_riderRefresh()" title="Refresh">↻</button>
+    </div>
+  </div>
+
+  <div class="rider-body" id="riderBody">
+    <div class="rider-empty">
+      <div class="rider-empty-icon">📡</div>
+      <div>Loading deliveries…</div>
+    </div>
+  </div>
+
+  <div class="rider-footer">
+    <span style="font-size:.75rem;color:#475569" id="riderLastSync">—</span>
+    <button class="rider-btn-sm" onclick="_switchRiderRole()" style="font-size:.75rem">Switch Role</button>
+  </div>
+</div>
+
+<script>
+// ── Role Management ───────────────────────────────────────────────────────────
+function setAppRole(role) {
+  localStorage.setItem('iflow_role', role);
+  document.getElementById('rolePickerModal').style.display = 'none';
+  if (role === 'rider') {
+    _launchRiderApp();
+  } else {
+    document.getElementById('mainAppWrapper').style.display = '';
+  }
+}
+
+function _switchRiderRole() {
+  localStorage.removeItem('iflow_role');
+  document.getElementById('riderApp').style.display = 'none';
+  document.getElementById('rolePickerModal').style.display = 'flex';
+}
+
+function _checkMobileRole(user) {
+  var isMobile = window.innerWidth < 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+  var role = localStorage.getItem('iflow_role');
+  if (isMobile && !role) {
+    // Hide main app, show role picker
+    document.getElementById('mainAppWrapper').style.display = 'none';
+    document.getElementById('rolePickerModal').style.display = 'flex';
+    return true; // handled
+  }
+  if (role === 'rider') {
+    document.getElementById('mainAppWrapper').style.display = 'none';
+    _launchRiderApp(user);
+    return true;
+  }
+  return false; // show normal app
+}
+
+// ── Rider App ─────────────────────────────────────────────────────────────────
+var _riderPollingInterval = null;
+var _riderKnownJobIds     = new Set();
+var _riderUser            = null;
+
+function _launchRiderApp(user) {
+  _riderUser = user || JSON.parse(localStorage.getItem('iflow_user') || '{}');
+  var el = document.getElementById('riderApp');
+  el.style.display = 'flex';
+  // Populate header
+  var nameEl   = document.getElementById('riderName');
+  var avatarEl = document.getElementById('riderAvatar');
+  if (nameEl && _riderUser.name)   nameEl.textContent   = _riderUser.name;
+  if (avatarEl && _riderUser.name) avatarEl.textContent = _riderUser.name.charAt(0).toUpperCase();
+  // Start polling
+  _riderRefresh();
+  if (!_riderPollingInterval) _riderPollingInterval = setInterval(_riderRefresh, 20000);
+}
+
+async function _riderRefresh() {
+  var syncEl = document.getElementById('riderLastSync');
+  try {
+    var r = await fetch('/api/orders');
+    if (!r.ok) throw new Error('fetch failed');
+    var orders = await r.json();
+    if (!Array.isArray(orders)) throw new Error('bad response');
+    _renderRiderView(orders);
+    if (syncEl) syncEl.textContent = 'Updated ' + new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  } catch(e) {
+    if (syncEl) syncEl.textContent = 'Connection error — retrying…';
+  }
+}
+
+function _renderRiderView(orders) {
+  var myEmail = (_riderUser && _riderUser.email) || '';
+  var body    = document.getElementById('riderBody');
+  if (!body) return;
+
+  // Available jobs (confirmed, no rider yet OR still open)
+  var available = orders.filter(function(o) {
+    return o.status === 'confirmed';
+  });
+  // My active delivery
+  var myActive = orders.find(function(o) {
+    return o.status === 'rider_accepted' && o.riderId === myEmail;
+  });
+  // My completed today
+  var myDone = orders.filter(function(o) {
+    return o.status === 'delivered' && o.riderId === myEmail && _isToday(o.deliveredAt);
+  });
+
+  // Check for new jobs and play alert
+  var newJobIds = available.map(function(o){ return o.id; });
+  var hasNew = newJobIds.some(function(id){ return !_riderKnownJobIds.has(id); });
+  if (hasNew && _riderKnownJobIds.size > 0) {
+    _playRiderAlert();
+    document.getElementById('riderNewBadge').style.display = '';
+    setTimeout(function(){ document.getElementById('riderNewBadge').style.display = 'none'; }, 8000);
+  }
+  newJobIds.forEach(function(id){ _riderKnownJobIds.add(id); });
+
+  var html = '';
+
+  // Active delivery
+  if (myActive) {
+    var p = _parseRiderDetails(myActive.details);
+    html += '<div>';
+    html += '<div class="rider-section-title">My Active Delivery</div>';
+    html += '<div class="rider-card active-delivery">';
+    html += '<div class="rider-card-product">' + _esc(p.product || myActive.details) + '</div>';
+    html += '<div class="rider-card-address">📍 ' + _esc(p.address || 'Address in order') + '</div>';
+    html += '<div class="rider-card-customer">Customer: ' + _esc(p.customer || myActive.customerName || '—') + '</div>';
+    html += '<button class="rider-btn rider-btn-deliver" onclick="_riderComplete(this,' + JSON.stringify(myActive.id) + ')">✓ Mark as Delivered</button>';
+    html += '</div></div>';
+  }
+
+  // Available jobs
+  html += '<div>';
+  html += '<div class="rider-section-title">Available Jobs (' + available.length + ')</div>';
+  if (available.length === 0) {
+    html += '<div class="rider-empty"><div class="rider-empty-icon">📭</div><div>No available deliveries right now</div><div style="font-size:.8rem;margin-top:6px;color:#64748b">Check back soon</div></div>';
+  } else {
+    available.forEach(function(o) {
+      var p = _parseRiderDetails(o.details);
+      var elapsed = Math.round((Date.now() - new Date(o.confirmedAt || o.createdAt).getTime()) / 60000);
+      var timeStr = elapsed < 1 ? 'Just now' : elapsed + ' min ago';
+      html += '<div class="rider-card">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">';
+      html += '<div class="rider-card-product">' + _esc(p.product || o.details) + '</div>';
+      html += '<span style="font-size:.72rem;color:#64748b">' + timeStr + '</span>';
+      html += '</div>';
+      html += '<div class="rider-card-address">📍 ' + _esc(p.address || '—') + '</div>';
+      html += '<div class="rider-card-customer">Customer: ' + _esc(p.customer || o.customerName || '—') + '</div>';
+      html += '<button class="rider-btn rider-btn-accept" onclick="_riderAccept(this,' + JSON.stringify(o.id) + ')">Accept Delivery</button>';
+      html += '</div>';
+    });
+  }
+  html += '</div>';
+
+  // Completed today
+  if (myDone.length > 0) {
+    html += '<div>';
+    html += '<div class="rider-section-title">Completed Today (' + myDone.length + ')</div>';
+    myDone.forEach(function(o) {
+      var p = _parseRiderDetails(o.details);
+      html += '<div class="rider-card" style="opacity:.6">';
+      html += '<div style="display:flex;align-items:center;gap:8px"><span style="color:#22c55e">✓</span>';
+      html += '<span class="rider-card-product" style="font-size:.9rem">' + _esc(p.product || o.details) + '</span></div>';
+      html += '<div class="rider-card-address" style="margin-bottom:0">📍 ' + _esc(p.address || '—') + '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+
+  body.innerHTML = html;
+}
+
+async function _riderAccept(btn, orderId) {
+  var myEmail = (_riderUser && _riderUser.email) || '';
+  if (!myEmail) { alert('Could not identify your account — please sign in again.'); return; }
+  if (btn) { btn.textContent = 'Accepting…'; btn.disabled = true; }
+  try {
+    var url = '/api/rider-confirm?id=' + encodeURIComponent(orderId) + '&rider=' + encodeURIComponent(myEmail) + '&action=accept';
+    var r = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    var d = r.ok ? await r.json() : {};
+    if (r.ok && d.success) {
+      _riderKnownJobIds.delete(orderId);
+      await _riderRefresh();
+    } else {
+      if (btn) { btn.textContent = 'Accept Delivery'; btn.disabled = false; }
+      alert(d.error === 'Already taken' ? 'Another rider already took this job.' : 'Could not accept — please try again.');
+    }
+  } catch(e) {
+    if (btn) { btn.textContent = 'Accept Delivery'; btn.disabled = false; }
+    alert('Network error — check your connection.');
+  }
+}
+
+async function _riderComplete(btn, orderId) {
+  var myEmail = (_riderUser && _riderUser.email) || '';
+  if (!myEmail) { alert('Could not identify your account.'); return; }
+  if (!confirm('Mark this delivery as completed?')) return;
+  if (btn) { btn.textContent = 'Saving…'; btn.disabled = true; }
+  try {
+    var url = '/api/rider-confirm?id=' + encodeURIComponent(orderId) + '&rider=' + encodeURIComponent(myEmail) + '&action=complete';
+    var r = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (r.ok) { await _riderRefresh(); }
+    else { if (btn) { btn.textContent = '✓ Mark as Delivered'; btn.disabled = false; } }
+  } catch(e) {
+    if (btn) { btn.textContent = '✓ Mark as Delivered'; btn.disabled = false; }
+  }
+}
+
+function _playRiderAlert() {
+  try {
+    var ac  = new (window.AudioContext || window.webkitAudioContext)();
+    [523, 659, 784].forEach(function(freq, i) {
+      var o = ac.createOscillator(); var g = ac.createGain();
+      o.connect(g); g.connect(ac.destination);
+      o.frequency.value = freq; o.type = 'sine';
+      g.gain.setValueAtTime(0.3, ac.currentTime + i * 0.18);
+      g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + i * 0.18 + 0.25);
+      o.start(ac.currentTime + i * 0.18);
+      o.stop(ac.currentTime + i * 0.18 + 0.3);
+    });
+  } catch(e) {}
+}
+
+function _parseRiderDetails(details) {
+  var parts = (details || '').split('|').map(function(p){ return p.trim(); });
+  var customer = parts[0] || '';
+  var itemStr  = parts[1] || '';
+  var product  = itemStr.replace(/\s*x\d+$/i,'').trim() || details || '';
+  var addrPart = parts.find(function(p){ return /address:/i.test(p); }) || parts[parts.length - 1] || '';
+  var address  = addrPart.replace(/^address:\s*/i,'').trim();
+  return { customer: customer, product: product, address: address };
+}
+
+function _isToday(iso) {
+  if (!iso) return false;
+  var d = new Date(iso);
+  var n = new Date();
+  return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate();
+}
+
+function _esc(str) {
+  return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 // ── Loader ──
 (function() {
   const msg = 'Initializing your workspace...';

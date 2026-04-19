@@ -107,11 +107,11 @@ export default async function handler(req, res) {
         .replace(/\n?PAYMENT ALERT:.*$/im, '')
         .trim();
 
-      // Save this exchange to memory (fire-and-forget)
+      // Save full aiReply (ORDER ALERT preserved) so payment fallback can find order details
       _saveChatMemory(From, blobBase, [
         ...history,
         { role: 'user',      content: Body },
-        { role: 'assistant', content: customerReply }
+        { role: 'assistant', content: aiReply }
       ]).catch(() => {});
 
       return res.status(200).send(`<Response><Message>${escapeXml(customerReply)}</Message></Response>`);
@@ -312,6 +312,8 @@ async function _handlePaymentAlert(orderLine, customerFrom, customerName, storeN
       if (r.ok) orders = await r.json();
     } catch {}
     if (!Array.isArray(orders)) orders = [];
+    // Dedup: skip if this customer already has a pending payment_proof order
+    if (orders.some(o => o.customerNum === customerFrom && o.status === 'payment_proof')) return;
     orders.push({
       id:           'order_' + Date.now(),
       customerNum:  customerFrom,

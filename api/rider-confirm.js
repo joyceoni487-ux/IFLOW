@@ -9,10 +9,20 @@
 import { put } from '@vercel/blob';
 
 export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
   const { id, rider, action } = req.query;
+  const wantsJson = (req.headers.accept || '').includes('application/json');
+
+  function _respond(status, htmlArgs, jsonObj) {
+    if (wantsJson) return res.status(status).json(jsonObj);
+    return res.status(status).send(_page(...htmlArgs));
+  }
 
   if (!id || !rider || !['accept', 'complete'].includes(action)) {
-    return res.status(400).send(_page('❌', 'Invalid Link', 'This link is invalid or has expired.'));
+    return _respond(400, ['❌', 'Invalid Link', 'This link is invalid or has expired.'], { error: 'Invalid parameters' });
   }
 
   const blobBase  = (process.env.PRODUCTS_BLOB_URL || '').replace('iflow-products.json', '');
@@ -20,7 +30,7 @@ export default async function handler(req, res) {
   const token     = process.env.BLOB_READ_WRITE_TOKEN;
 
   if (!ordersUrl || !token) {
-    return res.status(500).send(_page('⚠️', 'Not Configured', 'The store has not fully configured iFlow. Contact support.'));
+    return _respond(500, ['⚠️', 'Not Configured', 'The store has not fully configured iFlow. Contact support.'], { error: 'Not configured' });
   }
 
   let orders = [];
@@ -29,17 +39,17 @@ export default async function handler(req, res) {
     if (r.ok) orders = await r.json();
     if (!Array.isArray(orders)) orders = [];
   } catch {
-    return res.status(500).send(_page('⚠️', 'Error', 'Could not load order data. Try again.'));
+    return _respond(500, ['⚠️', 'Error', 'Could not load order data. Try again.'], { error: 'Load failed' });
   }
 
   const order = orders.find(o => o.id === id);
   if (!order) {
-    return res.status(404).send(_page('❌', 'Order Not Found', 'This order may have already been handled.'));
+    return _respond(404, ['❌', 'Order Not Found', 'This order may have already been handled.'], { error: 'Not found' });
   }
 
   // Guard: don't re-accept if already assigned to another rider
   if (action === 'accept' && order.status === 'rider_accepted' && order.riderId !== rider) {
-    return res.status(200).send(_page('🔒', 'Already Taken', 'Another rider already accepted this delivery. Thank you!'));
+    return _respond(200, ['🔒', 'Already Taken', 'Another rider already accepted this delivery. Thank you!'], { error: 'Already taken' });
   }
 
   if (action === 'accept') {
@@ -48,7 +58,7 @@ export default async function handler(req, res) {
     order.riderAcceptedAt = new Date().toISOString();
   } else if (action === 'complete') {
     if (order.riderId && order.riderId !== rider) {
-      return res.status(200).send(_page('🔒', 'Not Your Order', 'You are not assigned to this delivery.'));
+      return _respond(200, ['🔒', 'Not Your Order', 'You are not assigned to this delivery.'], { error: 'Not your order' });
     }
     order.status      = 'delivered';
     order.deliveredAt = new Date().toISOString();
@@ -60,16 +70,18 @@ export default async function handler(req, res) {
       contentType: 'application/json', addRandomSuffix: false
     });
   } catch {
-    return res.status(500).send(_page('⚠️', 'Save Failed', 'Action recorded but could not save. Please notify the store.'));
+    return _respond(500, ['⚠️', 'Save Failed', 'Action recorded but could not save. Please notify the store.'], { error: 'Save failed' });
   }
 
   const storeName = process.env.STORE_NAME || 'iFlow Store';
   if (action === 'accept') {
-    return res.status(200).send(_page('✅', 'Delivery Accepted!',
-      `You've accepted this delivery for *${storeName}*. Head to the pickup location — the store has been notified.`));
+    return _respond(200,
+      ['✅', 'Delivery Accepted!', `You've accepted this delivery for *${storeName}*. Head to the pickup location — the store has been notified.`],
+      { success: true, action: 'accepted' });
   }
-  return res.status(200).send(_page('🎉', 'Delivery Complete!',
-    `Order marked as delivered. Thank you for completing this delivery for *${storeName}*!`));
+  return _respond(200,
+    ['🎉', 'Delivery Complete!', `Order marked as delivered. Thank you for completing this delivery for *${storeName}*!`],
+    { success: true, action: 'delivered' });
 }
 
 function _page(icon, title, msg) {

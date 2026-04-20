@@ -901,51 +901,115 @@
     .toggle-item > div p  { font-size: 0.72rem; }
   }
 
-  /* ── Mobile-first responsive layout ──────────────────────────────────── */
-  @media (max-width: 768px) {
-    /* Main content fills remaining width next to collapsed sidebar */
-    .main-content         { padding: 12px 10px; overflow-x: hidden; }
-    .page-header          { padding: 12px 0 10px; }
-    .page-title           { font-size: 1.1rem; }
+  /* ── Mobile layout — bottom tab bar + full-width content ─────────────── */
+  @media (max-width: 700px) {
+    header { padding: 0 12px; height: 54px; }
+    header .logo { font-size: 1.1rem !important; }
+    header .subtitle { display: none !important; }
+    .nepa-text { display: none !important; }
+
+    .app-body {
+      flex-direction: column;
+      height: calc(100vh - 54px);
+      overflow: hidden;
+    }
+
+    /* Content area: full width, leave room for bottom tab bar */
+    .container {
+      width: 100% !important;
+      min-width: unset !important;
+      height: calc(100vh - 54px) !important;
+      padding: 10px 10px 76px !important;
+      margin: 0 !important;
+      box-sizing: border-box;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Sidebar becomes a fixed bottom tab bar */
+    .sidebar {
+      position: fixed !important;
+      bottom: 0; left: 0; right: 0;
+      width: 100% !important;
+      height: 60px !important;
+      flex-direction: row !important;
+      border-right: none !important;
+      border-top: 1px solid rgba(255,255,255,.08);
+      z-index: 200;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 0 !important;
+      gap: 0 !important;
+    }
+    .sidebar-toggle,
+    .sidebar-label,
+    .sidebar-divider,
+    .sidebar-bottom { display: none !important; }
+
+    .sidebar-section {
+      flex-direction: row !important;
+      flex: 1;
+      overflow: visible;
+      padding: 0 !important;
+    }
+
+    .nav-item {
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      flex: 1 !important;
+      min-width: 0 !important;
+      padding: 6px 4px 2px !important;
+      border-radius: 0 !important;
+      border-left: none !important;
+      border-top: 2px solid transparent;
+      gap: 2px !important;
+      height: 100%;
+    }
+    .nav-item.active {
+      border-left: none !important;
+      border-top: 2px solid #4f8ef7;
+      background: rgba(79,142,247,.08) !important;
+    }
+    .nav-label {
+      opacity: 1 !important;
+      max-width: 100% !important;
+      font-size: .55rem !important;
+      text-align: center !important;
+      overflow: visible !important;
+      white-space: nowrap;
+    }
+    .nav-badge { position: absolute; top: 4px; right: calc(50% - 16px); margin: 0; }
+    .nav-item { position: relative; }
+    .nav-icon { flex-shrink: 0; }
 
     /* Tables scroll horizontally */
-    .table-wrap, .sheets-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    table                 { min-width: 560px; }
+    .sheets-wrap, .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table { min-width: 480px; }
 
-    /* Stats row stacks to 2 columns on mobile */
-    .stats-grid           { grid-template-columns: 1fr 1fr !important; gap: 10px; }
-    .stat-card            { padding: 14px 12px; }
-    .stat-value           { font-size: 1.3rem; }
+    /* Stats 2-column */
+    .stats-grid { grid-template-columns: 1fr 1fr !important; gap: 8px; }
+    .stat-card  { padding: 12px 10px; }
+    .stat-value { font-size: 1.25rem; }
 
-    /* Product card grid */
-    .product-grid         { grid-template-columns: 1fr !important; }
-
-    /* Forms */
-    .form-grid            { grid-template-columns: 1fr !important; }
-    .add-product-form     { padding: 14px 12px; }
-
-    /* Orders */
-    .order-card           { padding: 14px 12px; }
-    .order-item-row       { flex-direction: column; align-items: flex-start; gap: 4px; }
+    /* Forms single column */
+    .form-grid { grid-template-columns: 1fr !important; }
 
     /* Dispatch */
-    .dispatch-tabs        { gap: 6px; }
-    .dispatch-tab         { padding: 8px 14px; font-size: .8rem; }
+    .dispatch-tabs { gap: 6px; }
+    .dispatch-tab  { padding: 8px 12px; font-size: .78rem; }
 
-    /* Charts */
-    .chart-container      { height: 200px !important; }
+    /* Modals become bottom sheets */
+    .modal-box {
+      width: 100% !important; max-width: 100% !important;
+      border-radius: 22px 22px 0 0;
+      position: fixed; bottom: 0; top: auto;
+      max-height: 88vh; overflow-y: auto;
+    }
+    .modal-overlay { align-items: flex-end !important; }
 
-    /* Hide non-essential columns in tables on small screens */
-    .col-hide-mobile      { display: none; }
-
-    /* Buttons full width in forms */
-    .btn-row              { flex-direction: column; }
-    .btn-row .btn-add,
-    .btn-row .btn-secondary { width: 100%; }
-
-    /* Modals full-screen on mobile */
-    .modal-box            { width: 100% !important; max-width: 100% !important; border-radius: 20px 20px 0 0; position: fixed; bottom: 0; top: auto; max-height: 90vh; overflow-y: auto; }
-    .modal-overlay        { align-items: flex-end; }
+    /* Payment panel full width */
+    #payAlertPanel { width: 100% !important; border-left: none !important; border-top: 3px solid #f59e0b; }
   }
 
   /* ── Floating Mic Button ── */
@@ -2810,8 +2874,17 @@
         <button class="btn-add" style="width:auto;padding:10px 32px;margin:0" onclick="saveSettings()">Save Settings</button>
       </div>
 
+      <!-- Rider View Testing -->
+      <div style="margin-top:20px;padding:20px 24px;background:var(--surface2);border-radius:16px;border:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+        <div>
+          <div style="font-weight:700;font-size:.9rem;margin-bottom:2px">🏍️ Rider Dashboard Preview</div>
+          <div style="font-size:.78rem;color:var(--muted)">Test what your delivery riders see on their phones</div>
+        </div>
+        <button onclick="localStorage.setItem('iflow_role','rider');document.getElementById('mainAppWrapper').style.display='none';if(typeof _launchRiderApp==='function')_launchRiderApp();" style="padding:10px 20px;background:linear-gradient(135deg,#4f8ef7,#7b5ea7);color:#fff;border:none;border-radius:12px;font-size:.85rem;font-weight:700;cursor:pointer;white-space:nowrap">Open Rider View →</button>
+      </div>
+
       <!-- Copyright / About -->
-      <div style="margin-top:32px;padding:24px;background:var(--surface2);border-radius:16px;text-align:center;border:1px solid var(--border)">
+      <div style="margin-top:20px;padding:24px;background:var(--surface2);border-radius:16px;text-align:center;border:1px solid var(--border)">
         <div style="font-size:1.4rem;font-weight:800;letter-spacing:1px;color:var(--text);margin-bottom:4px">i<span style="color:#4f8ef7">Flow</span></div>
         <div style="font-size:.78rem;color:#475569;margin-bottom:12px;letter-spacing:.5px">A NEON SOLUTIONS PRODUCT</div>
         <div style="font-size:.75rem;color:var(--muted);line-height:1.7">
@@ -6465,6 +6538,21 @@ function devSignIn() {
 
 function showApp(user) {
   document.getElementById('loginScreen').style.display = 'none';
+
+  // Determine if this user is a rider (email in rider list)
+  var _cfg0 = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+  var _riderList0 = (_cfg0.riderEmails || '').split(',').map(function(e){ return e.trim().toLowerCase(); }).filter(Boolean);
+  var _isRider0 = user && user.email && _riderList0.includes(user.email.toLowerCase());
+
+  // Always start payment polling for owners (before role picker check)
+  if (!_isRider0) {
+    setTimeout(function(){ if (typeof _startOrderPolling === 'function') _startOrderPolling(); }, 2000);
+    // Request browser notification permission for unmissable alerts
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }
+
   // Mobile role check — may redirect to role picker or rider app
   if (typeof _checkMobileRole === 'function' && _checkMobileRole(user)) return;
   // Populate sidebar user info
@@ -6547,11 +6635,38 @@ function _updatePayBadge(count) {
   }
 }
 
+var _titlePulseInterval = null;
+var _titleOrig = 'iFlow';
+
 function _showPaymentAlert(order) {
   if (_currentPayAlert && _currentPayAlert.id === order.id) return;
   _currentPayAlert = order;
   var elapsed = Math.round((Date.now() - new Date(order.createdAt).getTime()) / 60000);
   var timeStr = elapsed < 1 ? 'Just now' : elapsed + ' min ago';
+
+  // Browser notification (works even when tab is backgrounded)
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification('💰 Payment Received!', {
+        body: (order.customerName || 'A customer') + ' has sent payment proof. Open iFlow to confirm.',
+        tag: 'iflow-pay-' + order.id,
+        requireInteraction: true
+      });
+    } catch(e) {}
+  } else if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+
+  // Pulse the document title so user sees it in the tab bar
+  if (!_titlePulseInterval) {
+    _titleOrig = document.title;
+    var _tblink = true;
+    _titlePulseInterval = setInterval(function() {
+      document.title = _tblink ? '💰 PAYMENT ALERT!' : _titleOrig;
+      _tblink = !_tblink;
+    }, 1200);
+  }
+
   var banner = document.getElementById('payAlertBanner');
   if (banner) {
     banner.style.display = 'flex';
@@ -6576,11 +6691,11 @@ function _showPaymentAlert(order) {
 
 function _dismissPayAlert() {
   clearInterval(_chimeInterval);
+  clearInterval(_titlePulseInterval); _titlePulseInterval = null; document.title = _titleOrig;
   ['payAlertPanel','payAlertBackdrop','payAlertBanner'].forEach(function(id) {
     var el = document.getElementById(id); if (el) el.style.display = 'none';
   });
   // Don't call dismiss API — keep order as payment_proof so it re-appears on next poll
-  // Badge count remains so owner knows there's a pending alert
   _currentPayAlert = null;
 }
 
@@ -6664,6 +6779,7 @@ async function _confirmPayment() {
       if (typeof showToast === 'function') showToast('Payment confirmed! Sale recorded ✓');
       _currentPayAlert = null;
       clearInterval(_chimeInterval);
+      clearInterval(_titlePulseInterval); _titlePulseInterval = null; document.title = _titleOrig;
       ['payAlertPanel','payAlertBackdrop','payAlertBanner'].forEach(function(id){
         var el = document.getElementById(id); if (el) el.style.display = 'none';
       });
@@ -7157,10 +7273,26 @@ async function _novaProcess(text, fromVoice) {
   _novaSetStatus('think', 'Thinking…');
 
   var cfg = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+
+  // Fetch live WhatsApp orders so Nova knows customer names + phones
+  var liveOrdersCtx = '';
+  try {
+    var _oRes = await fetch('/api/orders');
+    if (_oRes.ok) {
+      var _oData = await _oRes.json();
+      if (Array.isArray(_oData) && _oData.length > 0) {
+        liveOrdersCtx = '\nWhatsApp customers from recent orders:\n' + _oData.slice(-15).map(function(o) {
+          var phone = (o.customerNum || '').replace(/^whatsapp:/i, '');
+          return (o.customerName || 'Customer') + ' | phone:' + (phone || 'unknown') + ' | status:' + (o.status || '?') + ' | ' + (o.details || '');
+        }).join('\n');
+      }
+    }
+  } catch(e) {}
+
   var system =
     'You are Nova, the AI voice assistant for "' + (cfg.storeName || 'this store') + '" on iFlow.\n' +
-    'You OWN this app — you can navigate pages, add products, record sales, update stock, and answer any question.\n\n' +
-    'Live store data:\n' + _buildStoreContext() + '\n\n' +
+    'You OWN this app — you can navigate pages, add products, record sales, update stock, send WhatsApp messages, and answer any question.\n\n' +
+    'Live store data:\n' + _buildStoreContext() + liveOrdersCtx + '\n\n' +
     'VOICE RESPONSE RULES:\n' +
     '- You\'re speaking aloud — keep it to 1–3 natural sentences. No bullet points or markdown.\n' +
     '- Use contractions: "I\'m", "you\'ve", "it\'s", "there\'s". Sound human, not robotic.\n' +
@@ -7240,11 +7372,19 @@ function _buildStoreContext() {
   var top = Object.keys(byP).sort(function(a,b){return byP[b]-byP[a];}).slice(0,5).map(function(n){return n+'('+byP[n]+')';});
   var low = prods.filter(function(p){ var q=p.stockQty!==undefined?p.stockQty:(p.qty||0); return q<=threshold; }).map(function(p){ var q=p.stockQty!==undefined?p.stockQty:(p.qty||0); return p.name+'('+q+')'; });
 
+  // Recent WhatsApp customers (from orders in localStorage/dispatch)
+  var dispatchOrders = JSON.parse(localStorage.getItem('iflow_dispatch_orders') || '[]');
+  var customerLines = dispatchOrders.slice(-20).filter(function(o){ return o.customer; }).map(function(o) {
+    var phone = (o.customerNum || o.phone || '').replace(/^whatsapp:/i,'');
+    return (o.customer||'') + (phone ? ' | phone:' + phone : '') + ' | status:' + (o.status||'?');
+  });
+
   return 'Store:' + (cfg.storeName||'Unnamed') + ' Currency:' + (cfg.currency||'NGN') + ' Owner:' + (cfg.ownerName||'N/A') +
     '\nProducts(' + prods.length + '):\n' + (prodLines.join('\n')||'None') +
     '\nToday:' + todaySales.length + ' sales rev ' + todayRev +
     ' AllTime:' + allSales.length + ' sales rev ' + totalRev +
-    '\nTopSellers:' + (top.join(',')||'N/A') + ' LowStock(≤'+threshold+'):' + (low.join(',')||'None');
+    '\nTopSellers:' + (top.join(',')||'N/A') + ' LowStock(≤'+threshold+'):' + (low.join(',')||'None') +
+    (customerLines.length ? '\nRecent WhatsApp customers (name | phone | status):\n' + customerLines.join('\n') : '');
 }
 
 // ── Action Executor ───────────────────────────────────────────────────────────
@@ -7316,23 +7456,36 @@ function _novaExecuteAction(actionStr) {
     if (a.type === 'sendWhatsApp') {
       var waTo  = (a.to || '').trim();
       var waMsg = (a.message || '').trim();
-      if (!waTo || !waMsg) { showToast('Nova: missing recipient or message'); return; }
-      // Resolve name → phone if needed (look in recent orders)
-      var orders = JSON.parse(localStorage.getItem('iflow_dispatch_orders') || '[]');
-      if (!/^\+?\d{7,}$/.test(waTo)) {
-        var match = orders.find(function(o){ return (o.customer||'').toLowerCase().includes(waTo.toLowerCase()); });
-        if (match && match.phone) waTo = match.phone;
+      if (!waMsg) { showToast('Nova: no message text provided'); return; }
+      // If "to" is a name (not a phone number), resolve via live orders
+      if (waTo && !/^\+?\d{7,}$/.test(waTo.replace(/[\s\-]/g,''))) {
+        fetch('/api/orders').then(function(r){ return r.json(); }).then(function(orders) {
+          if (Array.isArray(orders)) {
+            var match = orders.find(function(o){
+              return (o.customerName || '').toLowerCase().includes(waTo.toLowerCase());
+            });
+            var resolvedTo = match ? (match.customerNum || '').replace(/^whatsapp:/i,'') : waTo;
+            _novaDoSendWhatsApp(resolvedTo, waMsg);
+          } else { _novaDoSendWhatsApp(waTo, waMsg); }
+        }).catch(function(){ _novaDoSendWhatsApp(waTo, waMsg); });
+      } else {
+        _novaDoSendWhatsApp(waTo, waMsg);
       }
-      fetch('/api/send-whatsapp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: waTo, message: waMsg })
-      }).then(function(r){ return r.json(); }).then(function(d){
-        showToast(d.success ? 'Message sent via WhatsApp ✓' : 'WhatsApp send failed: ' + (d.error || 'unknown'));
-      }).catch(function(){ showToast('Could not send WhatsApp message'); });
       return;
     }
   } catch(e) { console.error('Nova action error', e); }
+}
+
+function _novaDoSendWhatsApp(to, message) {
+  if (!to) { showToast('Nova: could not find a phone number for that customer'); return; }
+  fetch('/api/send-whatsapp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to: to, message: message })
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (d.success) showToast('✅ WhatsApp sent to ' + to);
+    else showToast('WhatsApp failed: ' + (d.error || 'unknown error'));
+  }).catch(function(){ showToast('Could not reach send-whatsapp endpoint'); });
 }
 
 // ── API Call ──────────────────────────────────────────────────────────────────
@@ -7419,7 +7572,10 @@ async function _callAiApi(system, messages) {
 
   <div class="rider-footer">
     <span style="font-size:.75rem;color:#475569" id="riderLastSync">—</span>
-    <button class="rider-btn-sm" onclick="_switchRiderRole()" style="font-size:.75rem">Switch Role</button>
+    <div style="display:flex;gap:8px">
+      <button class="rider-btn-sm" onclick="_riderGoToMainApp()" style="font-size:.75rem">← Owner View</button>
+      <button class="rider-btn-sm" onclick="_switchRiderRole()" style="font-size:.75rem;background:rgba(239,68,68,.1);color:#f87171">Sign Out</button>
+    </div>
   </div>
 </div>
 
@@ -7439,10 +7595,21 @@ function setAppRole(role) {
   }
 }
 
+function _riderGoToMainApp() {
+  localStorage.setItem('iflow_role', 'owner');
+  document.getElementById('riderApp').style.display = 'none';
+  document.getElementById('mainAppWrapper').style.display = '';
+  setTimeout(function(){ if (typeof _loadAiSettings === 'function') _loadAiSettings(); }, 0);
+  setTimeout(function(){ if (typeof _startOrderPolling === 'function') _startOrderPolling(); }, 500);
+  var cy = document.getElementById('copyrightYear'); if (cy) cy.textContent = new Date().getFullYear();
+}
+
 function _switchRiderRole() {
   localStorage.removeItem('iflow_role');
   document.getElementById('riderApp').style.display = 'none';
-  document.getElementById('rolePickerModal').style.display = 'flex';
+  // Clear stored user so Google re-prompts
+  localStorage.removeItem('iflow_user');
+  window.location.reload();
 }
 
 function _checkMobileRole(user) {
@@ -7468,16 +7635,14 @@ function _checkMobileRole(user) {
     return true;
   }
 
-  // If on mobile and no role chosen yet AND email is NOT an owner email — show picker
-  // Owner emails are NOT in the rider list, so known riders get direct access, owners get the app
-  if (isMobile && !role && riderEmails.length === 0) {
-    // No rider emails configured at all — show role picker for all mobiles
+  // If role was explicitly set to 'rider' (e.g., owner testing) → show rider view
+  if (role === 'rider') {
     document.getElementById('mainAppWrapper').style.display = 'none';
-    document.getElementById('rolePickerModal').style.display = 'flex';
+    _launchRiderApp(user);
     return true;
   }
 
-  return false; // show normal app
+  return false; // show normal app (owner)
 }
 
 // ── Rider App ─────────────────────────────────────────────────────────────────

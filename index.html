@@ -6648,12 +6648,14 @@
       });
       if (changed) {
         localStorage.setItem('iflow_settings', JSON.stringify(s));
-        if (typeof applySettings === 'function') applySettings(s);
-        if (typeof loadSettings  === 'function') loadSettings();
+        if (typeof applySettings       === 'function') applySettings(s);
+        if (typeof syncSettingsToggles === 'function') syncSettingsToggles(); // repopulate Settings UI
       }
-      if (s.twilioSid && s.twilioToken && typeof syncTwilioMessages === 'function') {
-        setTimeout(syncTwilioMessages, 800);
-      }
+    }
+    // Always try WhatsApp sync after blob apply — credentials may have just arrived
+    var _s2 = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    if (_s2.twilioSid && _s2.twilioToken && typeof syncTwilioMessages === 'function') {
+      setTimeout(syncTwilioMessages, 1200);
     }
   };
 </script>
@@ -6827,8 +6829,22 @@ function showApp(user) {
   }
   // Show Nova FAB immediately if enabled
   setTimeout(function(){ if (typeof _loadAiSettings === 'function') _loadAiSettings(); }, 0);
-  // Restore products/settings from Blob if localStorage is empty (new device)
-  setTimeout(_restoreFromBlob, 1500);
+  // Restore from Blob (new device) OR push latest to Blob (existing device keeps cloud in sync)
+  setTimeout(function() {
+    var _existProds = JSON.parse(localStorage.getItem('iflow_products') || 'null');
+    if (_existProds && _existProds.length > 0) {
+      // Already have products locally — push them to blob so other devices can get them
+      if (typeof _novaSyncProducts === 'function') _novaSyncProducts(true);
+    } else {
+      // No products locally — try to restore from blob
+      _restoreFromBlob(false);
+    }
+    // Sync WhatsApp if credentials already exist locally
+    var _ls = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    if (_ls.twilioSid && _ls.twilioToken && typeof syncTwilioMessages === 'function') {
+      setTimeout(syncTwilioMessages, 1000);
+    }
+  }, 1500);
   // Start polling for payment alerts
   setTimeout(function(){ if (typeof _startOrderPolling === 'function') _startOrderPolling(); }, 3000);
   // Auto-start tour for first-time users

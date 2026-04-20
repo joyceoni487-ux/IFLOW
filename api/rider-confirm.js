@@ -73,13 +73,13 @@ export default async function handler(req, res) {
     return _respond(500, ['⚠️', 'Save Failed', 'Action recorded but could not save. Please notify the store.'], { error: 'Save failed' });
   }
 
-  const storeName = process.env.STORE_NAME || 'iFlow Store';
-  const sid   = process.env.TWILIO_SID   || '';
-  const token = process.env.TWILIO_TOKEN || '';
-  const from  = process.env.TWILIO_FROM  || '';
+  const storeName   = process.env.STORE_NAME    || 'iFlow Store';
+  const sid         = process.env.TWILIO_SID    || '';
+  const twilioToken = process.env.TWILIO_TOKEN  || '';
+  const from        = process.env.TWILIO_FROM   || '';
 
-  if (action === 'accept' && order.customerNum && sid && token && from) {
-    const auth  = 'Basic ' + Buffer.from(sid + ':' + token).toString('base64');
+  if (action === 'accept' && order.customerNum && sid && twilioToken && from) {
+    const auth  = 'Basic ' + Buffer.from(sid + ':' + twilioToken).toString('base64');
     const to    = order.customerNum.startsWith('whatsapp:') ? order.customerNum : 'whatsapp:' + order.customerNum;
     const riderDisplay = rider.includes('@') ? rider.split('@')[0] : rider;
     const msg   = `🏍️ *Rider Assigned!*\nGreat news, ${order.customerName || 'valued customer'}! Your delivery has been picked up by *${riderDisplay}*.\n\nThey are on their way to you. Feel free to reach out to the store if you need assistance. 🙏`;
@@ -90,8 +90,8 @@ export default async function handler(req, res) {
     }).catch(() => {});
   }
 
-  if (action === 'complete' && order.customerNum && sid && token && from) {
-    const auth = 'Basic ' + Buffer.from(sid + ':' + token).toString('base64');
+  if (action === 'complete' && order.customerNum && sid && twilioToken && from) {
+    const auth = 'Basic ' + Buffer.from(sid + ':' + twilioToken).toString('base64');
     const to   = order.customerNum.startsWith('whatsapp:') ? order.customerNum : 'whatsapp:' + order.customerNum;
     const msg  = `📦 *Order Delivered!*\nYour order from *${storeName}* has been delivered. Thank you for shopping with us — we hope you love it! 🙏`;
     fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Messages.json`, {

@@ -4019,100 +4019,117 @@
   async function syncTwilioMessages() {
     const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
     if (!s.twilioSid || !s.twilioToken || !s.twilioFrom) {
-      showToast('Set up Twilio credentials in Settings → Connected Platforms first');
+      showToast('Add Twilio credentials in Settings → Connected Platforms');
       return;
     }
+
     const btn = document.getElementById('waSyncBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
 
+    // Normalise the stored "from" number — strip whatsapp: prefix if present
+    const cleanFrom = s.twilioFrom.replace(/^whatsapp:/i, '').replace(/\s/g, '');
+
+    let proxyData;
     try {
-      // Use server-side proxy to avoid CORS restrictions when calling Twilio REST API
-      const proxyRes = await fetch('/api/twilio-proxy', {
-        method: 'POST',
+      const res = await fetch('/api/twilio-proxy', {
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sid: s.twilioSid, token: s.twilioToken, from: s.twilioFrom })
+        body:    JSON.stringify({ sid: s.twilioSid, token: s.twilioToken, from: cleanFrom })
       });
-      if (!proxyRes.ok) {
-        const errData = await proxyRes.json().catch(() => ({}));
-        showToast('Sync failed: ' + (errData.error || 'check your Twilio credentials'));
+      const text = await res.text();
+      let parsed = {};
+      try { parsed = JSON.parse(text); } catch(_) {}
+      if (!res.ok) {
+        showToast('WhatsApp sync failed: ' + (parsed.error || 'HTTP ' + res.status));
         return;
       }
-      const proxyData = await proxyRes.json();
-      const allMsgs = [...(proxyData.inbound || []), ...(proxyData.outbound || [])];
+      proxyData = parsed;
+    } catch (netErr) {
+      showToast('Network error reaching sync server — check connection');
+      console.error('[iFlow] twilio-proxy fetch error:', netErr);
+      return;
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '↻ Sync WhatsApp'; }
+    }
+
+    try {
+      const allMsgs = [
+        ...(Array.isArray(proxyData.inbound)  ? proxyData.inbound  : []),
+        ...(Array.isArray(proxyData.outbound) ? proxyData.outbound : [])
+      ];
 
       if (!allMsgs.length) {
-        showToast('No WhatsApp messages found — try sending a message to the sandbox first');
+        showToast('No WhatsApp messages yet — send one to your sandbox number first');
         return;
       }
 
-      // Group by contact (the non-sandbox number)
+      // Group by contact number
       const threads = new Map();
-      allMsgs.sort((a, b) => new Date(a.date_sent) - new Date(b.date_sent));
+      allMsgs
+        .filter(m => m && m.date_sent)
+        .sort((a, b) => new Date(a.date_sent) - new Date(b.date_sent));
 
       for (const msg of allMsgs) {
-        const isIn = msg.direction === 'inbound';
-        const contactRaw = isIn ? msg.from : msg.to;
-        const contactNum  = contactRaw.replace('whatsapp:', '').replace(/\s/g, '');
-        if (!contactNum || contactNum === s.twilioFrom) continue;
+        if (!msg || !msg.date_sent) continue;
+        const isIn      = msg.direction === 'inbound';
+        const rawNum    = isIn ? msg.from : msg.to;
+        if (!rawNum) continue;
+        const contactNum = String(rawNum).replace(/^whatsapp:/i, '').replace(/\s/g, '');
+        if (!contactNum || contactNum === cleanFrom) continue;
 
         if (!threads.has(contactNum)) {
-          const last2 = contactNum.slice(-2).toUpperCase();
           threads.set(contactNum, {
-            id: contactNum,
-            platform: 'whatsapp',
-            name: contactNum,           // Will show phone number; no display name via API
-            handle: contactNum,
-            avatar: last2,
-            color: '#25d366',
+            id:            contactNum,
+            platform:      'whatsapp',
+            name:          contactNum,
+            handle:        contactNum,
+            avatar:        contactNum.slice(-2).toUpperCase(),
+            color:         '#25d366',
             platformColor: '#25d366',
-            platformIcon: 'W',
-            preview: '',
-            time: '',
-            unread: 0,
-            priority: false,
-            messages: [],
-            _lastTs: 0
+            platformIcon:  'W',
+            preview:       '',
+            time:          '',
+            unread:        0,
+            priority:      false,
+            messages:      [],
+            _lastTs:       0
           });
         }
 
         const thread = threads.get(contactNum);
-        const ts = new Date(msg.date_sent).getTime();
+        const ts     = new Date(msg.date_sent).getTime();
         thread.messages.push({
           from: isIn ? 'them' : 'us',
-          text: msg.body || '[media / no text]',
+          text: msg.body || '[media]',
           time: new Date(msg.date_sent).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _ts:  ts,
-          sid:  msg.sid
+          sid:  msg.sid || ''
         });
         if (ts > thread._lastTs) {
-          thread._lastTs  = ts;
-          const body = msg.body || '[media]';
-          thread.preview  = body.length > 55 ? body.slice(0, 55) + '…' : body;
-          thread.time     = _relTime(ts);
+          thread._lastTs = ts;
+          thread.preview = (msg.body || '[media]').slice(0, 55);
+          thread.time    = typeof _relTime === 'function' ? _relTime(ts) : '';
         }
       }
 
-      // Sort messages within each thread chronologically
       for (const t of threads.values()) t.messages.sort((a, b) => a._ts - b._ts);
 
-      // Replace convos with real data; sort threads newest-first
       convos.length = 0;
       let _cid = 1;
       [...threads.values()]
         .sort((a, b) => b._lastTs - a._lastTs)
         .forEach(t => { t.id = _cid++; convos.push(t); });
 
-      renderConvList();
-      _updateMsgBadge();
+      if (typeof renderConvList  === 'function') renderConvList();
+      if (typeof _updateMsgBadge === 'function') _updateMsgBadge();
       activeConvo = null;
-      document.getElementById('chatArea').innerHTML = `<div class="no-chat"><svg viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/></svg>Select a conversation</div>`;
-      showToast(`✓ Synced ${convos.length} WhatsApp conversation${convos.length !== 1 ? 's' : ''}`);
-      _checkPaymentSignals();
-    } catch(e) {
-      showToast('Sync error — check your internet connection');
-      console.error('Twilio sync:', e);
-    } finally {
-      if (btn) { btn.disabled = false; btn.textContent = '↻ Sync WhatsApp'; }
+      const chatEl = document.getElementById('chatArea');
+      if (chatEl) chatEl.innerHTML = '<div class="no-chat"><svg viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/></svg>Select a conversation</div>';
+      showToast('✓ Synced ' + convos.length + ' WhatsApp conversation' + (convos.length !== 1 ? 's' : ''));
+      if (typeof _checkPaymentSignals === 'function') _checkPaymentSignals();
+    } catch (processErr) {
+      showToast('Error processing messages — try again');
+      console.error('[iFlow] syncTwilioMessages process error:', processErr);
     }
   }
 

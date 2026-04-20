@@ -1400,6 +1400,24 @@
   @keyframes pay-banner-slide { 0%{background-position:0 0} 100%{background-position:200% 0} }
   @keyframes pay-slide-in { from{transform:translateX(100%)} to{transform:translateX(0)} }
 
+  /* ── App Tour ──────────────────────────────────────────────────────────── */
+  #tourOverlay{position:fixed;inset:0;z-index:10500;pointer-events:none;background:rgba(0,0,0,0);transition:background .35s}
+  #tourOverlay.active{background:rgba(0,0,0,.62);pointer-events:all}
+  #tourHighlight{position:fixed;z-index:10501;border-radius:10px;box-shadow:0 0 0 4px #4f8ef7,0 0 0 9999px rgba(0,0,0,.62);pointer-events:none;transition:top .3s,left .3s,width .3s,height .3s;display:none}
+  #tourTooltip{position:fixed;z-index:10502;background:#1a1d2e;border:1.5px solid #4f8ef7;border-radius:16px;padding:22px 24px 18px;max-width:320px;width:calc(100vw - 32px);box-shadow:0 12px 40px rgba(0,0,0,.5);display:none;transition:top .3s,left .3s}
+  #tourTooltip .tour-title{font-size:1rem;font-weight:700;color:#f1f5f9;margin-bottom:8px}
+  #tourTooltip .tour-body{font-size:.85rem;color:#94a3b8;line-height:1.6;margin-bottom:16px}
+  #tourTooltip .tour-footer{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  #tourTooltip .tour-prog{font-size:.72rem;color:#475569}
+  .tour-btn{padding:8px 18px;border-radius:10px;border:none;font-size:.85rem;font-weight:700;cursor:pointer}
+  .tour-btn-next{background:#4f8ef7;color:#fff}
+  .tour-btn-skip{background:rgba(255,255,255,.07);color:#64748b;font-size:.78rem;padding:6px 12px}
+  #newbieModeBtn{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;color:var(--muted);font-size:.78rem;font-weight:600;transition:color .2s;width:100%;border:none;background:none;text-align:left;border-top:1px solid var(--border);margin-top:4px}
+  #newbieModeBtn:hover{color:var(--accent)}
+  #newbieModeBtn svg{flex-shrink:0;opacity:.7}
+  @keyframes tour-beacon{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.15);opacity:.7}}
+  .tour-beacon{animation:tour-beacon 1.4s ease-in-out infinite}
+
   /* ── Role Picker + Rider App ──────────────────────────────────────────── */
   #rolePickerModal,#riderApp{position:fixed;inset:0;z-index:9000;background:#0b0d14;display:none;flex-direction:column;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#e2e8f0}
   #rolePickerModal{align-items:center;justify-content:center;padding:32px;text-align:center}
@@ -1548,6 +1566,10 @@
         <span class="sidebar-user-email" id="sidebarUserEmail">Not signed in</span>
       </div>
     </div>
+    <button id="newbieModeBtn" onclick="startTour(true)" title="App walkthrough">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span class="nav-label">Newbie Mode</span>
+    </button>
     <div class="signout-item" onclick="signOut()">
       <div class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></div>
       <span class="nav-label">Sign Out</span>
@@ -1979,7 +2001,7 @@
       </div>
       <div class="field" style="grid-column:1/-1">
         <label>Condition / Defects <span style="color:#94a3b8;font-weight:400;font-size:.78rem">(optional — for used/defective items)</span></label>
-        <input type="text" id="npCondition" placeholder="e.g. Cracked screen, Battery health 87%, UK used" oninput="previewCode()" style="width:100%" />
+        <input type="text" id="npCondition" placeholder="e.g. Cracked screen, BH87, slight edge scratches, UK used, e-sim only" oninput="previewCode()" style="width:100%" />
         <div id="npConditionPreview" style="font-size:.75rem;color:#f59e0b;margin-top:4px;display:none"></div>
       </div>
       <div class="field">
@@ -5742,18 +5764,22 @@
     if (changed) localStorage.setItem('iflow_products', JSON.stringify(products));
   })();
 
-  // Convert condition text → short code tokens (e.g. "cracked screen, bh87" → "sc-bh87")
+  // Convert condition text → short code tokens (e.g. "cracked screen, bh87, uk used" → "sc-bh87-uk")
   function _conditionToCode(condition) {
     if (!condition) return '';
     const c = condition.toLowerCase();
     const codes = [];
     if (/crack|shatter|broken\s*(screen|display)|screen\s*(crack|broken|damage)/i.test(c)) codes.push('sc');
+    else if (/slight.*scrat|scrat.*screen|screen.*scrat/i.test(c)) codes.push('ss'); // slight screen scratch
+    if (/slight.*body|body.*scrat|edge.*scrat|scrat.*edge/i.test(c)) codes.push('bs'); // body/edge scratch
+    else if (/\bdent\b|\bbody\s*damage\b/i.test(c)) codes.push('bd');
     const bh = c.match(/battery[\s\-]*health[\s\-:]*(\d+)/i) || c.match(/\bbh[\s\-]?(\d+)\b/i) || c.match(/(\d+)\s*%?\s*battery/i);
     if (bh) codes.push('bh' + bh[1]);
+    if (/e[\s\-]?sim\s*only/i.test(c)) codes.push('esim');
+    if (/wi[\s\-]?fi\s*only/i.test(c)) codes.push('wfo');
     if (/\buk\s*used\b/i.test(c)) codes.push('uk');
     if (/\b(us|usa|american)\s*used\b/i.test(c)) codes.push('us');
     if (/foreign\s*used/i.test(c)) codes.push('fu');
-    if (/\bdent\b|\bbody\s*damage\b|\bscratche/i.test(c)) codes.push('bd');
     if (/face[\s\-]?id/i.test(c)) codes.push('fid');
     if (/touch[\s\-]?id/i.test(c)) codes.push('tid');
     if (/\bcamera\b/i.test(c)) codes.push('cam');
@@ -6337,6 +6363,8 @@ function showApp(user) {
   setTimeout(function(){ if (typeof _loadAiSettings === 'function') _loadAiSettings(); }, 0);
   // Start polling for payment alerts
   setTimeout(function(){ if (typeof _startOrderPolling === 'function') _startOrderPolling(); }, 3000);
+  // Auto-start tour for first-time users
+  if (typeof _maybeAutoTour === 'function') _maybeAutoTour();
 }
 
 function signOut() {
@@ -7093,6 +7121,21 @@ async function _callAiApi(system, messages) {
 // ── Role Picker + Rider App ──────────────────────────────────────────────────
 </script>
 
+<!-- App Tour Overlay -->
+<div id="tourOverlay" onclick="_tourClickOutside()"></div>
+<div id="tourHighlight"></div>
+<div id="tourTooltip">
+  <div class="tour-title" id="tourTitle"></div>
+  <div class="tour-body"  id="tourBody"></div>
+  <div class="tour-footer">
+    <span class="tour-prog" id="tourProg"></span>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="tour-btn tour-btn-skip" onclick="endTour()">Skip tour</button>
+      <button class="tour-btn tour-btn-next" id="tourNextBtn" onclick="_tourNext()">Next →</button>
+    </div>
+  </div>
+</div>
+
 <!-- Role Picker Modal -->
 <div id="rolePickerModal">
   <div class="role-logo">i<span>Flow</span></div>
@@ -7358,6 +7401,152 @@ function _isToday(iso) {
 
 function _esc(str) {
   return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── App Tour ─────────────────────────────────────────────────────────────────
+var _tourActive  = false;
+var _tourStep    = 0;
+var _tourNavTo   = null; // page to navigate to for this step
+
+var _TOUR_STEPS = [
+  {
+    title: 'Welcome to iFlow! 👋',
+    body:  'Your all-in-one sales, stock & dispatch tracker. This 2-minute tour covers the key features — you can skip or dismiss anytime.',
+    target: null, page: null
+  },
+  {
+    title: '📊 Record Sales — Inventory',
+    body:  'Type a customer name, pick a product from your stock, enter quantity — price auto-fills. Press comma (,) after a product name to add multiple items for the same customer in one go.',
+    target: '.entry-row', page: 'inventory'
+  },
+  {
+    title: '📦 Products & Stock',
+    body:  'Add products with variants (colour, storage) and conditions for used/defective devices — like "Cracked screen, BH87, UK used". The app generates smart codes (e.g. sc-iph13-bh87) and highlights defective items in amber.',
+    target: '#page-products .orders-header', page: 'products'
+  },
+  {
+    title: '🚚 Dispatch & Riders',
+    body:  'All delivery orders live here — pending, in-transit, delivered. When a customer pays and you confirm, riders are notified. They can accept and mark deliveries from their phone — no email needed.',
+    target: '#page-dispatch .orders-header', page: 'dispatch'
+  },
+  {
+    title: '💬 WhatsApp AI — Nova',
+    body:  'Nova handles WhatsApp customers automatically: answers product questions, quotes prices, takes orders, detects payment proof, and pings you here with an alert when confirmation is needed.',
+    target: '.messages-panel', page: 'inventory'
+  },
+  {
+    title: '💰 Payment Alerts',
+    body:  'When a customer says "paid" on WhatsApp, an unmissable alert banner appears here. Confirm payment → customer gets a receipt on WhatsApp, riders get notified — all automatic.',
+    target: '#payAlertBanner', page: null, forceBanner: true
+  },
+  {
+    title: '⚙️ Settings — Set Up Your Store',
+    body:  'Enter your store name, Groq AI key (for Nova), Twilio WhatsApp credentials, bank payment details, and rider contacts. Everything runs on autopilot once configured.',
+    target: '#page-settings .settings-header', page: 'settings'
+  },
+  {
+    title: "You're all set! 🎉",
+    body:  "That's iFlow in a nutshell. Click 'Newbie Mode' at the bottom of the sidebar any time to replay this tour.",
+    target: '#newbieModeBtn', page: null
+  }
+];
+
+function startTour(manual) {
+  if (_tourActive) return;
+  _tourActive = true;
+  _tourStep   = 0;
+  document.getElementById('tourOverlay').classList.add('active');
+  _tourShowStep(0);
+}
+
+function endTour() {
+  _tourActive = false;
+  document.getElementById('tourOverlay').classList.remove('active');
+  document.getElementById('tourHighlight').style.display = 'none';
+  document.getElementById('tourTooltip').style.display   = 'none';
+  localStorage.setItem('iflow_tour_seen', '1');
+}
+
+function _tourClickOutside() {
+  // clicking the dark overlay advances or ends
+}
+
+function _tourNext() {
+  _tourStep++;
+  if (_tourStep >= _TOUR_STEPS.length) { endTour(); return; }
+  _tourShowStep(_tourStep);
+}
+
+function _tourShowStep(idx) {
+  var step  = _TOUR_STEPS[idx];
+  var total = _TOUR_STEPS.length;
+
+  // Navigate page if needed
+  if (step.page) {
+    var navEl = document.querySelector('.nav-item[onclick*="\'' + step.page + '\'"]');
+    if (navEl) navEl.click();
+  }
+
+  // Update tooltip text
+  document.getElementById('tourTitle').textContent = step.title;
+  document.getElementById('tourBody').textContent  = step.body;
+  document.getElementById('tourProg').textContent  = (idx + 1) + ' / ' + total;
+  var nextBtn = document.getElementById('tourNextBtn');
+  nextBtn.textContent = (idx === total - 1) ? 'Done 🎉' : 'Next →';
+  nextBtn.classList.toggle('tour-beacon', idx === total - 1);
+
+  var tip  = document.getElementById('tourTooltip');
+  var hl   = document.getElementById('tourHighlight');
+  tip.style.transform = '';
+  tip.style.display   = 'block';
+
+  if (!step.target) {
+    // Center tooltip
+    hl.style.display = 'none';
+    tip.style.position = 'fixed';
+    tip.style.top  = '50%';
+    tip.style.left = '50%';
+    tip.style.transform = 'translate(-50%,-50%)';
+    return;
+  }
+
+  // Find target and position after navigation settles
+  setTimeout(function() {
+    var el = document.querySelector(step.target);
+    if (!el) {
+      hl.style.display = 'none';
+      tip.style.top  = '50%';
+      tip.style.left = '50%';
+      tip.style.transform = 'translate(-50%,-50%)';
+      return;
+    }
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    setTimeout(function() {
+      var r   = el.getBoundingClientRect();
+      var pad = 6;
+      hl.style.display = 'block';
+      hl.style.top    = Math.max(0, r.top  - pad) + 'px';
+      hl.style.left   = Math.max(0, r.left - pad) + 'px';
+      hl.style.width  = Math.min(r.width  + pad*2, window.innerWidth  - 8) + 'px';
+      hl.style.height = Math.min(r.height + pad*2, window.innerHeight - 8) + 'px';
+      // Place tooltip below highlight, or above if near bottom
+      var tipH   = 180;
+      var tipW   = Math.min(320, window.innerWidth - 32);
+      var tipTop = r.bottom + pad + 14;
+      if (tipTop + tipH > window.innerHeight - 16) tipTop = Math.max(16, r.top - tipH - 14);
+      var tipLeft = Math.max(16, Math.min(r.left, window.innerWidth - tipW - 16));
+      tip.style.position = 'fixed';
+      tip.style.top  = tipTop  + 'px';
+      tip.style.left = tipLeft + 'px';
+    }, 80);
+  }, step.page ? 320 : 0);
+}
+
+// Auto-start tour for first-time users (called from showApp)
+function _maybeAutoTour() {
+  if (!localStorage.getItem('iflow_tour_seen')) {
+    setTimeout(startTour, 1200);
+  }
 }
 
 // ── Loader ──

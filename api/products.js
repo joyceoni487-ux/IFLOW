@@ -7,7 +7,7 @@
  * Required Vercel environment variable:
  *   BLOB_READ_WRITE_TOKEN     — from Vercel Storage → Blob → your store → .env.local token
  */
-import { put } from '@vercel/blob';
+import { put, list } from '@vercel/blob';
 
 const BLOB_PATHNAME = 'iflow-products.json';
 
@@ -21,13 +21,23 @@ export default async function handler(req, res) {
   // ── GET: return cached products ──────────────────────────────────────────
   if (req.method === 'GET') {
     try {
-      const blobUrl = process.env.PRODUCTS_BLOB_URL;
-      if (!blobUrl) return res.status(200).json({ products: [] });
+      const token = process.env.BLOB_READ_WRITE_TOKEN;
 
-      const r = await fetch(blobUrl, { cache: 'no-store' });
-      if (!r.ok) return res.status(200).json({ products: [] });
-      const data = await r.json();
-      return res.status(200).json(data);
+      // Try PRODUCTS_BLOB_URL env var first (fastest)
+      const staticUrl = process.env.PRODUCTS_BLOB_URL;
+      if (staticUrl) {
+        const r = await fetch(staticUrl, { cache: 'no-store' });
+        if (r.ok) return res.status(200).json(await r.json());
+      }
+
+      // Fallback: discover the blob URL via list() (works even if env var not set)
+      if (!token) return res.status(200).json({ products: [] });
+      const { blobs } = await list({ token, prefix: 'iflow-products' });
+      const blob = blobs.find(b => b.pathname === BLOB_PATHNAME);
+      if (!blob) return res.status(200).json({ products: [] });
+      const r2 = await fetch(blob.url, { cache: 'no-store' });
+      if (!r2.ok) return res.status(200).json({ products: [] });
+      return res.status(200).json(await r2.json());
     } catch {
       return res.status(200).json({ products: [] });
     }

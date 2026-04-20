@@ -1731,6 +1731,7 @@
   .rider-new-badge { background:#ef4444; color:#fff; border-radius:999px; padding:3px 10px; font-size:.7rem; font-weight:700; animation:rider-pulse 1.2s ease-in-out infinite; }
 
   /* ── Nova AI animations ──────────────────────────────────────────────── */
+  @keyframes spin { to { transform: rotate(360deg); } }
   @keyframes nova-ring {
     0%   { box-shadow: 0 0 0 0 rgba(129,140,248,.7),  0 4px 20px rgba(99,102,241,.45); }
     70%  { box-shadow: 0 0 0 12px rgba(129,140,248,0), 0 4px 20px rgba(99,102,241,.45); }
@@ -1768,6 +1769,9 @@
     </div>
   </div>
   <div class="header-right">
+    <button id="refreshBtn" onclick="_manualRefresh()" title="Refresh data" style="background:none;border:none;cursor:pointer;color:var(--muted);padding:6px;border-radius:8px;display:flex;align-items:center;transition:color .2s">
+      <svg id="refreshIcon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    </button>
     <span class="nepa-text" id="nepaText">⚡ Up NEPA!</span>
     <label class="theme-toggle" title="Toggle dark/light mode">
       <input type="checkbox" id="themeToggle" onchange="toggleTheme(this)" />
@@ -3300,7 +3304,7 @@
         salesTbody.innerHTML = salesArr.map((s, i) => {
           const d = new Date(s.timestamp);
           const sub = (s.quantity * s.price).toFixed(2);
-          return `<tr>
+          return `<tr data-index="${i}">
             <td class="sheets-rownum">${i + 1}</td>
             <td>${d.toLocaleDateString()}</td>
             <td>${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</td>
@@ -3321,7 +3325,7 @@
       } else {
         prodTbody.innerHTML = prodsArr.map((p, i) => {
           const isLow = p.stockQty <= (p.lowStockThreshold || 5);
-          return `<tr>
+          return `<tr data-index="${i}">
             <td class="sheets-rownum">${i + 1}</td>
             <td>${p.code || '—'}</td>
             <td>${p.name}</td>
@@ -3514,6 +3518,25 @@
         indices.forEach(i => { moveToTrash('product', products[i], i); products.splice(i, 1); });
         localStorage.setItem('iflow_products', JSON.stringify(products));
         renderProducts(); refreshProductsList();
+      }
+      // Sheets tables mirror the same data — deletions go to same underlying store
+      if (byBody.sheetsSalesTbody) {
+        const indices = byBody.sheetsSalesTbody.filter(i => !isNaN(i) && sales[i]).sort((a,b) => b-a);
+        pushUndo('sales');
+        indices.forEach(i => {
+          const {product, quantity} = sales[i];
+          moveToTrash('sale', sales[i], i);
+          if (product && quantity) deductStock(product, -quantity);
+          sales.splice(i, 1);
+        });
+        persist(); _refreshProfitStat(); render(); renderSheets();
+      }
+      if (byBody.sheetsProductsTbody) {
+        const indices = byBody.sheetsProductsTbody.filter(i => !isNaN(i) && products[i]).sort((a,b) => b-a);
+        pushUndo('products');
+        indices.forEach(i => { moveToTrash('product', products[i], i); products.splice(i, 1); });
+        localStorage.setItem('iflow_products', JSON.stringify(products));
+        renderProducts(); refreshProductsList(); renderSheets();
       }
       cancelSelection();
       updateTrashBadge();
@@ -6679,10 +6702,30 @@ function devSignIn() {
   showApp(user);
 }
 
-async function _restoreFromBlob() {
+async function _manualRefresh() {
+  var btn = document.getElementById('refreshBtn');
+  var icon = document.getElementById('refreshIcon');
+  if (btn) btn.disabled = true;
+  if (icon) icon.style.animation = 'spin 0.8s linear infinite';
+  try {
+    await _restoreFromBlob(true); // force overwrite with latest blob data
+    if (typeof _checkPendingOrders === 'function') _checkPendingOrders();
+    if (typeof render === 'function') render();
+    if (typeof renderProducts === 'function') renderProducts();
+    if (typeof renderSheets === 'function') renderSheets();
+    if (typeof renderOrders === 'function') renderOrders();
+    if (typeof renderDispatch === 'function') renderDispatch();
+    if (typeof showToast === 'function') showToast('✓ Refreshed');
+  } finally {
+    if (icon) icon.style.animation = '';
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function _restoreFromBlob(force) {
   try {
     var existingProds = JSON.parse(localStorage.getItem('iflow_products') || 'null');
-    if (existingProds !== null && existingProds.length > 0) return; // already have data
+    if (!force && existingProds !== null && existingProds.length > 0) return; // already have data
     var r = await fetch('/api/products');
     if (!r.ok) return;
     var data = await r.json();
@@ -6944,12 +6987,43 @@ async function _confirmPayment() {
         _emailRiders(riderEmails, subject, bodyTxt, s, _currentPayAlert.id);
       }
 
-      // ── 4. Refresh UI ───────────────────────────────────────────────────────
+      // ── 4. Send WhatsApp order confirmation receipt ────────────────────────
+      var _custPhone = (_currentPayAlert.customerNum || '').replace(/^whatsapp:/i, '').trim();
+      if (_custPhone) {
+        var _s2 = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+        var _sName = _s2.storeName || 'iFlow Store';
+        var _cur   = (typeof getCurrency === 'function') ? getCurrency() : '₦';
+        var _total = ((parsed.price || _lookupProductPrice(parsed.product)) * (parsed.quantity || 1));
+        var _ordNum = String(_currentPayAlert.id || '').slice(-6).toUpperCase();
+        var _receipt = [
+          '✅ *Payment Confirmed — Thank You!*',
+          '',
+          '🏪 *' + _sName + '*',
+          '━━━━━━━━━━━━━━━━━━━',
+          '📦 *Item:* ' + (parsed.product || '—'),
+          '🔢 *Qty:* ' + (parsed.quantity || 1),
+          '💰 *Total:* ' + _cur + (typeof fmtComma === 'function' ? fmtComma(_total) : _total),
+          '━━━━━━━━━━━━━━━━━━━',
+          '🧾 *Order Ref:* #' + _ordNum,
+          '📅 ' + new Date().toLocaleDateString(undefined, { weekday:'short', day:'numeric', month:'short', year:'numeric' }),
+          '',
+          'Your payment has been verified. We\'re preparing your order for delivery — you\'ll get another update when a rider picks it up. 🚴',
+          '',
+          'Thank you for shopping with us! 🙏'
+        ].join('\n');
+        fetch('/api/send-whatsapp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to: _custPhone, message: _receipt })
+        }).catch(function(){});
+      }
+
+      // ── 5. Refresh UI ───────────────────────────────────────────────────────
       if (typeof renderOrders   === 'function') renderOrders();
       if (typeof renderDispatch === 'function') renderDispatch();
       if (typeof updateOrdersBadge === 'function') updateOrdersBadge();
 
-      if (typeof showToast === 'function') showToast('Payment confirmed! Sale recorded ✓');
+      if (typeof showToast === 'function') showToast('Payment confirmed! Receipt sent to customer ✓');
       _currentPayAlert = null;
       clearInterval(_chimeInterval);
       clearInterval(_titlePulseInterval); _titlePulseInterval = null; document.title = _titleOrig;

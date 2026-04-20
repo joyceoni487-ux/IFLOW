@@ -5924,7 +5924,8 @@
 
   function renderConvList() {
     const list = document.getElementById('convList');
-    const filtered = activeTab === 'priorities' ? convos.filter(c => c.priority) : convos;
+    if (!list) return;
+    const filtered = (activeTab === 'priorities') ? convos.filter(c => c.priority) : convos;
     if (!filtered.length) {
       list.innerHTML = `<div style="padding:32px 16px;text-align:center;color:var(--muted);font-size:0.8rem;line-height:1.7">${
         convos.length === 0
@@ -6404,6 +6405,10 @@
   }
 
   function renderProducts() {
+    if (!products.length) {
+      const _stored = JSON.parse(localStorage.getItem('iflow_products') || '[]');
+      if (_stored.length) { products.length = 0; _stored.forEach(p => products.push(p)); }
+    }
     document.getElementById('productsDate').textContent =
       new Date().toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
     const cur = getCurrency();

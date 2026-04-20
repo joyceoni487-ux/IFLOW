@@ -1769,8 +1769,8 @@
     </div>
   </div>
   <div class="header-right">
-    <button id="refreshBtn" onclick="_manualRefresh()" title="Refresh data" style="background:none;border:none;cursor:pointer;color:var(--muted);padding:6px;border-radius:8px;display:flex;align-items:center;transition:color .2s">
-      <svg id="refreshIcon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    <button id="refreshBtn" onclick="_manualRefresh()" title="Refresh data" style="background:rgba(255,255,255,.08);border:none;cursor:pointer;color:#94a3b8;padding:7px;border-radius:8px;display:flex;align-items:center;transition:background .2s,color .2s" onmouseover="this.style.background='rgba(255,255,255,.15)';this.style.color='#fff'" onmouseout="this.style.background='rgba(255,255,255,.08)';this.style.color='#94a3b8'">
+      <svg id="refreshIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
     </button>
     <span class="nepa-text" id="nepaText">⚡ Up NEPA!</span>
     <label class="theme-toggle" title="Toggle dark/light mode">
@@ -3853,7 +3853,13 @@
             accountNumber: s.payAccountNum  || '',
             accountName:   s.payAccountName || ''
           },
-          riderEmails: (s.riderEmails || '').split(',').map(function(e){ return e.trim(); }).filter(Boolean)
+          riderEmails: (s.riderEmails || '').split(',').map(function(e){ return e.trim(); }).filter(Boolean),
+          settings: {
+            twilioSid:   s.twilioSid   || '',
+            twilioToken: s.twilioToken || '',
+            twilioFrom:  s.twilioFrom  || '',
+            storeName:   s.storeName   || ''
+          }
         };
         fetch('/api/products', {
           method: 'PUT',
@@ -3932,6 +3938,7 @@
     s.waGenericReply   = document.getElementById('waGenericReply')?.checked   ? '1' : '0';
     localStorage.setItem('iflow_settings', JSON.stringify(s));
     _updateWaBadge(to);
+    _novaSyncProducts(false); // push updated credentials to cloud
     showToast('Twilio WhatsApp saved ✓');
   }
 
@@ -6614,6 +6621,41 @@
       if (tip.style.opacity === '1') moveTip(e);
     });
   })();
+
+  // Bridge: called from the auth script block which can't access let-scoped variables here.
+  // Updates `products` in this scope and re-renders everything.
+  window._iflow_applyBlobData = function(data) {
+    if (data && data.products && data.products.length) {
+      products = data.products.map(function(p) {
+        return Object.assign({ category: p.name, variant: '', code: '' }, p, {
+          category: p.category || p.name,
+          variant:  p.variant !== undefined ? p.variant : '',
+          code:     p.code    || (typeof generateProductCode === 'function' ? generateProductCode(p.type || '') : '')
+        });
+      });
+      localStorage.setItem('iflow_products', JSON.stringify(products));
+      if (typeof renderProducts      === 'function') renderProducts();
+      if (typeof refreshProductsList === 'function') refreshProductsList();
+      if (typeof render              === 'function') render();
+      if (typeof updateTotal         === 'function') updateTotal();
+      if (typeof renderSheets        === 'function') renderSheets();
+    }
+    if (data && data.settings) {
+      var s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+      var changed = false;
+      ['twilioSid','twilioToken','twilioFrom','storeName','payBank','payAccountNum','payAccountName','riderEmails'].forEach(function(k) {
+        if (!s[k] && data.settings[k]) { s[k] = data.settings[k]; changed = true; }
+      });
+      if (changed) {
+        localStorage.setItem('iflow_settings', JSON.stringify(s));
+        if (typeof applySettings === 'function') applySettings(s);
+        if (typeof loadSettings  === 'function') loadSettings();
+      }
+      if (s.twilioSid && s.twilioToken && typeof syncTwilioMessages === 'function') {
+        setTimeout(syncTwilioMessages, 800);
+      }
+    }
+  };
 </script>
 
 <!-- Login Screen -->
@@ -6703,50 +6745,47 @@ function devSignIn() {
 }
 
 async function _manualRefresh() {
-  var btn = document.getElementById('refreshBtn');
+  var btn  = document.getElementById('refreshBtn');
   var icon = document.getElementById('refreshIcon');
-  if (btn) btn.disabled = true;
+  if (btn)  btn.disabled = true;
   if (icon) icon.style.animation = 'spin 0.8s linear infinite';
   try {
-    await _restoreFromBlob(true); // force overwrite with latest blob data
+    await _restoreFromBlob(true);
     if (typeof _checkPendingOrders === 'function') _checkPendingOrders();
-    if (typeof render === 'function') render();
-    if (typeof renderProducts === 'function') renderProducts();
-    if (typeof renderSheets === 'function') renderSheets();
-    if (typeof renderOrders === 'function') renderOrders();
+    if (typeof renderOrders   === 'function') renderOrders();
     if (typeof renderDispatch === 'function') renderDispatch();
     if (typeof showToast === 'function') showToast('✓ Refreshed');
   } finally {
     if (icon) icon.style.animation = '';
-    if (btn) btn.disabled = false;
+    if (btn)  btn.disabled = false;
   }
 }
 
 async function _restoreFromBlob(force) {
   try {
     var existingProds = JSON.parse(localStorage.getItem('iflow_products') || 'null');
-    if (!force && existingProds !== null && existingProds.length > 0) return; // already have data
+    if (!force && existingProds !== null && existingProds.length > 0) return;
     var r = await fetch('/api/products');
     if (!r.ok) return;
     var data = await r.json();
-    if (!data.products || !data.products.length) return;
-    localStorage.setItem('iflow_products', JSON.stringify(data.products));
-    if (typeof products !== 'undefined') products = data.products;
-    if (typeof renderProducts === 'function') renderProducts();
-    if (typeof refreshProductsList === 'function') refreshProductsList();
-    if (typeof render === 'function') render();
-    if (typeof updateTotal === 'function') updateTotal();
-    // Restore non-sensitive settings (payment info, rider emails)
-    var s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-    var changed = false;
+    // Also merge legacy paymentInfo/riderEmails into data.settings for the bridge
+    if (!data.settings) data.settings = {};
     if (data.paymentInfo) {
-      if (!s.payBank && data.paymentInfo.bank)                         { s.payBank = data.paymentInfo.bank; changed = true; }
-      if (!s.payAccountNum && data.paymentInfo.accountNumber)          { s.payAccountNum = data.paymentInfo.accountNumber; changed = true; }
-      if (!s.payAccountName && data.paymentInfo.accountName)           { s.payAccountName = data.paymentInfo.accountName; changed = true; }
+      if (!data.settings.payBank)        data.settings.payBank        = data.paymentInfo.bank          || '';
+      if (!data.settings.payAccountNum)  data.settings.payAccountNum  = data.paymentInfo.accountNumber || '';
+      if (!data.settings.payAccountName) data.settings.payAccountName = data.paymentInfo.accountName   || '';
     }
-    if (data.riderEmails && data.riderEmails.length && !s.riderEmails) { s.riderEmails = data.riderEmails.join(','); changed = true; }
-    if (changed) localStorage.setItem('iflow_settings', JSON.stringify(s));
-    if (typeof showToast === 'function') showToast('✓ Data restored from cloud sync');
+    if (data.riderEmails && data.riderEmails.length && !data.settings.riderEmails) {
+      data.settings.riderEmails = data.riderEmails.join(',');
+    }
+    var hasProducts = data.products && data.products.length > 0;
+    var hasSettings = data.settings && Object.values(data.settings).some(Boolean);
+    if (!hasProducts && !hasSettings) return;
+    // Delegate into main script scope via bridge (has access to let-scoped `products`)
+    if (typeof window._iflow_applyBlobData === 'function') {
+      window._iflow_applyBlobData(data);
+      if (hasProducts && typeof showToast === 'function') showToast('✓ Data restored from cloud');
+    }
   } catch(e) {}
 }
 

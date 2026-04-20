@@ -4006,6 +4006,11 @@
     window.open(url, '_blank');
   }
 
+  // ── Messages state — declared here so syncTwilioMessages & helpers can access them ──
+  const convos    = [];
+  let activeTab   = 'all';
+  let activeConvo = null;
+
   // ── Read WhatsApp messages from Twilio ──
   function _relTime(ts) {
     const d = Date.now() - ts;
@@ -5910,12 +5915,6 @@
 
   // Pre-fill date field with today (sales table inline date if present)
   const _sdEl = document.getElementById('saleDate'); if (_sdEl) _sdEl.value = new Date().toISOString().slice(0, 10);
-
-  // ── Messages ──
-  const convos = [];   // populated by syncTwilioMessages() — starts empty
-
-  let activeTab = 'all';
-  let activeConvo = null;
 
   function switchTab(tab, btn) {
     activeTab = tab;

@@ -4026,64 +4026,50 @@
     const btn = document.getElementById('waSyncBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
 
-    // Normalise the stored "from" number — strip whatsapp: prefix if present
-    const cleanFrom = s.twilioFrom.replace(/^whatsapp:/i, '').replace(/\s/g, '');
-
-    let proxyData;
     try {
+      // ── 1. Call proxy — single try/catch/finally so button always resets ──
+      const cleanFrom = String(s.twilioFrom).replace(/^whatsapp:/i, '').replace(/\s/g, '');
       const res = await fetch('/api/twilio-proxy', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ sid: s.twilioSid, token: s.twilioToken, from: cleanFrom })
       });
-      const text = await res.text();
-      let parsed = {};
-      try { parsed = JSON.parse(text); } catch(_) {}
+
+      let data = {};
+      try { data = await res.json(); } catch(_) {}
+
       if (!res.ok) {
-        showToast('WhatsApp sync failed: ' + (parsed.error || 'HTTP ' + res.status));
+        showToast('WhatsApp sync failed: ' + (data.error || 'HTTP ' + res.status));
         return;
       }
-      proxyData = parsed;
-    } catch (netErr) {
-      showToast('Network error reaching sync server — check connection');
-      console.error('[iFlow] twilio-proxy fetch error:', netErr);
-      return;
-    } finally {
-      if (btn) { btn.disabled = false; btn.textContent = '↻ Sync WhatsApp'; }
-    }
 
-    try {
-      const allMsgs = [
-        ...(Array.isArray(proxyData.inbound)  ? proxyData.inbound  : []),
-        ...(Array.isArray(proxyData.outbound) ? proxyData.outbound : [])
-      ];
+      // ── 2. Collect messages ──
+      const inbound  = Array.isArray(data.inbound)  ? data.inbound  : [];
+      const outbound = Array.isArray(data.outbound) ? data.outbound : [];
+      const allMsgs  = [...inbound, ...outbound];
 
       if (!allMsgs.length) {
-        showToast('No WhatsApp messages yet — send one to your sandbox number first');
+        showToast('No WhatsApp messages yet — send a message to your Twilio number first');
         return;
       }
 
-      // Group by contact number
+      // ── 3. Build threads map keyed by contact number ──
       const threads = new Map();
-      allMsgs
-        .filter(m => m && m.date_sent)
-        .sort((a, b) => new Date(a.date_sent) - new Date(b.date_sent));
 
       for (const msg of allMsgs) {
         if (!msg || !msg.date_sent) continue;
-        const isIn      = msg.direction === 'inbound';
-        const rawNum    = isIn ? msg.from : msg.to;
-        if (!rawNum) continue;
-        const contactNum = String(rawNum).replace(/^whatsapp:/i, '').replace(/\s/g, '');
-        if (!contactNum || contactNum === cleanFrom) continue;
+        const isIn   = msg.direction === 'inbound';
+        const rawNum = String(isIn ? (msg.from || '') : (msg.to || ''))
+                         .replace(/^whatsapp:/i, '').replace(/\s/g, '');
+        if (!rawNum || rawNum === cleanFrom) continue;
 
-        if (!threads.has(contactNum)) {
-          threads.set(contactNum, {
-            id:            contactNum,
-            platform:      'whatsapp',
-            name:          contactNum,
-            handle:        contactNum,
-            avatar:        contactNum.slice(-2).toUpperCase(),
+        if (!threads.has(rawNum)) {
+          threads.set(rawNum, {
+            phone:         rawNum,
+            platform:      'WhatsApp',
+            name:          rawNum,
+            handle:        rawNum,
+            avatar:        rawNum.slice(-2).toUpperCase(),
             color:         '#25d366',
             platformColor: '#25d366',
             platformIcon:  'W',
@@ -4096,40 +4082,56 @@
           });
         }
 
-        const thread = threads.get(contactNum);
-        const ts     = new Date(msg.date_sent).getTime();
-        thread.messages.push({
+        const t  = threads.get(rawNum);
+        const ts = new Date(msg.date_sent).getTime() || 0;
+        t.messages.push({
           from: isIn ? 'them' : 'us',
-          text: msg.body || '[media]',
+          text: String(msg.body || '[media]'),
           time: new Date(msg.date_sent).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _ts:  ts,
           sid:  msg.sid || ''
         });
-        if (ts > thread._lastTs) {
-          thread._lastTs = ts;
-          thread.preview = (msg.body || '[media]').slice(0, 55);
-          thread.time    = typeof _relTime === 'function' ? _relTime(ts) : '';
+        if (ts > t._lastTs) {
+          t._lastTs  = ts;
+          t.preview  = String(msg.body || '[media]').slice(0, 55);
+          t.time     = _relTime(ts);
         }
       }
 
-      for (const t of threads.values()) t.messages.sort((a, b) => a._ts - b._ts);
+      if (!threads.size) {
+        showToast('No valid conversations found');
+        return;
+      }
 
+      // ── 4. Sort messages within each thread ──
+      for (const t of threads.values()) {
+        t.messages.sort((a, b) => a._ts - b._ts);
+      }
+
+      // ── 5. Rebuild convos array newest-first ──
       convos.length = 0;
-      let _cid = 1;
+      let cid = 1;
       [...threads.values()]
         .sort((a, b) => b._lastTs - a._lastTs)
-        .forEach(t => { t.id = _cid++; convos.push(t); });
+        .forEach(t => { t.id = cid++; convos.push(t); });
 
-      if (typeof renderConvList  === 'function') renderConvList();
-      if (typeof _updateMsgBadge === 'function') _updateMsgBadge();
+      // ── 6. Update UI safely ──
       activeConvo = null;
+      renderConvList(); // has its own null guard for the DOM element
+
       const chatEl = document.getElementById('chatArea');
       if (chatEl) chatEl.innerHTML = '<div class="no-chat"><svg viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/></svg>Select a conversation</div>';
-      showToast('✓ Synced ' + convos.length + ' WhatsApp conversation' + (convos.length !== 1 ? 's' : ''));
+
+      if (typeof _updateMsgBadge    === 'function') _updateMsgBadge();
       if (typeof _checkPaymentSignals === 'function') _checkPaymentSignals();
-    } catch (processErr) {
-      showToast('Error processing messages — try again');
-      console.error('[iFlow] syncTwilioMessages process error:', processErr);
+
+      showToast('✓ Synced ' + convos.length + ' conversation' + (convos.length !== 1 ? 's' : ''));
+
+    } catch (err) {
+      console.error('[iFlow] WhatsApp sync error:', err);
+      showToast('WhatsApp sync error: ' + (err.message || 'unknown error'));
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '↻ Sync WhatsApp'; }
     }
   }
 
@@ -6405,10 +6407,21 @@
   }
 
   function renderProducts() {
-    if (!products.length) {
-      const _stored = JSON.parse(localStorage.getItem('iflow_products') || '[]');
-      if (_stored.length) { products.length = 0; _stored.forEach(p => products.push(p)); }
+    // Always reload from localStorage first — handles cross-block scoping on refresh
+    const _ls = JSON.parse(localStorage.getItem('iflow_products') || '[]');
+    if (_ls.length) {
+      products.length = 0;
+      _ls.forEach(p => products.push(p));
     }
+
+    // If products still empty, show loading state and trigger cloud restore
+    if (!products.length) {
+      const tbody = document.getElementById('productsBody');
+      if (tbody) tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--muted);font-size:0.88rem;">Loading products… <button onclick="_restoreFromBlob(true)" style="margin-left:8px;padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;">Restore from Cloud</button></td></tr>';
+      if (typeof _restoreFromBlob === 'function') _restoreFromBlob(true);
+      return;
+    }
+
     document.getElementById('productsDate').textContent =
       new Date().toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
     const cur = getCurrency();
@@ -6644,37 +6657,49 @@
     });
   })();
 
-  // Bridge: called from the auth script block which can't access let-scoped variables here.
-  // Updates `products` in this scope and re-renders everything.
+  // Bridge: called from the auth block (second <script>) which cannot access let-scoped vars here.
+  // This is the ONLY function that can update `products` from outside this script block.
   window._iflow_applyBlobData = function(data) {
-    if (data && data.products && data.products.length) {
-      products = data.products.map(function(p) {
-        return Object.assign({ category: p.name, variant: '', code: '' }, p, {
-          category: p.category || p.name,
-          variant:  p.variant !== undefined ? p.variant : '',
-          code:     p.code    || (typeof generateProductCode === 'function' ? generateProductCode(p.type || '') : '')
+    try {
+      // ── Apply products ──
+      if (data && Array.isArray(data.products) && data.products.length) {
+        var incoming = data.products.map(function(p) {
+          return Object.assign({}, p, {
+            category: p.category || p.name || '',
+            variant:  p.variant  !== undefined ? p.variant : '',
+            code:     p.code     || (typeof generateProductCode === 'function' ? generateProductCode(p.type || '', p.name || '') : '')
+          });
         });
-      });
-      localStorage.setItem('iflow_products', JSON.stringify(products));
-      if (typeof renderProducts      === 'function') renderProducts();
-      if (typeof refreshProductsList === 'function') refreshProductsList();
-      if (typeof render              === 'function') render();
-      if (typeof updateTotal         === 'function') updateTotal();
-      if (typeof renderSheets        === 'function') renderSheets();
-    }
-    if (data && data.settings) {
-      var s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-      var changed = false;
-      ['twilioSid','twilioToken','twilioFrom','storeName','payBank','payAccountNum','payAccountName','riderEmails'].forEach(function(k) {
-        if (!s[k] && data.settings[k]) { s[k] = data.settings[k]; changed = true; }
-      });
-      if (changed) {
-        localStorage.setItem('iflow_settings', JSON.stringify(s));
-        if (typeof applySettings       === 'function') applySettings(s);
-        if (typeof syncSettingsToggles === 'function') syncSettingsToggles(); // repopulate Settings UI
+        // Replace in-place so all closures see the update
+        products.length = 0;
+        incoming.forEach(function(p) { products.push(p); });
+        // Persist to localStorage (the interceptor debounce-push is harmless here)
+        localStorage.setItem('iflow_products', JSON.stringify(products));
+        if (typeof renderProducts      === 'function') renderProducts();
+        if (typeof refreshProductsList === 'function') refreshProductsList();
+        if (typeof render              === 'function') render();
+        if (typeof updateTotal         === 'function') updateTotal();
+        if (typeof renderSheets        === 'function') renderSheets();
       }
+
+      // ── Apply settings (only fill in missing fields — never overwrite existing) ──
+      if (data && data.settings) {
+        var s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+        var changed = false;
+        ['twilioSid','twilioToken','twilioFrom','storeName','payBank','payAccountNum','payAccountName','riderEmails'].forEach(function(k) {
+          if (!s[k] && data.settings[k]) { s[k] = data.settings[k]; changed = true; }
+        });
+        if (changed) {
+          localStorage.setItem('iflow_settings', JSON.stringify(s));
+          if (typeof applySettings       === 'function') applySettings(s);
+          if (typeof syncSettingsToggles === 'function') syncSettingsToggles();
+        }
+      }
+    } catch(bridgeErr) {
+      console.error('[iFlow] _iflow_applyBlobData error:', bridgeErr);
     }
-    // Always try WhatsApp sync after blob apply — credentials may have just arrived
+
+    // Auto-sync WhatsApp if credentials are available
     var _s2 = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
     if (_s2.twilioSid && _s2.twilioToken && typeof syncTwilioMessages === 'function') {
       setTimeout(syncTwilioMessages, 1200);

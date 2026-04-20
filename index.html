@@ -901,6 +901,53 @@
     .toggle-item > div p  { font-size: 0.72rem; }
   }
 
+  /* ── Mobile-first responsive layout ──────────────────────────────────── */
+  @media (max-width: 768px) {
+    /* Main content fills remaining width next to collapsed sidebar */
+    .main-content         { padding: 12px 10px; overflow-x: hidden; }
+    .page-header          { padding: 12px 0 10px; }
+    .page-title           { font-size: 1.1rem; }
+
+    /* Tables scroll horizontally */
+    .table-wrap, .sheets-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table                 { min-width: 560px; }
+
+    /* Stats row stacks to 2 columns on mobile */
+    .stats-grid           { grid-template-columns: 1fr 1fr !important; gap: 10px; }
+    .stat-card            { padding: 14px 12px; }
+    .stat-value           { font-size: 1.3rem; }
+
+    /* Product card grid */
+    .product-grid         { grid-template-columns: 1fr !important; }
+
+    /* Forms */
+    .form-grid            { grid-template-columns: 1fr !important; }
+    .add-product-form     { padding: 14px 12px; }
+
+    /* Orders */
+    .order-card           { padding: 14px 12px; }
+    .order-item-row       { flex-direction: column; align-items: flex-start; gap: 4px; }
+
+    /* Dispatch */
+    .dispatch-tabs        { gap: 6px; }
+    .dispatch-tab         { padding: 8px 14px; font-size: .8rem; }
+
+    /* Charts */
+    .chart-container      { height: 200px !important; }
+
+    /* Hide non-essential columns in tables on small screens */
+    .col-hide-mobile      { display: none; }
+
+    /* Buttons full width in forms */
+    .btn-row              { flex-direction: column; }
+    .btn-row .btn-add,
+    .btn-row .btn-secondary { width: 100%; }
+
+    /* Modals full-screen on mobile */
+    .modal-box            { width: 100% !important; max-width: 100% !important; border-radius: 20px 20px 0 0; position: fixed; bottom: 0; top: auto; max-height: 90vh; overflow-y: auto; }
+    .modal-overlay        { align-items: flex-end; }
+  }
+
   /* ── Floating Mic Button ── */
   .fab-mic {
     position: fixed;
@@ -1456,35 +1503,47 @@
   #rolePickerModal{align-items:center;justify-content:center;padding:32px;text-align:center}
   .role-logo{font-size:2rem;font-weight:800;letter-spacing:1px;margin-bottom:8px}.role-logo span{color:#4f8ef7}
   .role-tagline{color:#64748b;font-size:.9rem;margin-bottom:40px}
-  .role-card{background:#1a1d2e;border:1.5px solid rgba(255,255,255,.1);border-radius:20px;padding:28px 24px;margin-bottom:16px;width:100%;max-width:340px;cursor:pointer;text-align:left;transition:border-color .2s,transform .1s}
-  .role-card:active{transform:scale(.98)}
-  .role-card:hover{border-color:#4f8ef7}
-  .role-card-icon{font-size:2rem;margin-bottom:10px}
-  .role-card-title{font-size:1.05rem;font-weight:700;margin-bottom:4px}
-  .role-card-desc{font-size:.82rem;color:#64748b;line-height:1.5}
+  .role-card{background:#1a1d2e;border:1.5px solid rgba(255,255,255,.1);border-radius:20px;padding:28px 24px;margin-bottom:16px;width:100%;max-width:340px;cursor:pointer;text-align:left;transition:border-color .2s,transform .15s}
+  .role-card:active{transform:scale(.97)}
+  .role-card:hover{border-color:#4f8ef7;box-shadow:0 0 0 1px rgba(79,142,247,.25)}
+  .role-card-icon{font-size:2.2rem;margin-bottom:10px}
+  .role-card-title{font-size:1.1rem;font-weight:700;margin-bottom:4px}
+  .role-card-desc{font-size:.82rem;color:#64748b;line-height:1.55}
   /* Rider App */
   #riderApp{overflow-y:auto}
-  .rider-header{background:#111827;padding:20px 20px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.07)}
-  .rider-avatar{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#4f8ef7,#7b5ea7);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1rem;flex-shrink:0}
-  .rider-name{font-weight:700;font-size:1rem}
-  .rider-status{font-size:.75rem;color:#22c55e;display:flex;align-items:center;gap:4px}
-  .rider-status::before{content:'';width:7px;height:7px;border-radius:50%;background:#22c55e;display:inline-block}
-  .rider-body{flex:1;padding:20px 16px;display:flex;flex-direction:column;gap:20px}
-  .rider-section-title{font-size:.7rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#64748b;margin-bottom:10px}
-  .rider-card{background:#1a1d2e;border-radius:16px;padding:18px;border:1px solid rgba(255,255,255,.07)}
-  .rider-card.active-delivery{border-color:#4f8ef7;background:linear-gradient(135deg,rgba(79,142,247,.1),rgba(123,94,167,.1))}
-  .rider-card-product{font-size:1rem;font-weight:700;margin-bottom:6px}
-  .rider-card-address{font-size:.85rem;color:#94a3b8;margin-bottom:12px;display:flex;align-items:flex-start;gap:6px}
-  .rider-card-customer{font-size:.8rem;color:#64748b;margin-bottom:14px}
-  .rider-btn{width:100%;padding:13px;border:none;border-radius:12px;font-size:.95rem;font-weight:700;cursor:pointer;margin-top:8px}
-  .rider-btn-accept{background:#4f8ef7;color:#fff}
-  .rider-btn-deliver{background:#22c55e;color:#000}
-  .rider-btn-sm{background:rgba(255,255,255,.07);color:#94a3b8;font-size:.8rem;padding:8px 16px;border:none;border-radius:8px;cursor:pointer}
-  .rider-empty{text-align:center;padding:40px 20px;color:#475569}
-  .rider-empty-icon{font-size:2.5rem;margin-bottom:10px}
-  .rider-footer{padding:16px;border-top:1px solid rgba(255,255,255,.07);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
-  @keyframes rider-pulse{0%,100%{opacity:1}50%{opacity:.5}}
-  .rider-new-badge{background:#ef4444;color:#fff;border-radius:999px;padding:2px 8px;font-size:.7rem;font-weight:700;margin-left:8px;animation:rider-pulse 1.5s ease-in-out infinite}
+  .rider-header{background:#111827;padding:20px 20px 16px;display:flex;align-items:center;gap:14px;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.07)}
+  .rider-avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#4f8ef7,#7b5ea7);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.15rem;flex-shrink:0;box-shadow:0 0 0 3px rgba(79,142,247,.25)}
+  .rider-name{font-weight:700;font-size:1.05rem}
+  .rider-status{font-size:.75rem;color:#22c55e;display:flex;align-items:center;gap:5px}
+  .rider-status::before{content:'';width:7px;height:7px;border-radius:50%;background:#22c55e;display:inline-block;animation:rider-pulse 2s ease-in-out infinite}
+  .rider-body{flex:1;padding:20px 16px;display:flex;flex-direction:column;gap:16px;overflow-y:auto}
+  .rider-section{background:rgba(255,255,255,.02);border-radius:16px;padding:16px;border:1px solid rgba(255,255,255,.05)}
+  .rider-section-title{font-size:.68rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#475569;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+  .rider-section-count{background:rgba(255,255,255,.07);border-radius:999px;padding:1px 7px;font-size:.65rem;color:#94a3b8}
+  @keyframes rcard-in{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+  .rider-card{background:#1a1d2e;border-radius:18px;padding:20px;border:1px solid rgba(255,255,255,.07);transition:box-shadow .2s,border-color .2s;animation:rcard-in .3s ease-out both}
+  .rider-card + .rider-card{margin-top:12px}
+  .rider-card:active{transform:scale(.99)}
+  .rider-card.active-delivery{border-color:rgba(79,142,247,.5);background:linear-gradient(135deg,rgba(79,142,247,.1),rgba(123,94,167,.09));box-shadow:0 0 0 1px rgba(79,142,247,.2),0 8px 32px rgba(79,142,247,.12)}
+  .rider-card-product{font-size:1.05rem;font-weight:700;margin-bottom:6px;color:#f1f5f9;line-height:1.35}
+  .rider-card-meta{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+  .rider-card-badge{display:inline-flex;align-items:center;background:rgba(79,142,247,.13);color:#4f8ef7;border-radius:999px;padding:3px 10px;font-size:.7rem;font-weight:600}
+  .rider-card-badge.green{background:rgba(34,197,94,.13);color:#22c55e}
+  .rider-card-address{font-size:.875rem;color:#94a3b8;margin-bottom:8px;display:flex;align-items:flex-start;gap:7px;line-height:1.5}
+  .rider-card-customer{font-size:.8rem;color:#475569;margin-bottom:18px;display:flex;align-items:center;gap:6px}
+  .rider-btn{width:100%;padding:15px;border:none;border-radius:14px;font-size:.95rem;font-weight:700;cursor:pointer;transition:transform .12s,opacity .12s;letter-spacing:.2px}
+  .rider-btn:active{transform:scale(.97);opacity:.9}
+  .rider-btn-accept{background:linear-gradient(135deg,#4f8ef7,#7b5ea7);color:#fff;box-shadow:0 4px 16px rgba(79,142,247,.3)}
+  .rider-btn-deliver{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;box-shadow:0 4px 16px rgba(34,197,94,.3)}
+  .rider-btn-sm{background:rgba(255,255,255,.07);color:#94a3b8;font-size:.8rem;padding:9px 18px;border:none;border-radius:10px;cursor:pointer;transition:background .15s}
+  .rider-btn-sm:hover{background:rgba(255,255,255,.12)}
+  .rider-empty{text-align:center;padding:48px 20px;color:#475569}
+  .rider-empty-icon{font-size:2.8rem;margin-bottom:12px;opacity:.7}
+  .rider-done-card{background:rgba(34,197,94,.05);border:1px solid rgba(34,197,94,.15);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:10px;opacity:.75}
+  .rider-done-card + .rider-done-card{margin-top:8px}
+  .rider-footer{padding:14px 16px;border-top:1px solid rgba(255,255,255,.07);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+  @keyframes rider-pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .rider-new-badge{background:#ef4444;color:#fff;border-radius:999px;padding:2px 8px;font-size:.7rem;font-weight:700;animation:rider-pulse 1.2s ease-in-out infinite}
 
   /* ── Nova AI animations ──────────────────────────────────────────────── */
   @keyframes nova-ring {
@@ -5818,7 +5877,9 @@
   // Convert condition text → short code tokens (e.g. "cracked screen, bh87, uk used" → "sc-bh87-uk")
   function _conditionToCode(condition) {
     if (!condition) return '';
-    const c = condition.toLowerCase();
+    const c = condition.toLowerCase().trim();
+    // Brand new / sealed = no defect code
+    if (/^(brand[\s\-]?new|new|sealed|factory[\s\-]?sealed|mint|pristine|brand new sealed|100%\s*new)$/.test(c)) return '';
     const codes = [];
     if (/crack|shatter|broken\s*(screen|display)|screen\s*(crack|broken|damage)/i.test(c)) codes.push('sc');
     else if (/slight.*scrat|scrat.*screen|screen.*scrat/i.test(c)) codes.push('ss'); // slight screen scratch
@@ -7118,6 +7179,8 @@ async function _novaProcess(text, fromVoice) {
     '  → variant = colour/storage/model suffix (e.g. "Black 128GB"). condition = defects/usage (e.g. "BH87, cracked screen"). Omit if none.\n' +
     'ACTION:{"type":"recordSale","product":"EXACT_PRODUCT_NAME","qty":NUMBER,"price":NUMBER,"customer":"Walk-in"}\n' +
     'ACTION:{"type":"updateStock","product":"EXACT_PRODUCT_NAME","qty":NUMBER}\n' +
+    'ACTION:{"type":"sendWhatsApp","to":"PHONE_OR_NAME","message":"MESSAGE_TEXT"}\n' +
+    '  → Use sendWhatsApp when asked to send a message to a customer. "to" can be a phone number (+234...) or a customer name from orders.\n' +
     'ACTION:{"type":"navigate","page":"inventory|products|dispatch|orders|settings|messages"}\n' +
     'Your spoken reply must be a brief confirmation of the action. If you add products, confirm each one briefly.';
 
@@ -7248,7 +7311,26 @@ function _novaExecuteAction(actionStr) {
       if (typeof products!=='undefined'){ products.length=0; pp3.forEach(function(x){products.push(x);}); }
       if (typeof renderProducts      ==='function') renderProducts();
       if (typeof refreshProductsList ==='function') refreshProductsList();
-      showToast('Stock updated by Nova ✓');
+      showToast('Stock updated by Nova ✓'); return;
+    }
+    if (a.type === 'sendWhatsApp') {
+      var waTo  = (a.to || '').trim();
+      var waMsg = (a.message || '').trim();
+      if (!waTo || !waMsg) { showToast('Nova: missing recipient or message'); return; }
+      // Resolve name → phone if needed (look in recent orders)
+      var orders = JSON.parse(localStorage.getItem('iflow_dispatch_orders') || '[]');
+      if (!/^\+?\d{7,}$/.test(waTo)) {
+        var match = orders.find(function(o){ return (o.customer||'').toLowerCase().includes(waTo.toLowerCase()); });
+        if (match && match.phone) waTo = match.phone;
+      }
+      fetch('/api/send-whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: waTo, message: waMsg })
+      }).then(function(r){ return r.json(); }).then(function(d){
+        showToast(d.success ? 'Message sent via WhatsApp ✓' : 'WhatsApp send failed: ' + (d.error || 'unknown'));
+      }).catch(function(){ showToast('Could not send WhatsApp message'); });
+      return;
     }
   } catch(e) { console.error('Nova action error', e); }
 }
@@ -7350,6 +7432,10 @@ function setAppRole(role) {
     _launchRiderApp();
   } else {
     document.getElementById('mainAppWrapper').style.display = '';
+    // Start owner-side services that showApp would have started
+    setTimeout(function(){ if (typeof _loadAiSettings === 'function') _loadAiSettings(); }, 0);
+    setTimeout(function(){ if (typeof _startOrderPolling === 'function') _startOrderPolling(); }, 1000);
+    var cy = document.getElementById('copyrightYear'); if (cy) cy.textContent = new Date().getFullYear();
   }
 }
 
@@ -7362,17 +7448,35 @@ function _switchRiderRole() {
 function _checkMobileRole(user) {
   var isMobile = window.innerWidth < 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
   var role = localStorage.getItem('iflow_role');
-  if (isMobile && !role) {
-    // Hide main app, show role picker
-    document.getElementById('mainAppWrapper').style.display = 'none';
-    document.getElementById('rolePickerModal').style.display = 'flex';
-    return true; // handled
-  }
-  if (role === 'rider') {
+  var userEmail = (user && user.email) ? user.email.toLowerCase().trim() : '';
+
+  // Determine allowed rider emails from settings
+  var cfg = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+  var riderEmails = (cfg.riderEmails || '').split(',').map(function(e){ return e.trim().toLowerCase(); }).filter(Boolean);
+
+  // If signed-in email is in rider list → always go to rider app (no choice needed)
+  if (userEmail && riderEmails.length && riderEmails.includes(userEmail)) {
     document.getElementById('mainAppWrapper').style.display = 'none';
     _launchRiderApp(user);
     return true;
   }
+
+  // If a rider role was explicitly saved and email is in the list, use it
+  if (role === 'rider' && userEmail && riderEmails.includes(userEmail)) {
+    document.getElementById('mainAppWrapper').style.display = 'none';
+    _launchRiderApp(user);
+    return true;
+  }
+
+  // If on mobile and no role chosen yet AND email is NOT an owner email — show picker
+  // Owner emails are NOT in the rider list, so known riders get direct access, owners get the app
+  if (isMobile && !role && riderEmails.length === 0) {
+    // No rider emails configured at all — show role picker for all mobiles
+    document.getElementById('mainAppWrapper').style.display = 'none';
+    document.getElementById('rolePickerModal').style.display = 'flex';
+    return true;
+  }
+
   return false; // show normal app
 }
 
@@ -7441,35 +7545,37 @@ function _renderRiderView(orders) {
 
   // Active delivery
   if (myActive) {
-    var p = _parseRiderDetails(myActive.details);
-    html += '<div>';
-    html += '<div class="rider-section-title">My Active Delivery</div>';
+    var pa = _parseRiderDetails(myActive.details);
+    html += '<div class="rider-section">';
+    html += '<div class="rider-section-title">🚴 My Active Delivery</div>';
     html += '<div class="rider-card active-delivery">';
-    html += '<div class="rider-card-product">' + _esc(p.product || myActive.details) + '</div>';
-    html += '<div class="rider-card-address">📍 ' + _esc(p.address || 'Address in order') + '</div>';
-    html += '<div class="rider-card-customer">Customer: ' + _esc(p.customer || myActive.customerName || '—') + '</div>';
+    html += '<div class="rider-card-product">' + _esc(pa.product || myActive.details) + '</div>';
+    html += '<div class="rider-card-meta"><span class="rider-card-badge green">In Transit</span></div>';
+    html += '<div class="rider-card-address">📍 ' + _esc(pa.address || 'Address in order') + '</div>';
+    html += '<div class="rider-card-customer">👤 ' + _esc(pa.customer || myActive.customerName || '—') + '</div>';
     html += '<button class="rider-btn rider-btn-deliver" onclick="_riderComplete(this,' + JSON.stringify(myActive.id) + ')">✓ Mark as Delivered</button>';
     html += '</div></div>';
   }
 
   // Available jobs
-  html += '<div>';
-  html += '<div class="rider-section-title">Available Jobs (' + available.length + ')</div>';
+  html += '<div class="rider-section">';
+  html += '<div class="rider-section-title">📦 Available Jobs <span class="rider-section-count">' + available.length + '</span></div>';
   if (available.length === 0) {
-    html += '<div class="rider-empty"><div class="rider-empty-icon">📭</div><div>No available deliveries right now</div><div style="font-size:.8rem;margin-top:6px;color:#64748b">Check back soon</div></div>';
+    html += '<div class="rider-empty"><div class="rider-empty-icon">📭</div><div style="font-size:.95rem;font-weight:600;color:#64748b">No deliveries available</div><div style="font-size:.8rem;margin-top:6px;color:#334155">Check back soon — new jobs appear here</div></div>';
   } else {
-    available.forEach(function(o) {
-      var p = _parseRiderDetails(o.details);
+    available.forEach(function(o, idx) {
+      var pv = _parseRiderDetails(o.details);
       var elapsed = Math.round((Date.now() - new Date(o.confirmedAt || o.createdAt).getTime()) / 60000);
-      var timeStr = elapsed < 1 ? 'Just now' : elapsed + ' min ago';
-      html += '<div class="rider-card">';
-      html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">';
-      html += '<div class="rider-card-product">' + _esc(p.product || o.details) + '</div>';
-      html += '<span style="font-size:.72rem;color:#64748b">' + timeStr + '</span>';
+      var timeStr = elapsed < 1 ? 'Just now' : elapsed < 60 ? elapsed + ' min ago' : Math.round(elapsed/60) + 'h ago';
+      var delay = (idx * 0.07).toFixed(2);
+      html += '<div class="rider-card" style="animation-delay:' + delay + 's">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">';
+      html += '<div class="rider-card-product">' + _esc(pv.product || o.details) + '</div>';
       html += '</div>';
-      html += '<div class="rider-card-address">📍 ' + _esc(p.address || '—') + '</div>';
-      html += '<div class="rider-card-customer">Customer: ' + _esc(p.customer || o.customerName || '—') + '</div>';
-      html += '<button class="rider-btn rider-btn-accept" onclick="_riderAccept(this,' + JSON.stringify(o.id) + ')">Accept Delivery</button>';
+      html += '<div class="rider-card-meta"><span class="rider-card-badge">New Job</span><span style="font-size:.7rem;color:#475569">' + timeStr + '</span></div>';
+      html += '<div class="rider-card-address">📍 ' + _esc(pv.address || '—') + '</div>';
+      html += '<div class="rider-card-customer">👤 ' + _esc(pv.customer || o.customerName || '—') + '</div>';
+      html += '<button class="rider-btn rider-btn-accept" onclick="_riderAccept(this,' + JSON.stringify(o.id) + ')">🏍️ Accept Delivery</button>';
       html += '</div>';
     });
   }
@@ -7477,15 +7583,17 @@ function _renderRiderView(orders) {
 
   // Completed today
   if (myDone.length > 0) {
-    html += '<div>';
-    html += '<div class="rider-section-title">Completed Today (' + myDone.length + ')</div>';
+    html += '<div class="rider-section">';
+    html += '<div class="rider-section-title">✅ Completed Today <span class="rider-section-count">' + myDone.length + '</span></div>';
     myDone.forEach(function(o) {
-      var p = _parseRiderDetails(o.details);
-      html += '<div class="rider-card" style="opacity:.6">';
-      html += '<div style="display:flex;align-items:center;gap:8px"><span style="color:#22c55e">✓</span>';
-      html += '<span class="rider-card-product" style="font-size:.9rem">' + _esc(p.product || o.details) + '</span></div>';
-      html += '<div class="rider-card-address" style="margin-bottom:0">📍 ' + _esc(p.address || '—') + '</div>';
-      html += '</div>';
+      var pd = _parseRiderDetails(o.details);
+      var doneTime = o.deliveredAt ? new Date(o.deliveredAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+      html += '<div class="rider-done-card">';
+      html += '<span style="color:#22c55e;font-size:1.1rem">✓</span>';
+      html += '<div style="flex:1;min-width:0">';
+      html += '<div style="font-size:.9rem;font-weight:600;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + _esc(pd.product || o.details) + '</div>';
+      html += '<div style="font-size:.75rem;color:#475569">📍 ' + _esc(pd.address || '—') + (doneTime ? ' · ' + doneTime : '') + '</div>';
+      html += '</div></div>';
     });
     html += '</div>';
   }

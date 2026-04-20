@@ -3,6 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#4f8ef7" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="iFlow" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icon.svg" />
   <title>iFlow — Sales Tracker</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -1563,7 +1570,7 @@
   .tour-beacon{animation:tour-beacon 1.4s ease-in-out infinite}
 
   /* ── Role Picker + Rider App ──────────────────────────────────────────── */
-  #rolePickerModal,#riderApp{position:fixed;inset:0;z-index:9000;background:#0b0d14;display:none;flex-direction:column;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#e2e8f0}
+  #rolePickerModal,#riderApp{position:fixed;inset:0;z-index:9000;background:#0b0d14;display:none;flex-direction:column;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#e2e8f0;-webkit-font-smoothing:antialiased}
   #rolePickerModal{align-items:center;justify-content:center;padding:32px;text-align:center}
   .role-logo{font-size:2rem;font-weight:800;letter-spacing:1px;margin-bottom:8px}.role-logo span{color:#4f8ef7}
   .role-tagline{color:#64748b;font-size:.9rem;margin-bottom:40px}
@@ -1573,41 +1580,142 @@
   .role-card-icon{font-size:2.2rem;margin-bottom:10px}
   .role-card-title{font-size:1.1rem;font-weight:700;margin-bottom:4px}
   .role-card-desc{font-size:.82rem;color:#64748b;line-height:1.55}
-  /* Rider App */
-  #riderApp{overflow-y:auto}
-  .rider-header{background:#111827;padding:20px 20px 16px;display:flex;align-items:center;gap:14px;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.07)}
-  .rider-avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#4f8ef7,#7b5ea7);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.15rem;flex-shrink:0;box-shadow:0 0 0 3px rgba(79,142,247,.25)}
-  .rider-name{font-weight:700;font-size:1.05rem}
-  .rider-status{font-size:.75rem;color:#22c55e;display:flex;align-items:center;gap:5px}
-  .rider-status::before{content:'';width:7px;height:7px;border-radius:50%;background:#22c55e;display:inline-block;animation:rider-pulse 2s ease-in-out infinite}
-  .rider-body{flex:1;padding:20px 16px;display:flex;flex-direction:column;gap:16px;overflow-y:auto}
-  .rider-section{background:rgba(255,255,255,.02);border-radius:16px;padding:16px;border:1px solid rgba(255,255,255,.05)}
-  .rider-section-title{font-size:.68rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#475569;margin-bottom:12px;display:flex;align-items:center;gap:6px}
-  .rider-section-count{background:rgba(255,255,255,.07);border-radius:999px;padding:1px 7px;font-size:.65rem;color:#94a3b8}
-  @keyframes rcard-in{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
-  .rider-card{background:#1a1d2e;border-radius:18px;padding:20px;border:1px solid rgba(255,255,255,.07);transition:box-shadow .2s,border-color .2s;animation:rcard-in .3s ease-out both}
-  .rider-card + .rider-card{margin-top:12px}
-  .rider-card:active{transform:scale(.99)}
-  .rider-card.active-delivery{border-color:rgba(79,142,247,.5);background:linear-gradient(135deg,rgba(79,142,247,.1),rgba(123,94,167,.09));box-shadow:0 0 0 1px rgba(79,142,247,.2),0 8px 32px rgba(79,142,247,.12)}
-  .rider-card-product{font-size:1.05rem;font-weight:700;margin-bottom:6px;color:#f1f5f9;line-height:1.35}
-  .rider-card-meta{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-  .rider-card-badge{display:inline-flex;align-items:center;background:rgba(79,142,247,.13);color:#4f8ef7;border-radius:999px;padding:3px 10px;font-size:.7rem;font-weight:600}
-  .rider-card-badge.green{background:rgba(34,197,94,.13);color:#22c55e}
-  .rider-card-address{font-size:.875rem;color:#94a3b8;margin-bottom:8px;display:flex;align-items:flex-start;gap:7px;line-height:1.5}
-  .rider-card-customer{font-size:.8rem;color:#475569;margin-bottom:18px;display:flex;align-items:center;gap:6px}
-  .rider-btn{width:100%;padding:15px;border:none;border-radius:14px;font-size:.95rem;font-weight:700;cursor:pointer;transition:transform .12s,opacity .12s;letter-spacing:.2px}
-  .rider-btn:active{transform:scale(.97);opacity:.9}
-  .rider-btn-accept{background:linear-gradient(135deg,#4f8ef7,#7b5ea7);color:#fff;box-shadow:0 4px 16px rgba(79,142,247,.3)}
-  .rider-btn-deliver{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;box-shadow:0 4px 16px rgba(34,197,94,.3)}
-  .rider-btn-sm{background:rgba(255,255,255,.07);color:#94a3b8;font-size:.8rem;padding:9px 18px;border:none;border-radius:10px;cursor:pointer;transition:background .15s}
-  .rider-btn-sm:hover{background:rgba(255,255,255,.12)}
-  .rider-empty{text-align:center;padding:48px 20px;color:#475569}
-  .rider-empty-icon{font-size:2.8rem;margin-bottom:12px;opacity:.7}
-  .rider-done-card{background:rgba(34,197,94,.05);border:1px solid rgba(34,197,94,.15);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:10px;opacity:.75}
-  .rider-done-card + .rider-done-card{margin-top:8px}
-  .rider-footer{padding:14px 16px;border-top:1px solid rgba(255,255,255,.07);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
-  @keyframes rider-pulse{0%,100%{opacity:1}50%{opacity:.4}}
-  .rider-new-badge{background:#ef4444;color:#fff;border-radius:999px;padding:2px 8px;font-size:.7rem;font-weight:700;animation:rider-pulse 1.2s ease-in-out infinite}
+
+  /* ── Rider App ─────────────────────────────────────────────────────────── */
+  #riderApp { display:none; flex-direction:column; overflow:hidden; }
+
+  .rider-header {
+    background:#111827;
+    padding:16px 20px;
+    display:flex;
+    align-items:center;
+    gap:14px;
+    flex-shrink:0;
+    border-bottom:1px solid rgba(255,255,255,.08);
+    min-height:68px;
+  }
+  .rider-avatar {
+    width:44px; height:44px; border-radius:50%;
+    background:linear-gradient(135deg,#4f8ef7,#7b5ea7);
+    display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:1.15rem; flex-shrink:0;
+    box-shadow:0 0 0 3px rgba(79,142,247,.25);
+  }
+  .rider-name  { font-weight:700; font-size:1rem; margin-bottom:2px; }
+  .rider-status{ font-size:.72rem; color:#22c55e; display:flex; align-items:center; gap:5px; }
+  .rider-status::before{ content:''; width:6px; height:6px; border-radius:50%; background:#22c55e; display:inline-block; animation:rider-pulse 2s ease-in-out infinite; }
+
+  .rider-body {
+    flex:1;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    padding:16px;
+    display:block;      /* block, NOT flex — cards stack naturally */
+  }
+
+  /* Section grouping */
+  .rider-section {
+    display:block;
+    background:rgba(255,255,255,.02);
+    border:1px solid rgba(255,255,255,.06);
+    border-radius:18px;
+    padding:16px;
+    margin-bottom:16px;
+  }
+  .rider-section-title {
+    font-size:.68rem; font-weight:700; letter-spacing:1.2px;
+    text-transform:uppercase; color:#475569;
+    margin-bottom:14px;
+    display:flex; align-items:center; gap:6px;
+  }
+  .rider-section-count {
+    background:rgba(255,255,255,.07); border-radius:999px;
+    padding:1px 8px; font-size:.65rem; color:#94a3b8;
+  }
+
+  /* Delivery cards — fully vertical, block display */
+  .rider-card {
+    display:block;
+    background:#1a1d2e;
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:16px;
+    padding:18px 16px;
+    margin-bottom:12px;
+  }
+  .rider-card:last-child { margin-bottom:0; }
+  .rider-card.active-delivery {
+    border-color:rgba(79,142,247,.45);
+    background:linear-gradient(160deg,rgba(79,142,247,.1),rgba(123,94,167,.08));
+    box-shadow:0 0 0 1px rgba(79,142,247,.18),0 6px 24px rgba(79,142,247,.1);
+  }
+
+  /* Card top row: badge + time */
+  .rider-card-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .rider-card-badge {
+    display:inline-block;
+    background:rgba(79,142,247,.14); color:#4f8ef7;
+    border-radius:999px; padding:4px 12px;
+    font-size:.72rem; font-weight:700;
+  }
+  .rider-card-badge.green { background:rgba(34,197,94,.14); color:#22c55e; }
+  .rider-card-time { font-size:.72rem; color:#475569; }
+
+  /* Product name — full width, wraps */
+  .rider-card-product {
+    font-size:1.05rem; font-weight:700;
+    color:#f1f5f9; line-height:1.4;
+    margin-bottom:12px; display:block;
+  }
+
+  /* Label row */
+  .rider-card-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
+  .rider-card-label { font-size:.75rem; color:#64748b; font-weight:500; }
+  .rider-card-val   { font-size:.8rem; color:#94a3b8; text-align:right; }
+
+  /* Address — block, wraps on small screens */
+  .rider-card-addr {
+    display:block;
+    font-size:.9rem; color:#cbd5e1; line-height:1.55;
+    margin-bottom:14px; padding:10px 12px;
+    background:rgba(255,255,255,.04); border-radius:10px;
+  }
+
+  /* Action buttons */
+  .rider-btn {
+    display:block; width:100%;
+    padding:16px 12px;
+    border:none; border-radius:14px;
+    font-size:1rem; font-weight:700;
+    cursor:pointer; text-align:center;
+    -webkit-tap-highlight-color:transparent;
+    transition:opacity .15s, transform .1s;
+    margin-top:4px;
+  }
+  .rider-btn:active  { opacity:.85; transform:scale(.98); }
+  .rider-btn-accept  { background:linear-gradient(135deg,#4f8ef7,#7b5ea7); color:#fff; box-shadow:0 4px 16px rgba(79,142,247,.3); }
+  .rider-btn-deliver { background:linear-gradient(135deg,#22c55e,#16a34a); color:#fff; box-shadow:0 4px 16px rgba(34,197,94,.3); }
+
+  /* Small buttons (header) */
+  .rider-btn-sm { background:rgba(255,255,255,.08); color:#94a3b8; font-size:.78rem; padding:9px 16px; border:none; border-radius:10px; cursor:pointer; }
+  .rider-btn-sm:active { opacity:.7; }
+
+  /* Empty state */
+  .rider-empty { text-align:center; padding:40px 16px; color:#475569; display:block; }
+  .rider-empty-icon { font-size:2.8rem; margin-bottom:12px; display:block; }
+
+  /* Completed cards */
+  .rider-done-card { display:flex; align-items:flex-start; gap:12px; padding:14px; background:rgba(34,197,94,.05); border:1px solid rgba(34,197,94,.12); border-radius:14px; margin-bottom:8px; }
+  .rider-done-card:last-child { margin-bottom:0; }
+  .rider-done-check { font-size:1.1rem; color:#22c55e; flex-shrink:0; margin-top:1px; }
+  .rider-done-info  { flex:1; min-width:0; }
+  .rider-done-product { font-size:.9rem; font-weight:600; color:#94a3b8; margin-bottom:3px; }
+  .rider-done-addr    { font-size:.75rem; color:#475569; }
+
+  /* Footer */
+  .rider-footer { padding:12px 16px; border-top:1px solid rgba(255,255,255,.07); display:flex; justify-content:space-between; align-items:center; flex-shrink:0; gap:8px; }
+
+  @keyframes rider-pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  .rider-new-badge { background:#ef4444; color:#fff; border-radius:999px; padding:3px 10px; font-size:.7rem; font-weight:700; animation:rider-pulse 1.2s ease-in-out infinite; }
 
   /* ── Nova AI animations ──────────────────────────────────────────────── */
   @keyframes nova-ring {
@@ -2881,6 +2989,25 @@
           <div style="font-size:.78rem;color:var(--muted)">Test what your delivery riders see on their phones</div>
         </div>
         <button onclick="localStorage.setItem('iflow_role','rider');document.getElementById('mainAppWrapper').style.display='none';if(typeof _launchRiderApp==='function')_launchRiderApp();" style="padding:10px 20px;background:linear-gradient(135deg,#4f8ef7,#7b5ea7);color:#fff;border:none;border-radius:12px;font-size:.85rem;font-weight:700;cursor:pointer;white-space:nowrap">Open Rider View →</button>
+      </div>
+
+      <!-- Install App -->
+      <div style="margin-top:16px;padding:20px 24px;background:var(--surface2);border-radius:16px;border:1px solid var(--border)">
+        <div style="font-weight:700;font-size:.9rem;margin-bottom:4px">📲 Install iFlow on Your Device</div>
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:16px">Install iFlow as a desktop or mobile app — works like a native app, no app store needed.</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <button id="pwaInstallBtn" onclick="_triggerPwaInstall()" style="display:none;align-items:center;gap:8px;padding:11px 22px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:12px;font-size:.875rem;font-weight:700;cursor:pointer">
+            ⬇ Install App
+          </button>
+          <button onclick="_triggerPwaInstall()" style="padding:11px 22px;background:rgba(79,142,247,.12);color:#4f8ef7;border:1px solid rgba(79,142,247,.3);border-radius:12px;font-size:.875rem;font-weight:600;cursor:pointer">
+            📖 How to Install
+          </button>
+        </div>
+        <div style="margin-top:14px;font-size:.75rem;color:var(--muted);line-height:1.7;border-top:1px solid var(--border);padding-top:12px">
+          <strong style="color:var(--text)">Chrome / Edge (Desktop):</strong> Click ⊕ in the address bar → "Install iFlow"<br>
+          <strong style="color:var(--text)">Safari (iPhone/iPad):</strong> Tap Share ↑ → "Add to Home Screen"<br>
+          <strong style="color:var(--text)">Chrome (Android):</strong> Menu ⋮ → "Add to Home Screen" or "Install App"
+        </div>
       </div>
 
       <!-- Copyright / About -->
@@ -7596,6 +7723,15 @@ function setAppRole(role) {
 }
 
 function _riderGoToMainApp() {
+  var user        = JSON.parse(localStorage.getItem('iflow_user') || '{}');
+  var cfg         = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+  var riderEmails = (cfg.riderEmails || '').split(',').map(function(e){ return e.trim().toLowerCase(); }).filter(Boolean);
+  var userEmail   = (user.email || '').toLowerCase().trim();
+  // Riders are NEVER allowed into the owner view
+  if (riderEmails.length && riderEmails.includes(userEmail)) {
+    alert('Rider accounts can only access the Rider Dashboard. Contact the store owner for access.');
+    return;
+  }
   localStorage.setItem('iflow_role', 'owner');
   document.getElementById('riderApp').style.display = 'none';
   document.getElementById('mainAppWrapper').style.display = '';
@@ -7613,36 +7749,28 @@ function _switchRiderRole() {
 }
 
 function _checkMobileRole(user) {
-  var isMobile = window.innerWidth < 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-  var role = localStorage.getItem('iflow_role');
+  var role      = localStorage.getItem('iflow_role');
   var userEmail = (user && user.email) ? user.email.toLowerCase().trim() : '';
-
-  // Determine allowed rider emails from settings
-  var cfg = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+  var cfg        = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
   var riderEmails = (cfg.riderEmails || '').split(',').map(function(e){ return e.trim().toLowerCase(); }).filter(Boolean);
+  var isRiderEmail = userEmail && riderEmails.length && riderEmails.includes(userEmail);
 
-  // If signed-in email is in rider list → always go to rider app (no choice needed)
-  if (userEmail && riderEmails.length && riderEmails.includes(userEmail)) {
+  // SECURITY: if user's email is in rider list → rider app only, NO owner access on any device
+  if (isRiderEmail) {
     document.getElementById('mainAppWrapper').style.display = 'none';
+    localStorage.setItem('iflow_role', 'rider'); // enforce
     _launchRiderApp(user);
     return true;
   }
 
-  // If a rider role was explicitly saved and email is in the list, use it
-  if (role === 'rider' && userEmail && riderEmails.includes(userEmail)) {
-    document.getElementById('mainAppWrapper').style.display = 'none';
-    _launchRiderApp(user);
-    return true;
-  }
-
-  // If role was explicitly set to 'rider' (e.g., owner testing) → show rider view
+  // Owner explicitly chose to preview rider view (via Settings button)
   if (role === 'rider') {
     document.getElementById('mainAppWrapper').style.display = 'none';
     _launchRiderApp(user);
     return true;
   }
 
-  return false; // show normal app (owner)
+  return false; // show main app (owner/manager)
 }
 
 // ── Rider App ─────────────────────────────────────────────────────────────────
@@ -7711,14 +7839,16 @@ function _renderRiderView(orders) {
   // Active delivery
   if (myActive) {
     var pa = _parseRiderDetails(myActive.details);
+    var aid = myActive.id;
     html += '<div class="rider-section">';
     html += '<div class="rider-section-title">🚴 My Active Delivery</div>';
     html += '<div class="rider-card active-delivery">';
     html += '<div class="rider-card-product">' + _esc(pa.product || myActive.details) + '</div>';
     html += '<div class="rider-card-meta"><span class="rider-card-badge green">In Transit</span></div>';
-    html += '<div class="rider-card-address">📍 ' + _esc(pa.address || 'Address in order') + '</div>';
-    html += '<div class="rider-card-customer">👤 ' + _esc(pa.customer || myActive.customerName || '—') + '</div>';
-    html += '<button class="rider-btn rider-btn-deliver" onclick="_riderComplete(this,' + JSON.stringify(myActive.id) + ')">✓ Mark as Delivered</button>';
+    html += '<div class="rider-card-row"><span class="rider-card-label">📍 Delivery to</span></div>';
+    html += '<div class="rider-card-addr">' + _esc(pa.address || 'Address in order') + '</div>';
+    html += '<div class="rider-card-row"><span class="rider-card-label">👤 Customer</span><span class="rider-card-val">' + _esc(pa.customer || myActive.customerName || '—') + '</span></div>';
+    html += '<button class="rider-btn rider-btn-deliver" data-oid="' + _esc(aid) + '" onclick="_riderComplete(this,this.dataset.oid)">✅ Mark as Delivered</button>';
     html += '</div></div>';
   }
 
@@ -7726,21 +7856,20 @@ function _renderRiderView(orders) {
   html += '<div class="rider-section">';
   html += '<div class="rider-section-title">📦 Available Jobs <span class="rider-section-count">' + available.length + '</span></div>';
   if (available.length === 0) {
-    html += '<div class="rider-empty"><div class="rider-empty-icon">📭</div><div style="font-size:.95rem;font-weight:600;color:#64748b">No deliveries available</div><div style="font-size:.8rem;margin-top:6px;color:#334155">Check back soon — new jobs appear here</div></div>';
+    html += '<div class="rider-empty"><div class="rider-empty-icon">📭</div><div>No deliveries right now</div><div style="font-size:.8rem;margin-top:6px;color:#334155">New jobs will appear here automatically</div></div>';
   } else {
     available.forEach(function(o, idx) {
-      var pv = _parseRiderDetails(o.details);
+      var pv  = _parseRiderDetails(o.details);
       var elapsed = Math.round((Date.now() - new Date(o.confirmedAt || o.createdAt).getTime()) / 60000);
       var timeStr = elapsed < 1 ? 'Just now' : elapsed < 60 ? elapsed + ' min ago' : Math.round(elapsed/60) + 'h ago';
-      var delay = (idx * 0.07).toFixed(2);
-      html += '<div class="rider-card" style="animation-delay:' + delay + 's">';
-      html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">';
+      var oid = o.id;
+      html += '<div class="rider-card">';
+      html += '<div class="rider-card-top"><div class="rider-card-badge">New Job</div><span class="rider-card-time">' + timeStr + '</span></div>';
       html += '<div class="rider-card-product">' + _esc(pv.product || o.details) + '</div>';
-      html += '</div>';
-      html += '<div class="rider-card-meta"><span class="rider-card-badge">New Job</span><span style="font-size:.7rem;color:#475569">' + timeStr + '</span></div>';
-      html += '<div class="rider-card-address">📍 ' + _esc(pv.address || '—') + '</div>';
-      html += '<div class="rider-card-customer">👤 ' + _esc(pv.customer || o.customerName || '—') + '</div>';
-      html += '<button class="rider-btn rider-btn-accept" onclick="_riderAccept(this,' + JSON.stringify(o.id) + ')">🏍️ Accept Delivery</button>';
+      html += '<div class="rider-card-row"><span class="rider-card-label">📍 Deliver to</span></div>';
+      html += '<div class="rider-card-addr">' + _esc(pv.address || '—') + '</div>';
+      html += '<div class="rider-card-row"><span class="rider-card-label">👤 Customer</span><span class="rider-card-val">' + _esc(pv.customer || o.customerName || '—') + '</span></div>';
+      html += '<button class="rider-btn rider-btn-accept" data-oid="' + _esc(oid) + '" onclick="_riderAccept(this,this.dataset.oid)">🏍️ Accept Delivery</button>';
       html += '</div>';
     });
   }
@@ -7754,10 +7883,10 @@ function _renderRiderView(orders) {
       var pd = _parseRiderDetails(o.details);
       var doneTime = o.deliveredAt ? new Date(o.deliveredAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
       html += '<div class="rider-done-card">';
-      html += '<span style="color:#22c55e;font-size:1.1rem">✓</span>';
-      html += '<div style="flex:1;min-width:0">';
-      html += '<div style="font-size:.9rem;font-weight:600;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + _esc(pd.product || o.details) + '</div>';
-      html += '<div style="font-size:.75rem;color:#475569">📍 ' + _esc(pd.address || '—') + (doneTime ? ' · ' + doneTime : '') + '</div>';
+      html += '<span class="rider-done-check">✓</span>';
+      html += '<div class="rider-done-info">';
+      html += '<div class="rider-done-product">' + _esc(pd.product || o.details) + '</div>';
+      html += '<div class="rider-done-addr">📍 ' + _esc(pd.address || '—') + (doneTime ? ' · ' + doneTime : '') + '</div>';
       html += '</div></div>';
     });
     html += '</div>';
@@ -8020,6 +8149,36 @@ function _maybeAutoTour() {
   }
   typeNext();
 })();
+
+// ── PWA: Service Worker + Install Prompt ─────────────────────────────────────
+var _pwaInstallPrompt = null;
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/sw.js').catch(function() {});
+  });
+}
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  _pwaInstallPrompt = e;
+  var btn = document.getElementById('pwaInstallBtn');
+  if (btn) btn.style.display = 'flex';
+});
+window.addEventListener('appinstalled', function() {
+  _pwaInstallPrompt = null;
+  var btn = document.getElementById('pwaInstallBtn');
+  if (btn) btn.style.display = 'none';
+  if (typeof showToast === 'function') showToast('iFlow installed as an app ✓');
+});
+function _triggerPwaInstall() {
+  if (_pwaInstallPrompt) {
+    _pwaInstallPrompt.prompt();
+    _pwaInstallPrompt.userChoice.then(function(r) {
+      if (r.outcome === 'accepted') _pwaInstallPrompt = null;
+    });
+  } else {
+    alert('To install iFlow:\n• Chrome/Edge: click the ⊕ icon in the address bar\n• Safari (iOS): tap Share → "Add to Home Screen"\n• Firefox: Menu → "Install"');
+  }
+}
 </script>
 </body>
 </html>

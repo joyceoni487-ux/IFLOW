@@ -1,0 +1,15 @@
+{
+  "name": "iFlow — Sales Tracker",
+  "short_name": "iFlow",
+  "description": "AI-Powered Sales & Dispatch Management by Neon Solutions",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#060810",
+  "theme_color": "#4f8ef7",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "en"
+}

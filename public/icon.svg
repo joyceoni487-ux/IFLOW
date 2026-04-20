@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="100" fill="#060810"/>
+  <rect width="512" height="512" rx="100" fill="url(#g)"/>
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a1d2e"/>
+      <stop offset="100%" stop-color="#0b0d1a"/>
+    </linearGradient>
+  </defs>
+  <!-- Chart line icon -->
+  <polyline points="80,360 190,240 280,300 400,140" fill="none" stroke="#4f8ef7" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="340,140 400,140 400,200" fill="none" stroke="#4f8ef7" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- "i" dot -->
+  <circle cx="256" cy="420" r="22" fill="#7b5ea7"/>
+  <!-- Text: iFlow -->
+  <text x="256" y="480" font-family="system-ui,sans-serif" font-size="60" font-weight="800" fill="#e2e8f0" text-anchor="middle" letter-spacing="2">
+    <tspan fill="#e2e8f0">i</tspan><tspan fill="#4f8ef7">Flow</tspan>
+  </text>
+</svg>

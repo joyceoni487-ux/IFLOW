@@ -1700,6 +1700,7 @@
     font-size:1rem; font-weight:700;
     cursor:pointer; text-align:center;
     -webkit-tap-highlight-color:transparent;
+    touch-action:manipulation;
     transition:opacity .15s, transform .1s;
     margin-top:4px;
   }
@@ -6678,6 +6679,34 @@ function devSignIn() {
   showApp(user);
 }
 
+async function _restoreFromBlob() {
+  try {
+    var existingProds = JSON.parse(localStorage.getItem('iflow_products') || 'null');
+    if (existingProds !== null && existingProds.length > 0) return; // already have data
+    var r = await fetch('/api/products');
+    if (!r.ok) return;
+    var data = await r.json();
+    if (!data.products || !data.products.length) return;
+    localStorage.setItem('iflow_products', JSON.stringify(data.products));
+    if (typeof products !== 'undefined') products = data.products;
+    if (typeof renderProducts === 'function') renderProducts();
+    if (typeof refreshProductsList === 'function') refreshProductsList();
+    if (typeof render === 'function') render();
+    if (typeof updateTotal === 'function') updateTotal();
+    // Restore non-sensitive settings (payment info, rider emails)
+    var s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    var changed = false;
+    if (data.paymentInfo) {
+      if (!s.payBank && data.paymentInfo.bank)                         { s.payBank = data.paymentInfo.bank; changed = true; }
+      if (!s.payAccountNum && data.paymentInfo.accountNumber)          { s.payAccountNum = data.paymentInfo.accountNumber; changed = true; }
+      if (!s.payAccountName && data.paymentInfo.accountName)           { s.payAccountName = data.paymentInfo.accountName; changed = true; }
+    }
+    if (data.riderEmails && data.riderEmails.length && !s.riderEmails) { s.riderEmails = data.riderEmails.join(','); changed = true; }
+    if (changed) localStorage.setItem('iflow_settings', JSON.stringify(s));
+    if (typeof showToast === 'function') showToast('✓ Data restored from cloud sync');
+  } catch(e) {}
+}
+
 function showApp(user) {
   document.getElementById('loginScreen').style.display = 'none';
 
@@ -6716,6 +6745,8 @@ function showApp(user) {
   }
   // Show Nova FAB immediately if enabled
   setTimeout(function(){ if (typeof _loadAiSettings === 'function') _loadAiSettings(); }, 0);
+  // Restore products/settings from Blob if localStorage is empty (new device)
+  setTimeout(_restoreFromBlob, 1500);
   // Start polling for payment alerts
   setTimeout(function(){ if (typeof _startOrderPolling === 'function') _startOrderPolling(); }, 3000);
   // Auto-start tour for first-time users
@@ -7931,18 +7962,38 @@ async function _riderAccept(btn, orderId) {
   }
 }
 
+var _riderPendingConfirmId = null;
+var _riderConfirmTimer    = null;
+
 async function _riderComplete(btn, orderId) {
   var myEmail = (_riderUser && _riderUser.email) || '';
   if (!myEmail) { alert('Could not identify your account.'); return; }
-  if (!confirm('Mark this delivery as completed?')) return;
-  if (btn) { btn.textContent = 'Saving…'; btn.disabled = true; }
+
+  // First tap — switch button to confirmation state
+  if (_riderPendingConfirmId !== orderId) {
+    if (_riderConfirmTimer) { clearTimeout(_riderConfirmTimer); _riderConfirmTimer = null; }
+    // Reset any other pending button
+    var prev = document.querySelector('[data-confirming]');
+    if (prev) { prev.textContent = '✅ Mark as Delivered'; prev.removeAttribute('data-confirming'); prev.style.background = ''; }
+    _riderPendingConfirmId = orderId;
+    if (btn) { btn.textContent = 'Tap again to confirm ✓'; btn.setAttribute('data-confirming', '1'); btn.style.background = 'linear-gradient(135deg,#dc2626,#b91c1c)'; }
+    _riderConfirmTimer = setTimeout(function() {
+      _riderPendingConfirmId = null;
+      if (btn && !btn.disabled) { btn.textContent = '✅ Mark as Delivered'; btn.removeAttribute('data-confirming'); btn.style.background = ''; }
+    }, 3000);
+    return;
+  }
+
+  // Second tap — execute
+  clearTimeout(_riderConfirmTimer); _riderConfirmTimer = null; _riderPendingConfirmId = null;
+  if (btn) { btn.textContent = 'Saving…'; btn.disabled = true; btn.style.background = ''; }
   try {
     var url = '/api/rider-confirm?id=' + encodeURIComponent(orderId) + '&rider=' + encodeURIComponent(myEmail) + '&action=complete';
     var r = await fetch(url, { headers: { 'Accept': 'application/json' } });
     if (r.ok) { await _riderRefresh(); }
-    else { if (btn) { btn.textContent = '✓ Mark as Delivered'; btn.disabled = false; } }
+    else { if (btn) { btn.textContent = '✅ Mark as Delivered'; btn.disabled = false; } }
   } catch(e) {
-    if (btn) { btn.textContent = '✓ Mark as Delivered'; btn.disabled = false; }
+    if (btn) { btn.textContent = '✅ Mark as Delivered'; btn.disabled = false; }
   }
 }
 

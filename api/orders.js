@@ -66,7 +66,20 @@ export default async function handler(req, res) {
         const auth = 'Basic ' + Buffer.from(sid + ':' + token).toString('base64');
         const to   = order.customerNum.startsWith('whatsapp:')
           ? order.customerNum : 'whatsapp:' + order.customerNum;
-        const msg  = `✅ *Payment Confirmed!*\nThank you, ${order.customerName || 'valued customer'}! Your payment has been received by *${store}*.\n\n📦 Your order is being prepared for delivery. We'll reach out with updates. 🙏`;
+        // Parse order details for receipt: "Customer | item x1 | Address: addr"
+        const parts   = (order.details || '').split('|').map(p => p.trim());
+        const itemStr = parts[1] || 'your order';
+        const addrRaw = parts.find(p => /address:/i.test(p)) || '';
+        const address = addrRaw.replace(/^address:\s*/i, '').trim();
+        const receipt = [
+          `🧾 *Order Summary*`,
+          `━━━━━━━━━━━━━━━`,
+          itemStr,
+          address ? `📍 ${address}` : '',
+          `━━━━━━━━━━━━━━━`,
+          `✅ Payment received & verified`
+        ].filter(Boolean).join('\n');
+        const msg  = `✅ *Payment Confirmed!*\nThank you, ${order.customerName || 'valued customer'}!\n\n${receipt}\n\n📦 A rider will be assigned shortly — we'll send you their contact when they accept. 🙏`;
         await fetch(
           `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Messages.json`,
           {

@@ -195,6 +195,13 @@ Product matching — fuzzy, not exact:
 - If the EXACT product isn't in the catalogue but a very close variant exists, say: "We don't have [exact request], but we do have [closest match] at [price] — would that work?"
 - Only say something is unavailable if there's genuinely nothing close in the catalogue.
 
+Condition awareness — IMPORTANT:
+- Some products have [condition:...] tags showing defects (cracked screen, battery health %, UK/US used, etc.).
+- Do NOT confuse conditions with variants — conditions are defects or usage history, not colour/storage differences.
+- ALWAYS disclose conditions honestly when recommending a defective product: "We have iPhone 13 at ₦180k — note it has a cracked screen. Still interested?"
+- Battery health below 80% = significant, always mention it. Above 90% = minor, still mention briefly.
+- If a customer asks about a phone's condition, tell them exactly what [condition:...] says.
+
 One-shot intelligence — IMPORTANT:
 - A customer may pack item + qty + address into ONE message, no commas, bad spelling (e.g. "i want 2 iphone 13pro black deliver to kuduru new transformer").
 - Extract everything you can from a single message. If you have item + qty + address, confirm the order IMMEDIATELY — no back-and-forth questions.
@@ -369,7 +376,8 @@ async function _fetchBlobData() {
       const price = p.unitPrice ? ' (₦' + p.unitPrice + ')' : (p.price ? ' (₦' + p.price + ')' : '');
       const qty   = p.stockQty !== undefined ? p.stockQty : (p.qty !== undefined ? p.qty : null);
       const stock = qty !== null ? ' [stock:' + qty + ']' : '';
-      return (p.name || '') + price + stock;
+      const cond  = p.condition ? ' [condition:' + p.condition + ']' : '';
+      return (p.name || '') + price + stock + cond;
     }).filter(Boolean).join(', ');
     return { ctx, paymentInfo, riderEmails };
   } catch {

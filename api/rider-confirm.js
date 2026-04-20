@@ -74,6 +74,33 @@ export default async function handler(req, res) {
   }
 
   const storeName = process.env.STORE_NAME || 'iFlow Store';
+  const sid   = process.env.TWILIO_SID   || '';
+  const token = process.env.TWILIO_TOKEN || '';
+  const from  = process.env.TWILIO_FROM  || '';
+
+  if (action === 'accept' && order.customerNum && sid && token && from) {
+    const auth  = 'Basic ' + Buffer.from(sid + ':' + token).toString('base64');
+    const to    = order.customerNum.startsWith('whatsapp:') ? order.customerNum : 'whatsapp:' + order.customerNum;
+    const riderDisplay = rider.includes('@') ? rider.split('@')[0] : rider;
+    const msg   = `🏍️ *Rider Assigned!*\nGreat news, ${order.customerName || 'valued customer'}! Your delivery has been picked up by *${riderDisplay}*.\n\nThey are on their way to you. Feel free to reach out to the store if you need assistance. 🙏`;
+    fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Messages.json`, {
+      method: 'POST',
+      headers: { Authorization: auth, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ From: from, To: to, Body: msg }).toString()
+    }).catch(() => {});
+  }
+
+  if (action === 'complete' && order.customerNum && sid && token && from) {
+    const auth = 'Basic ' + Buffer.from(sid + ':' + token).toString('base64');
+    const to   = order.customerNum.startsWith('whatsapp:') ? order.customerNum : 'whatsapp:' + order.customerNum;
+    const msg  = `📦 *Order Delivered!*\nYour order from *${storeName}* has been delivered. Thank you for shopping with us — we hope you love it! 🙏`;
+    fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Messages.json`, {
+      method: 'POST',
+      headers: { Authorization: auth, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ From: from, To: to, Body: msg }).toString()
+    }).catch(() => {});
+  }
+
   if (action === 'accept') {
     return _respond(200,
       ['✅', 'Delivery Accepted!', `You've accepted this delivery for *${storeName}*. Head to the pickup location — the store has been notified.`],

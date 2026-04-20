@@ -1977,6 +1977,11 @@
         <label>Low Stock Threshold</label>
         <input type="number" id="npThreshold" min="1" placeholder="Default from Settings" />
       </div>
+      <div class="field" style="grid-column:1/-1">
+        <label>Condition / Defects <span style="color:#94a3b8;font-weight:400;font-size:.78rem">(optional — for used/defective items)</span></label>
+        <input type="text" id="npCondition" placeholder="e.g. Cracked screen, Battery health 87%, UK used" oninput="previewCode()" style="width:100%" />
+        <div id="npConditionPreview" style="font-size:.75rem;color:#f59e0b;margin-top:4px;display:none"></div>
+      </div>
       <div class="field">
         <label>Product Code (auto-generated)</label>
         <input type="text" id="npCode" readonly placeholder="Fill name &amp; type above" style="opacity:.6;cursor:default" />
@@ -4571,6 +4576,43 @@
     }
   });
 
+  // Comma in product field = finish current item, start next line for same customer
+  document.getElementById('salesBody').addEventListener('keydown', function(e) {
+    if (e.key !== ',') return;
+    var inp = e.target;
+    if (!inp.classList.contains('product') || !inp.classList.contains('cell-input')) return;
+    var i = parseInt(inp.dataset.index);
+    if (isNaN(i) || sales[i]) return; // only entry row
+    var productText = inp.value.trim();
+    if (!productText) return;
+    var normName = normalizeProductName(productText);
+    var match    = findStockProduct(normName);
+    if (!match) return; // not a valid product — let comma be typed
+    e.preventDefault();
+    var tr           = inp.closest('tr');
+    var customerInp  = tr ? tr.querySelector('[data-field="customer"]') : null;
+    var customerName = (customerInp ? customerInp.value.trim() : '') || (_draftRows[i] ? _draftRows[i].customer : '') || '';
+    var qty = 1;
+    if (qty > match.stockQty) { showWarning('Only ' + match.stockQty + ' in stock for "' + match.name + '"'); return; }
+    pushUndo('sales');
+    sales[i] = { customer: customerName, product: normName, quantity: qty, price: match.unitPrice, timestamp: Date.now() };
+    deductStock(normName, qty);
+    persist();
+    if (typeof SheetsAPI !== 'undefined') SheetsAPI.withToken(function(){ SheetsAPI.updateRow(i, sales[i]); });
+    if (typeof updateOrdersBadge === 'function') updateOrdersBadge();
+    if (typeof _refreshProfitStat === 'function') _refreshProfitStat();
+    delete _draftRows[i];
+    setTimeout(function() {
+      render();
+      setTimeout(function() {
+        var newProd     = document.querySelector('.entry-row [data-field="product"]');
+        var newCustomer = document.querySelector('.entry-row [data-field="customer"]');
+        if (newCustomer && customerName) newCustomer.value = customerName;
+        if (newProd) { newProd.focus(); newProd.click(); }
+      }, 40);
+    }, 0);
+  });
+
   function _scheduleWipe(i, tr) {
     clearTimeout(_wipeTimers[i]);
     _wipeTimers[i] = setTimeout(() => {
@@ -5555,6 +5597,11 @@
         </div>
       </div>
     `;
+    // Auto-scroll to latest message
+    requestAnimationFrame(function() {
+      var msgs = document.getElementById('chatMessages');
+      if (msgs) msgs.scrollTop = msgs.scrollHeight;
+    });
   }
 
   async function sendReply(id) {
@@ -5695,7 +5742,48 @@
     if (changed) localStorage.setItem('iflow_products', JSON.stringify(products));
   })();
 
-  function generateProductCode(type) {
+  // Convert condition text → short code tokens (e.g. "cracked screen, bh87" → "sc-bh87")
+  function _conditionToCode(condition) {
+    if (!condition) return '';
+    const c = condition.toLowerCase();
+    const codes = [];
+    if (/crack|shatter|broken\s*(screen|display)|screen\s*(crack|broken|damage)/i.test(c)) codes.push('sc');
+    const bh = c.match(/battery[\s\-]*health[\s\-:]*(\d+)/i) || c.match(/\bbh[\s\-]?(\d+)\b/i) || c.match(/(\d+)\s*%?\s*battery/i);
+    if (bh) codes.push('bh' + bh[1]);
+    if (/\buk\s*used\b/i.test(c)) codes.push('uk');
+    if (/\b(us|usa|american)\s*used\b/i.test(c)) codes.push('us');
+    if (/foreign\s*used/i.test(c)) codes.push('fu');
+    if (/\bdent\b|\bbody\s*damage\b|\bscratche/i.test(c)) codes.push('bd');
+    if (/face[\s\-]?id/i.test(c)) codes.push('fid');
+    if (/touch[\s\-]?id/i.test(c)) codes.push('tid');
+    if (/\bcamera\b/i.test(c)) codes.push('cam');
+    if (/\bcharging\b|\bport\b/i.test(c)) codes.push('chg');
+    return codes.join('-');
+  }
+
+  // Slugify product name for readable code (e.g. "iPhone 13 Pro" → "iph13p")
+  function _nameToSlug(name) {
+    const words = (name || '').trim().split(/\s+/);
+    let slug = '';
+    words.forEach(function(w, idx) {
+      const num = w.match(/\d+/);
+      if (num) { slug += num[0]; }
+      else if (w.length > 0) { slug += (idx === 0 ? w.substring(0,3) : w[0]).toLowerCase(); }
+    });
+    return slug.substring(0, 10);
+  }
+
+  function generateProductCode(type, name, condition) {
+    const condCode = _conditionToCode(condition || '');
+    const nameSlug = _nameToSlug(name || type || '');
+    // If condition codes exist, build a descriptive code: "sc-iph13-bh87"
+    if (condCode && nameSlug) {
+      const parts = [condCode.split('-')[0]]; // leading defect code (e.g. sc)
+      parts.push(nameSlug);
+      const rest = condCode.split('-').slice(1).join('-'); // remaining condition codes
+      if (rest) parts.push(rest);
+      return parts.join('-');
+    }
     const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
     const store = (s.storeName || 'IFL').replace(/[^A-Za-z0-9]/g,'').substring(0,4).toUpperCase();
     const typeCode = (type || 'GEN').replace(/[^A-Za-z]/g,'').substring(0,3).toUpperCase();
@@ -5820,9 +5908,21 @@
   }
 
   function previewCode() {
-    const type = document.getElementById('npType')?.value;
-    const codeEl = document.getElementById('npCode');
-    if (codeEl) codeEl.value = generateProductCode(type);
+    const type      = document.getElementById('npType')?.value || '';
+    const name      = document.getElementById('npName')?.value || '';
+    const condition = document.getElementById('npCondition')?.value || '';
+    const codeEl    = document.getElementById('npCode');
+    const prevEl    = document.getElementById('npConditionPreview');
+    if (codeEl) codeEl.value = generateProductCode(type, name, condition);
+    if (prevEl) {
+      const condCode = _conditionToCode(condition);
+      if (condCode) {
+        prevEl.textContent = '⚠ Condition code: ' + condCode;
+        prevEl.style.display = '';
+      } else {
+        prevEl.style.display = 'none';
+      }
+    }
   }
 
   function toggleAddProductForm() {
@@ -5846,7 +5946,9 @@
     const settings   = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
     const defThresh = parseInt(settings.lowStockThreshold) || 5;
     const threshold = parseInt(document.getElementById('npThreshold').value) || defThresh;
-    const code      = document.getElementById('npCode').value || generateProductCode(type);
+    const condition = (document.getElementById('npCondition')?.value || '').trim();
+    const condCode  = condition ? _conditionToCode(condition) : '';
+    const code      = document.getElementById('npCode').value || generateProductCode(type, rawNpName, condition);
     if (!name) { showToast('Product name is required'); return; }
 
     // Check for existing product with same name (case-sensitive exact match)
@@ -5868,12 +5970,13 @@
       toggleAddProductForm();
       showToast(`"${name}" stock updated (+${stockQty})`);
       checkLowStock();
-      ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+      ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode','npCondition'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+    var pv = document.getElementById('npConditionPreview'); if(pv) pv.style.display='none';
       return;
     }
 
     pushUndo('products');
-    const p = { code, name, category: npCat, variant: npVariant, type, stockQty, unitPrice, costPrice, lowStockThreshold: threshold, dateAdded: new Date().toLocaleDateString() };
+    const p = { code, name, category: npCat, variant: npVariant, type, stockQty, unitPrice, costPrice, lowStockThreshold: threshold, dateAdded: new Date().toLocaleDateString(), condition: condition || undefined, conditionCode: condCode || undefined };
     products.push(p);
     sendEmailAlert(`New Stock Added: ${name}`, `"${name}" was added to stock. Qty: ${stockQty}. Time: ${new Date().toLocaleString()}`);
     localStorage.setItem('iflow_products', JSON.stringify(products));
@@ -5882,7 +5985,8 @@
     SheetsAPI.withToken(() => SheetsAPI.appendProduct(p));
     toggleAddProductForm();
     showToast(`"${name}" added to stock`);
-    ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+    ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode','npCondition'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+    var pv2 = document.getElementById('npConditionPreview'); if(pv2) pv2.style.display='none';
     checkLowStock();
   }
 
@@ -5972,15 +6076,17 @@
           .filter(Boolean)
           .sort((a,b) => new Date(b) - new Date(a))[0] || '—';
         const variantRows = items.map(p => {
-          const realIdx = products.indexOf(p);
-          const isLow = p.stockQty <= (p.lowStockThreshold || defThresh);
-          return `<tr class="${isLow ? 'variant-row-low' : ''}" data-index="${realIdx}">
-            <td><span class="prod-code-cell">${escHtml(p.code)}</span></td>
-            <td style="font-weight:600;color:var(--text)">${escHtml(p.variant || p.name)}</td>
+          const realIdx  = products.indexOf(p);
+          const isLow    = p.stockQty <= (p.lowStockThreshold || defThresh);
+          const hasCond  = !!(p.condition);
+          const condBadge = hasCond ? `<span style="color:#f59e0b;font-size:.7rem;font-weight:600;display:block;margin-top:2px">⚠ ${escHtml(p.condition)}</span>` : '';
+          return `<tr class="${isLow ? 'variant-row-low' : ''}" data-index="${realIdx}" style="${hasCond ? 'background:rgba(245,158,11,.04)' : ''}">
+            <td><span class="prod-code-cell" style="${hasCond ? 'color:#f59e0b' : ''}">${escHtml(p.code)}</span></td>
+            <td style="font-weight:600;color:var(--text)">${escHtml(p.variant || p.name)}${condBadge}</td>
             <td style="color:${isLow?'#e53e3e':'inherit'};font-weight:${isLow?700:400}">${p.stockQty}${isLow?' ⚠':''}</td>
             <td>${cur}${fmtComma(p.unitPrice)}</td>
             <td>${p.lowStockThreshold||defThresh}</td>
-            <td>${escHtml(p.dateAdded||'')}</td>
+            <td>${escHtml(p.dateAdded||'')}  </td>
             <td class="cell-action"><button class="btn-terminate" onclick="confirmDeleteProduct(${realIdx})" title="Remove">&#9632;</button></td>
           </tr>`;
         }).join('');

@@ -6437,26 +6437,33 @@
     // ── 2. If products still empty, fetch DIRECTLY from blob (no bridge needed) ──
     if (!products.length) {
       const tbody2 = document.getElementById('productsBody');
-      if (tbody2 && !tbody2._iflowFetching) {
-        tbody2._iflowFetching = true;
+      if (tbody2) {
+        // Use timestamp debounce (10s) instead of a boolean flag — prevents
+        // concurrent fetches but never gets permanently stuck like a boolean
+        const _now2 = Date.now();
+        const _lastFetch = tbody2._iflowFetchTime || 0;
+        if (_now2 - _lastFetch < 10000) { return; } // fetch already in-flight
+        tbody2._iflowFetchTime = _now2;
         tbody2.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--muted);font-size:0.88rem;">Loading your products from cloud…</td></tr>';
         fetch('/api/products')
           .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
           .then(function(data) {
-            tbody2._iflowFetching = false;
-            const prods = Array.isArray(data && data.products) ? data.products : [];
+            tbody2._iflowFetchTime = 0;
+            // Handle both formats: root array OR {products:[...]} wrapper
+            var prods = Array.isArray(data) ? data
+                      : (Array.isArray(data && data.products) ? data.products : []);
             if (prods.length) {
               products.length = 0;
               prods.forEach(function(p){ products.push(p); });
               localStorage.setItem('iflow_products', JSON.stringify(products));
               renderProducts();
             } else {
-              tbody2.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem;">No products yet — use Quick Add or "+ Add Product" above.</td></tr>';
+              tbody2.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem;">No products in cloud yet. If you added products on another device, open the app there to sync. Or add products here with <strong>+ Add Product</strong>.</td></tr>';
             }
           })
-          .catch(function() {
-            tbody2._iflowFetching = false;
-            tbody2.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem;">Could not load products. <button onclick="renderProducts()" style="margin-left:8px;padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;">↻ Retry</button></td></tr>';
+          .catch(function(err) {
+            tbody2._iflowFetchTime = 0;
+            tbody2.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem;">Could not reach cloud storage — check your internet connection. <button onclick="renderProducts()" style="margin-left:8px;padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;">↻ Retry</button></td></tr>';
           });
       }
       return;
@@ -6574,8 +6581,11 @@
       _syncAutoReplyUrl();
     } catch(err) {
       console.error('[iFlow] renderProducts error:', err);
-      const tbody = document.getElementById('productsBody');
-      if (tbody) tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem;">Error: ${escHtml(String(err.message))} — <button onclick="renderProducts()" style="padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;">Retry</button></td></tr>`;
+      try {
+        var _errMsg = String(err && err.message || err).replace(/[<>&"]/g, function(c){ return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]; });
+        var tbody = document.getElementById('productsBody');
+        if (tbody) tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:#e53e3e;font-size:0.88rem;">⚠ Render error: ' + _errMsg + ' — <button onclick="renderProducts()" style="padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;">↻ Retry</button></td></tr>';
+      } catch(_) {}
     }
   }
 
@@ -6917,10 +6927,13 @@ function showApp(user) {
   setTimeout(function(){ if (typeof _loadAiSettings === 'function') _loadAiSettings(); }, 0);
   // Restore from Blob (new device) OR push latest to Blob (existing device keeps cloud in sync)
   setTimeout(function() {
-    var _existProds = JSON.parse(localStorage.getItem('iflow_products') || 'null');
+    var _existProds = null;
+    try { _existProds = JSON.parse(localStorage.getItem('iflow_products') || 'null'); } catch(_){}
     if (_existProds && _existProds.length > 0) {
-      // Already have products locally — push them to blob so other devices can get them
-      if (typeof _novaSyncProducts === 'function') _novaSyncProducts(true);
+      // Already have products locally — render immediately then push to blob
+      if (typeof renderProducts      === 'function') renderProducts();
+      if (typeof refreshProductsList === 'function') refreshProductsList();
+      if (typeof _novaSyncProducts   === 'function') _novaSyncProducts(true);
     } else {
       // No products locally — try to restore from blob
       _restoreFromBlob(false);

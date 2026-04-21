@@ -1516,8 +1516,9 @@
   .dispatch-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
   .dispatch-tab:hover:not(.active) { color:var(--text); }
   .dispatch-body { flex:1; overflow-y:auto; padding:22px 32px 32px; display:flex; flex-direction:column; gap:18px; }
-  .order-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px 18px 16px 22px; display:flex; align-items:flex-start; gap:14px; transition:transform .2s,box-shadow .2s,border-color .35s,background .35s; position:relative; overflow:hidden; animation:slideInCard .3s ease both; }
+  .order-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px 18px 14px 22px; display:flex; flex-direction:column; gap:8px; transition:transform .2s,box-shadow .2s,border-color .35s,background .35s; position:relative; overflow:hidden; animation:slideInCard .3s ease both; }
   .order-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; border-radius:4px 0 0 4px; }
+  .order-card-top { display:flex; justify-content:space-between; align-items:center; gap:8px; }
   .order-card.status-pending::before   { background:#d97706; }
   .order-card.status-confirmed::before { background:#4f8ef7; }
   .order-card.status-transit::before   { background:#7b5ea7; }
@@ -1536,9 +1537,10 @@
   .order-meta  { font-size:0.74rem; color:var(--muted); display:flex; gap:12px; flex-wrap:wrap; transition:color .35s; }
   .order-amount{ font-size:1.05rem; font-weight:700; color:var(--accent); flex-shrink:0; }
   .order-actions { display:flex; gap:6px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; }
-  .order-btn { padding:6px 12px; border:none; border-radius:8px; font-size:0.73rem; font-weight:600; cursor:pointer; transition:all .15s; font-family:'Inter',sans-serif; white-space:nowrap; }
-  .order-btn-primary { background:var(--accent); color:#fff; }
-  .order-btn-primary:hover { opacity:.85; }
+  .order-btn { padding:6px 12px; border:none; border-radius:8px; font-size:0.73rem; font-weight:600; cursor:pointer; transition:all .15s; font-family:'Inter',sans-serif; white-space:nowrap; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+  .order-btn:active { transform:scale(.95); }
+  .order-btn-primary { background:var(--accent); color:#fff; box-shadow:0 2px 8px rgba(79,142,247,.35); }
+  .order-btn-primary:hover { opacity:.88; box-shadow:0 4px 14px rgba(79,142,247,.45); }
   .order-btn-ghost { background:var(--bg); color:var(--text); border:1px solid var(--border); }
   .order-btn-ghost:hover { border-color:var(--accent); color:var(--accent); }
   .order-btn-danger { background:rgba(229,62,62,.1); color:#e53e3e; border:1px solid transparent; }
@@ -1547,16 +1549,33 @@
   .order-btn-green:hover { background:rgba(56,161,105,.22); }
   .rider-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px 18px; display:flex; align-items:center; gap:14px; transition:transform .2s,box-shadow .2s,background .35s,border-color .35s; animation:slideInCard .3s ease both; }
   .rider-card:hover { transform:translateY(-2px); box-shadow:var(--shadow-sm); }
-  .rider-avatar { width:42px; height:42px; border-radius:50%; background:linear-gradient(135deg,#4f8ef7,#7b5ea7); display:flex; align-items:center; justify-content:center; font-size:1rem; font-weight:700; color:#fff; flex-shrink:0; }
+  .rider-avatar { width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg,#4f8ef7,#7b5ea7); display:flex; align-items:center; justify-content:center; font-size:1rem; font-weight:700; color:#fff; flex-shrink:0; box-shadow:0 3px 10px rgba(79,142,247,.3); }
   .rider-status-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
   .rider-status-dot.available { background:#38a169; box-shadow:0 0 0 2px rgba(56,161,105,.25); }
   .rider-status-dot.busy      { background:#d97706; box-shadow:0 0 0 2px rgba(217,119,6,.25); }
   .dispatch-empty { text-align:center; padding:56px 20px; color:var(--muted); }
   .dispatch-empty-icon { font-size:2.8rem; margin-bottom:12px; }
   .dispatch-filter-bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-  .filter-chip { padding:5px 14px; border-radius:20px; font-size:0.74rem; font-weight:600; cursor:pointer; background:var(--bg); border:1.5px solid var(--border); color:var(--muted); transition:all .2s; white-space:nowrap; }
-  .filter-chip.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .filter-chip { padding:5px 14px; border-radius:20px; font-size:0.74rem; font-weight:600; cursor:pointer; background:var(--bg); border:1.5px solid var(--border); color:var(--muted); transition:all .2s; white-space:nowrap; touch-action:manipulation; }
+  .filter-chip.active { background:var(--accent); color:#fff; border-color:var(--accent); box-shadow:0 2px 8px rgba(79,142,247,.3); }
   .filter-chip:hover:not(.active) { border-color:var(--accent); color:var(--accent); }
+  /* ── Desktop dispatch grid ── */
+  @media (min-width:1024px) {
+    .dispatch-body { padding:24px 40px 40px; }
+    #ordersList { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .order-card { gap:10px; padding:18px 20px 14px 24px; border-radius:16px; }
+    .order-card:hover { transform:translateY(-3px); box-shadow:0 12px 40px rgba(0,0,0,.18); }
+    .order-card::before { width:5px; }
+    .order-title { font-size:1rem; }
+    .order-meta  { font-size:0.78rem; gap:14px; }
+    .order-actions { justify-content:flex-start; gap:8px; }
+    .order-btn { padding:8px 16px; font-size:0.78rem; }
+    .order-amount { font-size:1.15rem; }
+    .dispatch-filter-bar { gap:10px; }
+  }
+  @media (min-width:1400px) {
+    #ordersList { grid-template-columns:1fr 1fr 1fr; gap:18px; }
+  }
   @keyframes slideInCard { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
 
   /* Payment alert animations */
@@ -5551,8 +5570,14 @@
       const ts = new Date(o.createdAt).toLocaleDateString(undefined, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
       const delay = (idx % 8) * 40;
       return `<div class="order-card status-${o.status}" id="ocard-${o.id}" style="animation-delay:${delay}ms">
-        <div class="order-info">
+        <div class="order-card-top">
           <div class="order-id">${escHtml(o.id)} · ${ts}</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+            ${badge}
+            <span class="order-amount">${cur}${fmtComma(o.amount || 0)}</span>
+          </div>
+        </div>
+        <div class="order-info">
           <div class="order-title">${escHtml(o.product || '—')} × ${o.qty || 1}</div>
           <div class="order-meta">
             <span>👤 ${escHtml(o.customer || '—')}</span>
@@ -5562,11 +5587,7 @@
             ${o.notes   ? `<span>📝 ${escHtml(o.notes)}</span>` : ''}
           </div>
         </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
-          <div style="display:flex;align-items:center;gap:8px">
-            ${badge}
-            <span class="order-amount">${cur}${fmtComma(o.amount || 0)}</span>
-          </div>
+        <div>
           <div class="order-actions">
             ${nextBtn}${waRider}${waCust}
             <button class="order-btn order-btn-ghost" onclick="openCreateOrder('${o.id}')" title="Edit">✏</button>
@@ -5705,22 +5726,51 @@
     showToast(editId ? 'Order updated ✓' : 'Order created ✓');
   }
 
+  var _advancingOrders = new Set();
   function advanceOrderStatus(id) {
+    if (_advancingOrders.has(id)) return;
+    _advancingOrders.add(id);
     const orders = _dOrders();
     const order = orders.find(o => o.id === id);
-    if (!order) return;
+    if (!order) { _advancingOrders.delete(id); return; }
     const next = _STATUS_NEXT[order.status];
-    if (!next) return;
+    if (!next) { _advancingOrders.delete(id); return; }
+    // Disable primary button immediately for instant feedback on mobile
+    const card = document.getElementById('ocard-' + id);
+    if (card) {
+      const btn = card.querySelector('.order-btn-primary');
+      if (btn) { btn.disabled = true; btn.style.opacity = '0.45'; btn.style.pointerEvents = 'none'; }
+    }
     order.status = next;
     order.statusHistory = order.statusHistory || [];
     order.statusHistory.push({ status:next, ts:Date.now() });
     _saveDispatch(orders);
-    const card = document.getElementById('ocard-' + id);
+    // Auto-notify rider via WhatsApp when dispatched (transit)
+    if (next === 'transit') {
+      const rider = _dRiders().find(r => r.id === order.riderId);
+      if (rider && rider.phone) {
+        const raw = rider.phone.replace(/\D/g,'');
+        const intl = raw.startsWith('0') ? '234' + raw.slice(1) : raw;
+        const cur = (typeof getCurrency === 'function') ? getCurrency() : '₦';
+        const msg = 'Hi ' + rider.name + ', you have a new delivery:\n\n'
+          + 'Order: ' + order.id + '\n'
+          + 'Product: ' + order.product + ' × ' + (order.qty||1) + '\n'
+          + 'Customer: ' + order.customer + (order.phone ? ' (' + order.phone + ')' : '') + '\n'
+          + (order.address ? 'Address: ' + order.address + '\n' : '')
+          + (order.notes   ? 'Notes: '   + order.notes   + '\n' : '')
+          + 'Amount: ' + cur + (typeof fmtComma === 'function' ? fmtComma(order.amount||0) : (order.amount||0))
+          + '\n\nPlease confirm pickup. 🚀';
+        fetch('/api/send-whatsapp', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to: '+' + intl, message: msg })
+        }).catch(function(){});
+      }
+    }
     if (card) {
       card.style.transition = 'opacity .25s,transform .25s';
       card.style.opacity = '0'; card.style.transform = 'scale(.97)';
-      setTimeout(() => renderDispatch(), 270);
-    } else { renderDispatch(); }
+      setTimeout(function() { _advancingOrders.delete(id); renderDispatch(); }, 270);
+    } else { _advancingOrders.delete(id); renderDispatch(); }
     updateOrdersBadge();
     const labels = { confirmed:'Order confirmed ✓', transit:'Dispatched to rider ✓', delivered:'Marked as delivered ✓' };
     showToast(labels[next] || 'Status updated ✓');
@@ -6477,8 +6527,12 @@
           var _loaded = Array.isArray(d) ? d
                       : (Array.isArray(d && d.products) ? d.products : []);
           if (_loaded.length) {
-            _saveProds(_loaded);    // save + sync cache; interceptor will push to blob
-            renderProducts();       // re-render now that localStorage is populated
+            // Only write blob data if localStorage is STILL empty — user may have
+            // added products locally while the fetch was in flight (race condition guard)
+            if (!_getProds().length) {
+              _saveProds(_loaded);
+            }
+            renderProducts();       // re-render with whatever is in localStorage now
           } else {
             _tbl.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px 20px">'
               + '<div style="color:var(--muted);font-size:.88rem;line-height:1.8">'

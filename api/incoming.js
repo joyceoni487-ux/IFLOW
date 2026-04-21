@@ -87,6 +87,16 @@ export default async function handler(req, res) {
       messageToAi = `[Context: I just offered these options to the customer: "${lastAssistantMsg.content.slice(0, 300)}". The customer is now choosing from that list.]\nCustomer message: ${Body}`;
     }
 
+    // Proactive order injection for payment messages — inject confirmed order before AI call
+    // so AI can NEVER say "you haven't ordered" or "select an item first" when order exists
+    if (looksLikePaymentProof && hasActiveOrderInMemory) {
+      const lastOrder = history.filter(m => /ORDER ALERT:/i.test(m.content)).pop();
+      if (lastOrder) {
+        const orderDetails = (lastOrder.content.match(/ORDER ALERT:(.*)/i) || [])[1]?.trim() || lastOrder.content.slice(0, 200);
+        messageToAi = `[System: CONFIRMED ORDER ON FILE — "${orderDetails}". This customer is saying they have paid for THIS order. Respond ONLY with payment received confirmation. Do NOT ask them to select an item, place an order, or choose anything.]\nCustomer: ${Body}`;
+      }
+    }
+
     let aiReply = await _callAi(messageToAi, ProfileName, storeName, apiKey, productCtx, history, paymentInfo);
 
     // Guard: if AI greeted on a non-greeting message, retry with explicit nudge
@@ -105,7 +115,7 @@ export default async function handler(req, res) {
     }
 
     // Guard: if AI says "no order placed" or "need to choose" but history shows an active ORDER, correct it
-    const aiConfusedAboutOrder = aiReply && /haven.t ordered|no order.*placed|need to (choose|select|pick|decide)|still need to (choose|select)|you haven.t (placed|made|selected)/i.test(aiReply);
+    const aiConfusedAboutOrder = aiReply && /haven.t ordered|no order.*placed|need to (choose|select|pick|decide)|still need to (choose|select)|you haven.t (placed|made|selected)|can.t pay without|cannot pay without|(select|choose|pick).*first|without (selecting|choosing|picking)/i.test(aiReply);
     if (aiConfusedAboutOrder && hasActiveOrderInMemory) {
       const lastOrder = history.filter(m => /ORDER ALERT:/i.test(m.content)).pop();
       const orderCtx = lastOrder ? lastOrder.content.slice(0, 300) : 'See history for confirmed order';

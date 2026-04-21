@@ -6421,172 +6421,216 @@
     renderProducts();
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  //  PRODUCTS & STOCK — fully self-contained render function
+  //
+  //  Design rules:
+  //  • Reads localStorage on EVERY call — never trusts in-memory state
+  //  • Side-effect helpers (_syncAutoReplyUrl, _refreshProfitStat) run in
+  //    their own try/catch so they CANNOT wipe the products table
+  //  • No external function can break this render
+  //  • Blob fetch uses 10-second timestamp debounce (never permanently stuck)
+  // ══════════════════════════════════════════════════════════════════════════
   function renderProducts() {
-    // ── 1. Load from localStorage (safe parse — never crashes on bad data) ──
-    let _stored = null;
+
+    // ── A. Read fresh from localStorage every time ────────────────────────
+    var _prods = [];
     try {
-      const _raw = localStorage.getItem('iflow_products');
-      if (_raw) { const _p = JSON.parse(_raw); if (Array.isArray(_p)) _stored = _p; }
-    } catch(e) { _stored = null; }
-
-    if (_stored && _stored.length) {
-      products.length = 0;
-      _stored.forEach(function(p){ products.push(p); });
-    }
-
-    // ── 2. If products still empty, fetch DIRECTLY from blob (no bridge needed) ──
-    if (!products.length) {
-      const tbody2 = document.getElementById('productsBody');
-      if (tbody2) {
-        // Use timestamp debounce (10s) instead of a boolean flag — prevents
-        // concurrent fetches but never gets permanently stuck like a boolean
-        const _now2 = Date.now();
-        const _lastFetch = tbody2._iflowFetchTime || 0;
-        if (_now2 - _lastFetch < 10000) { return; } // fetch already in-flight
-        tbody2._iflowFetchTime = _now2;
-        tbody2.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--muted);font-size:0.88rem;">Loading your products from cloud…</td></tr>';
-        fetch('/api/products')
-          .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
-          .then(function(data) {
-            tbody2._iflowFetchTime = 0;
-            // Handle both formats: root array OR {products:[...]} wrapper
-            var prods = Array.isArray(data) ? data
-                      : (Array.isArray(data && data.products) ? data.products : []);
-            if (prods.length) {
-              products.length = 0;
-              prods.forEach(function(p){ products.push(p); });
-              localStorage.setItem('iflow_products', JSON.stringify(products));
-              renderProducts();
-            } else {
-              tbody2.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem;">No products in cloud yet. If you added products on another device, open the app there to sync. Or add products here with <strong>+ Add Product</strong>.</td></tr>';
-            }
-          })
-          .catch(function(err) {
-            tbody2._iflowFetchTime = 0;
-            tbody2.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem;">Could not reach cloud storage — check your internet connection. <button onclick="renderProducts()" style="margin-left:8px;padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;">↻ Retry</button></td></tr>';
-          });
+      var _raw = localStorage.getItem('iflow_products');
+      if (_raw) {
+        var _parsed = JSON.parse(_raw);
+        if (Array.isArray(_parsed)) _prods = _parsed;
       }
+    } catch(_) { _prods = []; }
+
+    // Keep in-memory array in sync (other functions like deductStock use it)
+    products.length = 0;
+    _prods.forEach(function(p) { products.push(p); });
+
+    // ── B. Nothing local → fetch from cloud ──────────────────────────────
+    if (!_prods.length) {
+      var _tbl = document.getElementById('productsBody');
+      if (!_tbl) return;
+
+      // 10-second debounce on timestamp — never gets permanently stuck
+      var _ms = Date.now();
+      if (_tbl._fetchAt && _ms - _tbl._fetchAt < 10000) return;
+      _tbl._fetchAt = _ms;
+
+      _tbl.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:44px 20px;color:var(--muted);font-size:.88rem">⏳ Loading products from cloud storage…</td></tr>';
+
+      fetch('/api/products')
+        .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
+        .then(function(d) {
+          _tbl._fetchAt = 0;
+          // Handle both blob formats: root array [ ] or wrapped { products: [ ] }
+          var _loaded = Array.isArray(d) ? d
+                      : (Array.isArray(d && d.products) ? d.products : []);
+          if (_loaded.length) {
+            // Save to localStorage — interceptor will also trigger cloud push
+            try { localStorage.setItem('iflow_products', JSON.stringify(_loaded)); } catch(_) {}
+            renderProducts(); // re-render now that localStorage is populated
+          } else {
+            _tbl.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px 20px">'
+              + '<div style="color:var(--muted);font-size:.88rem;line-height:1.8">'
+              + '📦 No products in cloud storage.<br>'
+              + '<span style="font-size:.78rem;opacity:.75">If you added products on another device or browser, '
+              + 'open the app there to sync them to the cloud.</span></div><br>'
+              + '<button onclick="renderProducts()" style="padding:7px 20px;background:var(--accent);'
+              + 'color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.8rem">↻ Retry Sync</button>'
+              + '</td></tr>';
+          }
+        })
+        .catch(function() {
+          _tbl._fetchAt = 0;
+          _tbl.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px 20px">'
+            + '<div style="color:var(--muted);font-size:.88rem">⚠ Could not reach cloud storage.</div><br>'
+            + '<button onclick="renderProducts()" style="padding:7px 20px;background:var(--accent);'
+            + 'color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.8rem">↻ Retry</button>'
+            + '</td></tr>';
+        });
       return;
     }
 
-    // ── 3. Render — fully wrapped in try/catch so any error shows a message ──
+    // ── C. Render table ───────────────────────────────────────────────────
+    var _tbody = document.getElementById('productsBody');
+    if (!_tbody) return;
+
+    // Stats — each in its own guard, never crash the render
     try {
-      const dateEl = document.getElementById('productsDate');
-      if (dateEl) dateEl.textContent = new Date().toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-      const cur = getCurrency();
-      const query = (document.getElementById('productsSearch')?.value || '').toLowerCase();
-      const settings = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-      const defThresh = parseInt(settings.lowStockThreshold) || 5;
+      var _dateEl = document.getElementById('productsDate');
+      if (_dateEl) _dateEl.textContent = new Date().toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+    } catch(_) {}
+    var _cur = '$';
+    try { _cur = getCurrency(); } catch(_) {}
+    var _defThresh = 5;
+    try { _defThresh = parseInt(JSON.parse(localStorage.getItem('iflow_settings')||'{}').lowStockThreshold) || 5; } catch(_) {}
+    var _query = '';
+    try { var _sq = document.getElementById('productsSearch'); if (_sq) _query = (_sq.value || '').toLowerCase().trim(); } catch(_) {}
 
-      const tokens = query.split(/\s+/).filter(Boolean);
-      const filtered = products.filter(p => {
-        if (!tokens.length) return true;
-        const hay = [p.name, p.code, p.type, p.category, p.variant].join(' ').toLowerCase();
-        return tokens.every(tok => hay.includes(tok));
-      });
+    // Filter
+    var _tokens = _query ? _query.split(/\s+/).filter(Boolean) : [];
+    var _filtered = _prods.filter(function(p) {
+      if (!_tokens.length) return true;
+      var hay = ((p.name||'') + ' ' + (p.code||'') + ' ' + (p.type||'') + ' ' + (p.category||'') + ' ' + (p.variant||'')).toLowerCase();
+      return _tokens.every(function(t) { return hay.indexOf(t) !== -1; });
+    });
 
-      const totalVal = filtered.reduce((s,p) => s + (p.stockQty||0) * (p.unitPrice||0), 0);
-      const lowCount = filtered.filter(p => (p.stockQty||0) <= (p.lowStockThreshold || defThresh)).length;
+    // Stat cards
+    try {
+      var _tv = _filtered.reduce(function(s,p){ return s + (Number(p.stockQty)||0) * (Number(p.unitPrice)||0); }, 0);
+      var _lc = _filtered.filter(function(p){ return (Number(p.stockQty)||0) <= (p.lowStockThreshold || _defThresh); }).length;
+      var _st = document.getElementById('statTotalProducts'); if (_st) _st.textContent = _filtered.length;
+      var _sv = document.getElementById('statStockValue');    if (_sv) _sv.textContent = _cur + fmtComma(_tv);
+      var _sl = document.getElementById('statLowStockCount'); if (_sl) _sl.textContent = _lc;
+      var _bd = document.getElementById('lowStockBadge');     if (_bd) { _bd.textContent = _lc; _bd.style.display = _lc > 0 ? '' : 'none'; }
+    } catch(_) {}
 
-      _refreshProfitStat();
+    // Profit stat — completely isolated
+    try { _refreshProfitStat(); } catch(_) {}
 
-      const stEl = document.getElementById('statTotalProducts'); if (stEl) stEl.textContent = filtered.length;
-      const svEl = document.getElementById('statStockValue');    if (svEl) svEl.textContent = cur + fmtComma(totalVal);
-      const slEl = document.getElementById('statLowStockCount'); if (slEl) slEl.textContent = lowCount;
-      const badge = document.getElementById('lowStockBadge');
-      if (badge) { badge.textContent = lowCount; badge.style.display = lowCount > 0 ? '' : 'none'; }
+    // Empty state
+    if (!_filtered.length) {
+      _tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--muted);font-size:.88rem">'
+        + (_query ? 'No products match &ldquo;' + _query.replace(/[<>&"]/g,'') + '&rdquo;.'
+                  : '📦 No products yet — use Quick Add or &ldquo;+ Add Product&rdquo; above.')
+        + '</td></tr>';
+      try { _syncAutoReplyUrl(); } catch(_) {}
+      return;
+    }
 
-      const tbody = document.getElementById('productsBody');
-      if (!tbody) return;
-      if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem;">No products yet — use Quick Add or "+ Add Product" above.</td></tr>`;
-        return;
-      }
+    // Build rows — ALL HTML generation in one try/catch
+    try {
+      var _esc = function(s) {
+        return String(s == null ? '' : s)
+          .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      };
 
       // Group by category
-      const groups = new Map();
-      filtered.forEach(p => {
-        const cat = p.category || p.name;
-        if (!groups.has(cat)) groups.set(cat, []);
-        groups.get(cat).push(p);
+      var _groups = [];
+      var _seen   = Object.create(null);
+      _filtered.forEach(function(p) {
+        var cat = p.category || p.name || '—';
+        if (!_seen[cat]) { _seen[cat] = []; _groups.push({ cat: cat, items: _seen[cat] }); }
+        _seen[cat].push(p);
       });
 
-      let rowNum = 1;
-      const rows = [];
-      groups.forEach((items, cat) => {
+      var _rn = 1, _html = '';
+      _groups.forEach(function(g) {
+        var cat = g.cat, items = g.items;
         if (items.length === 1 && !items[0].variant) {
-          const p = items[0];
-          const realIdx = products.indexOf(p);
-          const isLow = (p.stockQty||0) <= (p.lowStockThreshold || defThresh);
-          rows.push(`<tr class="${isLow ? 'low-stock-row' : ''}" style="transition:opacity .35s,background .35s" id="prod-row-${realIdx}" data-index="${realIdx}">
-            <td class="row-num">${rowNum++}</td>
-            <td style="padding:8px 12px"><span class="prod-code-cell">${escHtml(p.code)}</span></td>
-            <td style="padding:10px 14px;font-weight:600;color:var(--text)">${escHtml(p.name)}</td>
-            <td style="padding:10px 14px;color:var(--muted)">${escHtml(p.type||'—')}</td>
-            <td class="cell-datetime" style="text-align:center;color:${isLow?'#e53e3e':'inherit'};font-weight:${isLow?700:400}">${p.stockQty||0}${isLow?' ⚠':''}</td>
-            <td class="cell-datetime">${cur}${fmtComma(p.unitPrice)}</td>
-            <td class="cell-subtotal" data-val="${(p.stockQty||0)*(p.unitPrice||0)}">${cur}${fmtComma((p.stockQty||0)*(p.unitPrice||0))}</td>
-            <td class="cell-datetime">${p.lowStockThreshold||defThresh}</td>
-            <td class="cell-datetime">${escHtml(p.dateAdded||'')}</td>
-            <td class="cell-action"><button class="btn-terminate" onclick="confirmDeleteProduct(${realIdx})" title="Remove">&#9632;</button></td>
-          </tr>`);
+          // ── Flat row ──
+          var p = items[0];
+          var ri = _prods.indexOf(p);
+          var lo = (Number(p.stockQty)||0) <= (p.lowStockThreshold || _defThresh);
+          _html += '<tr class="' + (lo ? 'low-stock-row' : '') + '" style="transition:opacity .35s,background .35s" id="prod-row-' + ri + '" data-index="' + ri + '">'
+            + '<td class="row-num">' + (_rn++) + '</td>'
+            + '<td style="padding:8px 12px"><span class="prod-code-cell">' + _esc(p.code) + '</span></td>'
+            + '<td style="padding:10px 14px;font-weight:600;color:var(--text)">' + _esc(p.name) + '</td>'
+            + '<td style="padding:10px 14px;color:var(--muted)">' + _esc(p.type || '—') + '</td>'
+            + '<td class="cell-datetime" style="text-align:center;color:' + (lo?'#e53e3e':'inherit') + ';font-weight:' + (lo?700:400) + '">' + (Number(p.stockQty)||0) + (lo?' ⚠':'') + '</td>'
+            + '<td class="cell-datetime">' + _cur + fmtComma(p.unitPrice) + '</td>'
+            + '<td class="cell-subtotal" data-val="' + ((Number(p.stockQty)||0)*(Number(p.unitPrice)||0)) + '">' + _cur + fmtComma((Number(p.stockQty)||0)*(Number(p.unitPrice)||0)) + '</td>'
+            + '<td class="cell-datetime">' + (p.lowStockThreshold || _defThresh) + '</td>'
+            + '<td class="cell-datetime">' + _esc(p.dateAdded) + '</td>'
+            + '<td class="cell-action"><button class="btn-terminate" onclick="confirmDeleteProduct(' + ri + ')" title="Remove">&#9632;</button></td>'
+            + '</tr>';
         } else {
-          const totalStock = items.reduce((s,p) => s + (p.stockQty||0), 0);
-          const anyLow = items.some(p => (p.stockQty||0) <= (p.lowStockThreshold || defThresh));
-          const catId = 'vg-' + cat.replace(/[^a-zA-Z0-9]/g,'_');
-          const lastUpdated = items.map(p => p.lastUpdated || p.dateAdded || '').filter(Boolean).sort((a,b) => new Date(b) - new Date(a))[0] || '—';
-          const variantRows = items.map(p => {
-            const realIdx = products.indexOf(p);
-            const isLow = (p.stockQty||0) <= (p.lowStockThreshold || defThresh);
-            const hasCond = !!(p.condition);
-            const condBadge = hasCond ? `<span style="color:#f59e0b;font-size:.7rem;font-weight:600;display:block;margin-top:2px">⚠ ${escHtml(p.condition)}</span>` : '';
-            return `<tr class="${isLow ? 'variant-row-low' : ''}" data-index="${realIdx}" style="${hasCond ? 'background:rgba(245,158,11,.04)' : ''}">
-              <td><span class="prod-code-cell" style="${hasCond ? 'color:#f59e0b' : ''}">${escHtml(p.code)}</span></td>
-              <td style="font-weight:600;color:var(--text)">${escHtml(p.variant || p.name)}${condBadge}</td>
-              <td style="color:${isLow?'#e53e3e':'inherit'};font-weight:${isLow?700:400}">${p.stockQty||0}${isLow?' ⚠':''}</td>
-              <td>${cur}${fmtComma(p.unitPrice)}</td>
-              <td>${p.lowStockThreshold||defThresh}</td>
-              <td>${escHtml(p.dateAdded||'')}</td>
-              <td class="cell-action"><button class="btn-terminate" onclick="confirmDeleteProduct(${realIdx})" title="Remove">&#9632;</button></td>
-            </tr>`;
-          }).join('');
-          rows.push(`
-            <tr class="category-header-row" onclick="toggleVariantGroup('${catId}')">
-              <td class="row-num">${rowNum++}</td>
-              <td style="padding:8px 12px" colspan="2">
-                <span style="font-weight:700;color:var(--text)">${escHtml(cat)}</span>
-                <span style="font-size:0.74rem;color:var(--muted);margin-left:8px">${items.length} variant${items.length>1?'s':''}</span>
-              </td>
-              <td style="padding:10px 14px;color:var(--muted)">—</td>
-              <td class="cell-datetime" style="text-align:center;color:${anyLow?'#e53e3e':'inherit'};font-weight:${anyLow?700:400}">${totalStock}${anyLow?' ⚠':''}</td>
-              <td class="cell-datetime">—</td>
-              <td class="cell-subtotal">—</td>
-              <td class="cell-datetime">—</td>
-              <td class="cell-datetime" title="Last updated"><span style="font-size:0.7rem;opacity:.6">🕒</span> ${escHtml(lastUpdated)}</td>
-              <td class="cell-action"><button class="btn-variants" onclick="event.stopPropagation();toggleVariantGroup('${catId}')">▼ variants</button></td>
-            </tr>
-            <tr id="${catId}" style="display:none">
-              <td colspan="10" style="padding:8px 0 4px;border-top:none;background:var(--surface2)">
-                <table class="variant-sub-table">
-                  <thead><tr>
-                    <th>Code</th><th>Variant</th><th>Stock</th><th>Price</th><th>Low Stock At</th><th>Date Added</th><th></th>
-                  </tr></thead>
-                  <tbody>${variantRows}</tbody>
-                </table>
-              </td>
-            </tr>`);
+          // ── Variant group ──
+          var ts = items.reduce(function(s,p){ return s + (Number(p.stockQty)||0); }, 0);
+          var al = items.some(function(p){ return (Number(p.stockQty)||0) <= (p.lowStockThreshold||_defThresh); });
+          var cid = 'vg-' + cat.replace(/[^a-zA-Z0-9]/g,'_');
+          var lu  = items.map(function(p){ return p.lastUpdated||p.dateAdded||''; }).filter(Boolean)
+                        .sort(function(a,b){ return new Date(b)-new Date(a); })[0] || '—';
+          var vr = '';
+          items.forEach(function(p) {
+            var ri  = _prods.indexOf(p);
+            var lo  = (Number(p.stockQty)||0) <= (p.lowStockThreshold||_defThresh);
+            var hc  = !!p.condition;
+            var cb  = hc ? '<span style="color:#f59e0b;font-size:.7rem;font-weight:600;display:block;margin-top:2px">⚠ ' + _esc(p.condition) + '</span>' : '';
+            vr += '<tr class="' + (lo?'variant-row-low':'') + '" data-index="' + ri + '" style="' + (hc?'background:rgba(245,158,11,.04)':'') + '">'
+              + '<td><span class="prod-code-cell" style="' + (hc?'color:#f59e0b':'') + '">' + _esc(p.code) + '</span></td>'
+              + '<td style="font-weight:600;color:var(--text)">' + _esc(p.variant||p.name) + cb + '</td>'
+              + '<td style="color:' + (lo?'#e53e3e':'inherit') + ';font-weight:' + (lo?700:400) + '">' + (Number(p.stockQty)||0) + (lo?' ⚠':'') + '</td>'
+              + '<td>' + _cur + fmtComma(p.unitPrice) + '</td>'
+              + '<td>' + (p.lowStockThreshold||_defThresh) + '</td>'
+              + '<td>' + _esc(p.dateAdded) + '</td>'
+              + '<td class="cell-action"><button class="btn-terminate" onclick="confirmDeleteProduct(' + ri + ')" title="Remove">&#9632;</button></td>'
+              + '</tr>';
+          });
+          _html += '<tr class="category-header-row" onclick="toggleVariantGroup(\'' + cid + '\')">'
+            + '<td class="row-num">' + (_rn++) + '</td>'
+            + '<td style="padding:8px 12px" colspan="2"><span style="font-weight:700;color:var(--text)">' + _esc(cat) + '</span>'
+            + '<span style="font-size:.74rem;color:var(--muted);margin-left:8px">' + items.length + ' variant' + (items.length>1?'s':'') + '</span></td>'
+            + '<td style="padding:10px 14px;color:var(--muted)">—</td>'
+            + '<td class="cell-datetime" style="text-align:center;color:' + (al?'#e53e3e':'inherit') + ';font-weight:' + (al?700:400) + '">' + ts + (al?' ⚠':'') + '</td>'
+            + '<td class="cell-datetime">—</td><td class="cell-subtotal">—</td><td class="cell-datetime">—</td>'
+            + '<td class="cell-datetime" title="Last updated"><span style="font-size:.7rem;opacity:.6">🕒</span> ' + _esc(lu) + '</td>'
+            + '<td class="cell-action"><button class="btn-variants" onclick="event.stopPropagation();toggleVariantGroup(\'' + cid + '\')">▼ variants</button></td>'
+            + '</tr>'
+            + '<tr id="' + cid + '" style="display:none">'
+            + '<td colspan="10" style="padding:8px 0 4px;border-top:none;background:var(--surface2)">'
+            + '<table class="variant-sub-table"><thead><tr>'
+            + '<th>Code</th><th>Variant</th><th>Stock</th><th>Price</th><th>Low Stock At</th><th>Date Added</th><th></th>'
+            + '</tr></thead><tbody>' + vr + '</tbody></table></td></tr>';
         }
       });
-      tbody.innerHTML = rows.join('');
-      _syncAutoReplyUrl();
-    } catch(err) {
-      console.error('[iFlow] renderProducts error:', err);
+
+      _tbody.innerHTML = _html;
+
+    } catch(_renderErr) {
+      console.error('[iFlow] renderProducts:', _renderErr);
       try {
-        var _errMsg = String(err && err.message || err).replace(/[<>&"]/g, function(c){ return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]; });
-        var tbody = document.getElementById('productsBody');
-        if (tbody) tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:#e53e3e;font-size:0.88rem;">⚠ Render error: ' + _errMsg + ' — <button onclick="renderProducts()" style="padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;">↻ Retry</button></td></tr>';
+        _tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:#e53e3e;font-size:.88rem">'
+          + '⚠ Render error. <button onclick="renderProducts()" style="padding:4px 14px;background:var(--accent);'
+          + 'color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.8rem;margin-left:8px">↻ Retry</button>'
+          + '</td></tr>';
       } catch(_) {}
     }
+
+    // Auto-reply URL update — OUTSIDE the render try/catch so it can NEVER
+    // overwrite the products table if it throws
+    try { _syncAutoReplyUrl(); } catch(_) {}
   }
 
   function toggleVariantGroup(catId) {

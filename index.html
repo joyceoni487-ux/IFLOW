@@ -3737,8 +3737,8 @@
       try {
         const data = JSON.parse(ev.target.result);
         if (!data.sales && !data.products) { showToast('Invalid backup file'); return; }
-        if (data.sales)    { localStorage.setItem('iflow_sales',    JSON.stringify(data.sales));    sales = data.sales; }
-        if (data.products) { localStorage.setItem('iflow_products', JSON.stringify(data.products)); products = data.products; }
+        if (data.sales)    { localStorage.setItem('iflow_sales', JSON.stringify(data.sales)); sales = data.sales; }
+        if (data.products && Array.isArray(data.products)) _saveProds(data.products);
         render(); updateTotal(); renderProducts(); refreshProductsList();
         const ordersPage = document.getElementById('page-orders');
         if (ordersPage && ordersPage.style.display !== 'none') renderOrders();
@@ -5114,19 +5114,17 @@
 
   // Deduct qty from matching stock product and sync
   async function deductStock(productName, qty) {
-    const normName = normalizeProductName(productName.toLowerCase().trim());
-    const idx = products.findIndex(p => normalizeProductName(p.name.toLowerCase().trim()) === normName);
+    var normName = normalizeProductName((productName || '').toLowerCase().trim());
+    var _arr = _getProds();  // always fresh from localStorage
+    var idx = _arr.findIndex(function(p) { return normalizeProductName((p.name || '').toLowerCase().trim()) === normName; });
     if (idx === -1) return;
-    products[idx].stockQty = Math.max(0, products[idx].stockQty - qty);
-    localStorage.setItem('iflow_products', JSON.stringify(products));
+    _arr[idx].stockQty = Math.max(0, (_arr[idx].stockQty || 0) - qty);
+    _saveProds(_arr);         // write first, syncs products[] cache too
     renderProducts();
-    SheetsAPI.withToken(() => SheetsAPI.updateProduct(idx, products[idx]));
-    const settings = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-    const threshold = products[idx].lowStockThreshold || parseInt(settings.lowStockThreshold) || 5;
-    if (products[idx].stockQty <= threshold) {
-      playWarningSound();
-      checkLowStock();
-    }
+    SheetsAPI.withToken(function() { SheetsAPI.updateProduct(idx, _arr[idx]); });
+    var settings = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    var threshold = _arr[idx].lowStockThreshold || parseInt(settings.lowStockThreshold) || 5;
+    if (_arr[idx].stockQty <= threshold) { try { playWarningSound(); checkLowStock(); } catch(_) {} }
   }
 
   function addSale() {
@@ -5161,15 +5159,21 @@
     errEl.style.display = 'none';
     delete errEl.dataset.field;
 
-    // ── Deduct stock immediately (synchronous, using the match we already have) ──
-    const stockIdx = products.indexOf(stockMatch);
-    stockMatch.stockQty = Math.max(0, stockMatch.stockQty - quantity);
-    localStorage.setItem('iflow_products', JSON.stringify(products));
-    renderProducts();
-    SheetsAPI.withToken(() => SheetsAPI.updateProduct(stockIdx, stockMatch));
-    const _settings = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-    const _threshold = stockMatch.lowStockThreshold || parseInt(_settings.lowStockThreshold) || 5;
-    if (stockMatch.stockQty <= _threshold) { checkLowStock(); }
+    // ── Deduct stock immediately (read fresh → modify → save) ──
+    var _sArr = _getProds();
+    var _sNorm = normalizeProductName(product.toLowerCase().trim());
+    var stockIdx = _sArr.findIndex(function(p) { return normalizeProductName((p.name || '').toLowerCase().trim()) === _sNorm; });
+    if (stockIdx !== -1) {
+      _sArr[stockIdx].stockQty = Math.max(0, (_sArr[stockIdx].stockQty || 0) - quantity);
+      _saveProds(_sArr);
+      renderProducts();
+      SheetsAPI.withToken(function() { SheetsAPI.updateProduct(stockIdx, _sArr[stockIdx]); });
+    }
+    if (stockIdx !== -1) {
+      const _settings = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+      const _threshold = _sArr[stockIdx].lowStockThreshold || parseInt(_settings.lowStockThreshold) || 5;
+      if (_sArr[stockIdx].stockQty <= _threshold) { try { checkLowStock(); } catch(_) {} }
+    }
 
     // Use picked date if provided, otherwise now
     const timestamp = dateVal ? new Date(dateVal + 'T00:00:00').getTime() : Date.now();
@@ -6093,64 +6097,84 @@
 
   renderConvList();
 
-  // ── Products & Stock ──
+  // ══════════════════════════════════════════════════════════════════════════
+  //  PRODUCTS & STOCK — data layer
+  //
+  //  Single source of truth: localStorage['iflow_products']
+  //  All reads  → _getProds()          (always fresh from localStorage)
+  //  All writes → _saveProds(arr)       (localStorage + syncs products[] cache)
+  //
+  //  products[] is kept as a read-only in-memory cache for legacy functions
+  //  (deductStock, etc.) that reference it directly.  Never write to it
+  //  directly — use _saveProds() so the cache and localStorage stay in sync.
+  // ══════════════════════════════════════════════════════════════════════════
   let products = [];
-  try {
-    const _rawProds = localStorage.getItem('iflow_products');
-    if (_rawProds) {
-      const _parsedProds = JSON.parse(_rawProds);
-      if (Array.isArray(_parsedProds)) {
-        products = _parsedProds.map(p => ({
-          ...p,
+
+  function _getProds() {
+    try {
+      var _r = localStorage.getItem('iflow_products');
+      var _a = _r ? JSON.parse(_r) : [];
+      return Array.isArray(_a) ? _a : [];
+    } catch(_) { return []; }
+  }
+
+  function _saveProds(arr) {
+    var safe = Array.isArray(arr) ? arr : [];
+    try { localStorage.setItem('iflow_products', JSON.stringify(safe)); } catch(_) {}
+    // Keep in-memory cache in sync — wrapped so it can never crash the caller
+    try { products.length = 0; safe.forEach(function(p) { products.push(p); }); } catch(_) {}
+  }
+
+  // Initialise: read, migrate fields, persist
+  (function _initProds() {
+    try {
+      var _raw = _getProds();
+      if (!_raw.length) return;
+      var _migrated = _raw.map(function(p) {
+        return Object.assign({}, p, {
           category: p.category || p.name || '',
           variant:  p.variant  !== undefined ? p.variant : '',
           code:     p.code     || generateProductCode(p.type || '', p.name || '')
-        }));
-        // Always persist migrated format — triggers interceptor to sync blob
-        if (products.length > 0) localStorage.setItem('iflow_products', JSON.stringify(products));
-      }
-    }
-  } catch(_initE) {
-    console.error('[iFlow] Products init error:', _initE);
-    products = [];
-  }
-  // Auto-detect variants from word prefixes in existing data and regroup
-  // e.g. "iPhone 13 Black" + "iPhone 13 White" → both get category "iPhone 13"
-  (function autoRegroup() {
-    try {
-    let changed = false;
-    // Try comma-split first pass
-    products.forEach(p => {
-      if (!p.name) return;
-      const m = p.name.match(/^([^,\/\\|]{2,})[,\/\\|]\s*(.+)$/);
-      if (m && !p.variant) {
-        p.category = m[1].trim();
-        p.variant  = m[2].trim();
-        changed = true;
-      }
-    });
-    // Word-prefix second pass: find products that share 2+ leading words
-    for (let i = 0; i < products.length; i++) {
-      if (!products[i].name) continue;
-      const aWords = products[i].name.split(/\s+/);
-      for (let j = i + 1; j < products.length; j++) {
-        const bWords = products[j].name.split(/\s+/);
-        let common = 0;
-        const checkLen = Math.min(aWords.length, bWords.length);
-        for (let k = 0; k < checkLen; k++) {
-          if (aWords[k].toLowerCase() === bWords[k].toLowerCase()) common++;
-          else break;
-        }
-        if (common < 2) continue;
-        if (aWords.length === common && bWords.length === common) continue;
-        const cat = aWords.slice(0, common).join(' ');
-        if (products[i].category !== cat) { products[i].category = cat; if (!products[i].variant) products[i].variant = aWords.slice(common).join(' '); changed = true; }
-        if (products[j].category !== cat) { products[j].category = cat; if (!products[j].variant) products[j].variant = bWords.slice(common).join(' '); changed = true; }
-      }
-    }
-    if (changed) localStorage.setItem('iflow_products', JSON.stringify(products));
-    } catch(_rg) { console.error('[iFlow] autoRegroup error:', _rg); }
+        });
+      });
+      _saveProds(_migrated);
+      _autoRegroup();
+    } catch(_e) { console.error('[iFlow] products init:', _e); }
   })();
+
+  function _autoRegroup() {
+    try {
+      var _arr = _getProds();
+      if (!_arr.length) return;
+      var changed = false;
+      // Pass 1 — comma/slash separator
+      _arr.forEach(function(p) {
+        if (!p.name) return;
+        var m = p.name.match(/^([^,\/\\|]{2,})[,\/\\|]\s*(.+)$/);
+        if (m && !p.variant) { p.category = m[1].trim(); p.variant = m[2].trim(); changed = true; }
+      });
+      // Pass 2 — shared word prefix
+      for (var i = 0; i < _arr.length; i++) {
+        if (!_arr[i].name) continue;
+        var aW = _arr[i].name.split(/\s+/);
+        for (var j = i + 1; j < _arr.length; j++) {
+          if (!_arr[j].name) continue;
+          var bW = _arr[j].name.split(/\s+/);
+          var common = 0;
+          var chk = Math.min(aW.length, bW.length);
+          for (var k = 0; k < chk; k++) {
+            if (aW[k].toLowerCase() === bW[k].toLowerCase()) common++;
+            else break;
+          }
+          if (common < 2 || (aW.length === common && bW.length === common)) continue;
+          var cat = aW.slice(0, common).join(' ');
+          if (_arr[i].category !== cat) { _arr[i].category = cat; if (!_arr[i].variant) _arr[i].variant = aW.slice(common).join(' '); changed = true; }
+          if (_arr[j].category !== cat) { _arr[j].category = cat; if (!_arr[j].variant) _arr[j].variant = bW.slice(common).join(' '); changed = true; }
+        }
+      }
+      if (changed) _saveProds(_arr);
+    } catch(_e) { console.error('[iFlow] autoRegroup:', _e); }
+  }
 
   // Convert condition text → short code tokens (e.g. "cracked screen, bh87, uk used" → "sc-bh87-uk")
   function _conditionToCode(condition) {
@@ -6247,22 +6271,23 @@
   // When a new variant is detected, retroactively re-categorise siblings
   // that share the same word prefix but were previously stored as standalone products
   function regroupSiblings(category) {
-    const catWords = category.toLowerCase().split(/\s+/);
-    const n = catWords.length;
-    let changed = false;
-    products.forEach(p => {
-      if (p.category === category) return; // already correct
-      const pWords = (p.name || '').split(/\s+/);
-      if (pWords.length > n && pWords.slice(0, n).map(w => w.toLowerCase()).join(' ') === catWords.join(' ')) {
-        p.category = category;
-        if (!p.variant) p.variant = pWords.slice(n).join(' ');
-        changed = true;
-      }
-    });
-    if (changed) {
-      localStorage.setItem('iflow_products', JSON.stringify(products));
-    }
-    return changed;
+    try {
+      var _arr = _getProds();
+      var catWords = category.toLowerCase().split(/\s+/);
+      var n = catWords.length;
+      var changed = false;
+      _arr.forEach(function(p) {
+        if (p.category === category) return;
+        var pWords = (p.name || '').split(/\s+/);
+        if (pWords.length > n && pWords.slice(0, n).map(function(w) { return w.toLowerCase(); }).join(' ') === catWords.join(' ')) {
+          p.category = category;
+          if (!p.variant) p.variant = pWords.slice(n).join(' ');
+          changed = true;
+        }
+      });
+      if (changed) _saveProds(_arr);
+      return changed;
+    } catch(_) { return false; }
   }
 
   function onHomeProductInput(inp) {
@@ -6280,49 +6305,51 @@
   }
 
   function addProductFromHome() {
-    const rawName    = document.getElementById('hpName').value.trim();
-    const stockQty   = parseFloat(document.getElementById('hpQty').value) || 0;
-    const unitPrice  = parseFloat(document.getElementById('hpPrice').value) || 0;
-    const costPriceH = document.getElementById('hpCostPrice').value;
-    const costPrice  = costPriceH !== '' ? parseFloat(costPriceH) : undefined;
-    const errEl     = document.getElementById('homeFormError');
-    errEl.style.display = 'none';
-    if (!rawName) { errEl.textContent = 'Product name is required.'; errEl.style.display = 'block'; return; }
-    if (stockQty <= 0) { errEl.textContent = 'Stock quantity must be at least 1.'; errEl.style.display = 'block'; return; }
+    var rawName   = (document.getElementById('hpName') || {}).value || '';
+    rawName = rawName.trim();
+    var stockQty  = parseFloat((document.getElementById('hpQty')   || {}).value) || 0;
+    var unitPrice = parseFloat((document.getElementById('hpPrice') || {}).value) || 0;
+    var cpEl      = document.getElementById('hpCostPrice');
+    var costPrice = (cpEl && cpEl.value !== '') ? parseFloat(cpEl.value) : undefined;
+    var errEl     = document.getElementById('homeFormError');
+    if (errEl) errEl.style.display = 'none';
+    if (!rawName) { if (errEl) { errEl.textContent = 'Product name is required.'; errEl.style.display = 'block'; } return; }
+    if (stockQty <= 0) { if (errEl) { errEl.textContent = 'Stock quantity must be at least 1.'; errEl.style.display = 'block'; } return; }
 
-    const condition  = (document.getElementById('hpCondition')?.value || '').trim();
-    const condCode   = condition ? _conditionToCode(condition) : '';
-    const { category, variant } = parseProductName(rawName);
-    const displayName = variant ? `${category}, ${variant}` : category;
-    if (variant) regroupSiblings(category);
-    const settings  = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-    const defThresh = parseInt(settings.lowStockThreshold) || 5;
-    const code      = generateProductCode('', rawName, condition);
+    var condEl    = document.getElementById('hpCondition');
+    var condition = condEl ? condEl.value.trim() : '';
+    var condCode  = condition ? _conditionToCode(condition) : '';
+    var parsed    = parseProductName(rawName);
+    var displayName = parsed.variant ? (parsed.category + ', ' + parsed.variant) : parsed.category;
+    if (parsed.variant) regroupSiblings(parsed.category);
+    var settings  = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    var defThresh = parseInt(settings.lowStockThreshold) || 5;
+    var code      = generateProductCode('', rawName, condition);
 
-    // Case-sensitive exact-name match → restock
-    const existingIdx = products.findIndex(p => p.name === displayName);
+    var _arr = _getProds();  // always fresh from localStorage
+    var existingIdx = _arr.findIndex(function(p) { return p.name === displayName; });
     if (existingIdx !== -1) {
-      products[existingIdx].stockQty += stockQty;
-      if (unitPrice) products[existingIdx].unitPrice = unitPrice;
-      if (costPrice !== undefined) products[existingIdx].costPrice = costPrice;
-      localStorage.setItem('iflow_products', JSON.stringify(products));
-      renderProducts(); refreshProductsList();
-      SheetsAPI.withToken(() => SheetsAPI.updateProduct(existingIdx, products[existingIdx]));
-      showToast(`"${displayName}" restocked (+${stockQty})`);
+      _arr[existingIdx].stockQty = (_arr[existingIdx].stockQty || 0) + stockQty;
+      if (unitPrice) _arr[existingIdx].unitPrice = unitPrice;
+      if (costPrice !== undefined) _arr[existingIdx].costPrice = costPrice;
+      _saveProds(_arr);           // write first
+      renderProducts(); try { refreshProductsList(); } catch(_) {}
+      SheetsAPI.withToken(function() { SheetsAPI.updateProduct(existingIdx, _arr[existingIdx]); });
+      showToast('"' + displayName + '" restocked (+' + stockQty + ')');
     } else {
       pushUndo('products');
-      const p = { code, name: displayName, category, variant, type: '', stockQty, unitPrice, costPrice, lowStockThreshold: defThresh, dateAdded: new Date().toLocaleDateString(), condition: condition || undefined, conditionCode: condCode || undefined };
-      products.push(p);
-      sendEmailAlert(`New Stock Added: ${displayName}`, `"${displayName}" was added to stock. Qty: ${stockQty}. Time: ${new Date().toLocaleString()}`);
-      localStorage.setItem('iflow_products', JSON.stringify(products));
-      renderProducts(); refreshProductsList();
-      SheetsAPI.withToken(() => SheetsAPI.appendProduct(p));
-      showToast(`"${displayName}" added to stock`);
+      var p = { code: code, name: displayName, category: parsed.category, variant: parsed.variant, type: '', stockQty: stockQty, unitPrice: unitPrice, costPrice: costPrice, lowStockThreshold: defThresh, dateAdded: new Date().toLocaleDateString(), condition: condition || undefined, conditionCode: condCode || undefined };
+      _arr.push(p);
+      sendEmailAlert('New Stock Added: ' + displayName, '"' + displayName + '" added to stock. Qty: ' + stockQty + '. Time: ' + new Date().toLocaleString());
+      _saveProds(_arr);           // write first
+      renderProducts(); try { refreshProductsList(); } catch(_) {}
+      SheetsAPI.withToken(function() { SheetsAPI.appendProduct(p); });
+      showToast('"' + displayName + '" added to stock');
     }
-    checkLowStock();
-    ['hpName','hpQty','hpPrice','hpCostPrice','hpCondition'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-    document.getElementById('hpHint').textContent = '';
-    document.getElementById('hpName').focus();
+    try { checkLowStock(); } catch(_) {}
+    ['hpName','hpQty','hpPrice','hpCostPrice','hpCondition'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+    var hintEl = document.getElementById('hpHint');   if (hintEl) hintEl.textContent = '';
+    var focEl  = document.getElementById('hpName');   if (focEl)  focEl.focus();
   }
 
   function previewCode() {
@@ -6351,101 +6378,84 @@
   }
 
   function addProduct() {
-    const rawNpName = document.getElementById('npName').value.trim();
-    const { category: npCat, variant: npVariant } = parseProductName(rawNpName);
-    const npDisplayName = npVariant ? `${npCat}, ${npVariant}` : npCat;
-    if (npVariant) regroupSiblings(npCat);
-    const name      = npDisplayName;
-    const type      = document.getElementById('npType').value.trim();
-    const stockQty   = parseFloat(document.getElementById('npQty').value) || 0;
-    const unitPrice  = parseFloat(document.getElementById('npPrice').value) || 0;
-    const costPriceV = document.getElementById('npCostPrice').value;
-    const costPrice  = costPriceV !== '' ? parseFloat(costPriceV) : undefined;
-    const settings   = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-    const defThresh = parseInt(settings.lowStockThreshold) || 5;
-    const threshold = parseInt(document.getElementById('npThreshold').value) || defThresh;
-    const condition = (document.getElementById('npCondition')?.value || '').trim();
-    const condCode  = condition ? _conditionToCode(condition) : '';
-    const code      = document.getElementById('npCode').value || generateProductCode(type, rawNpName, condition);
+    var rawNpName = ((document.getElementById('npName') || {}).value || '').trim();
+    var parsed    = parseProductName(rawNpName);
+    var name      = parsed.variant ? (parsed.category + ', ' + parsed.variant) : parsed.category;
+    if (parsed.variant) regroupSiblings(parsed.category);
+    var type      = ((document.getElementById('npType')      || {}).value || '').trim();
+    var stockQty  = parseFloat((document.getElementById('npQty')   || {}).value) || 0;
+    var unitPrice = parseFloat((document.getElementById('npPrice') || {}).value) || 0;
+    var cpEl      = document.getElementById('npCostPrice');
+    var costPrice = (cpEl && cpEl.value !== '') ? parseFloat(cpEl.value) : undefined;
+    var settings  = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    var defThresh = parseInt(settings.lowStockThreshold) || 5;
+    var threshold = parseInt((document.getElementById('npThreshold') || {}).value) || defThresh;
+    var condEl    = document.getElementById('npCondition');
+    var condition = condEl ? condEl.value.trim() : '';
+    var condCode  = condition ? _conditionToCode(condition) : '';
+    var codeEl    = document.getElementById('npCode');
+    var code      = (codeEl && codeEl.value) ? codeEl.value : generateProductCode(type, rawNpName, condition);
     if (!name) { showToast('Product name is required'); return; }
 
-    // Check for existing product with same name (case-sensitive exact match)
-    const existingIdx = products.findIndex(p => p.name === name);
+    var _arr = _getProds();  // always fresh from localStorage
+    var existingIdx = _arr.findIndex(function(p) { return p.name === name; });
     if (existingIdx !== -1) {
-      // Update existing product's details, add new stock qty to existing qty
-      const existing = products[existingIdx];
-      existing.stockQty = existing.stockQty + stockQty;
-      existing.unitPrice = unitPrice || existing.unitPrice;
-      if (costPrice !== undefined) existing.costPrice = costPrice;
-      existing.type = type || existing.type;
-      existing.lowStockThreshold = threshold;
-      if (!existing.category) existing.category = existing.name;
-      if (existing.variant === undefined) existing.variant = '';
-      localStorage.setItem('iflow_products', JSON.stringify(products));
-      renderProducts();
-      refreshProductsList();
-      SheetsAPI.withToken(() => SheetsAPI.updateProduct(existingIdx, existing));
+      _arr[existingIdx].stockQty = (_arr[existingIdx].stockQty || 0) + stockQty;
+      _arr[existingIdx].unitPrice = unitPrice || _arr[existingIdx].unitPrice;
+      if (costPrice !== undefined) _arr[existingIdx].costPrice = costPrice;
+      _arr[existingIdx].type = type || _arr[existingIdx].type;
+      _arr[existingIdx].lowStockThreshold = threshold;
+      if (!_arr[existingIdx].category) _arr[existingIdx].category = _arr[existingIdx].name;
+      if (_arr[existingIdx].variant === undefined) _arr[existingIdx].variant = '';
+      _saveProds(_arr);         // write first
+      renderProducts(); try { refreshProductsList(); } catch(_) {}
+      SheetsAPI.withToken(function() { SheetsAPI.updateProduct(existingIdx, _arr[existingIdx]); });
       toggleAddProductForm();
-      showToast(`"${name}" stock updated (+${stockQty})`);
-      checkLowStock();
-      ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode','npCondition'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
-    var pv = document.getElementById('npConditionPreview'); if(pv) pv.style.display='none';
+      showToast('"' + name + '" stock updated (+' + stockQty + ')');
+      try { checkLowStock(); } catch(_) {}
+      ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode','npCondition'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+      var pv = document.getElementById('npConditionPreview'); if (pv) pv.style.display = 'none';
       return;
     }
 
     pushUndo('products');
-    const p = { code, name, category: npCat, variant: npVariant, type, stockQty, unitPrice, costPrice, lowStockThreshold: threshold, dateAdded: new Date().toLocaleDateString(), condition: condition || undefined, conditionCode: condCode || undefined };
-    products.push(p);
-    sendEmailAlert(`New Stock Added: ${name}`, `"${name}" was added to stock. Qty: ${stockQty}. Time: ${new Date().toLocaleString()}`);
-    localStorage.setItem('iflow_products', JSON.stringify(products));
-    renderProducts();
-    refreshProductsList();
-    SheetsAPI.withToken(() => SheetsAPI.appendProduct(p));
+    var p = { code: code, name: name, category: parsed.category, variant: parsed.variant, type: type, stockQty: stockQty, unitPrice: unitPrice, costPrice: costPrice, lowStockThreshold: threshold, dateAdded: new Date().toLocaleDateString(), condition: condition || undefined, conditionCode: condCode || undefined };
+    _arr.push(p);
+    sendEmailAlert('New Stock Added: ' + name, '"' + name + '" added to stock. Qty: ' + stockQty + '. Time: ' + new Date().toLocaleString());
+    _saveProds(_arr);           // write first
+    renderProducts(); try { refreshProductsList(); } catch(_) {}
+    SheetsAPI.withToken(function() { SheetsAPI.appendProduct(p); });
     toggleAddProductForm();
-    showToast(`"${name}" added to stock`);
-    ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode','npCondition'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
-    var pv2 = document.getElementById('npConditionPreview'); if(pv2) pv2.style.display='none';
-    checkLowStock();
+    showToast('"' + name + '" added to stock');
+    ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode','npCondition'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+    var pv2 = document.getElementById('npConditionPreview'); if (pv2) pv2.style.display = 'none';
+    try { checkLowStock(); } catch(_) {}
   }
 
   function terminateProduct(index) {
-    if (products[index]) {
+    var _arr = _getProds();  // fresh read
+    if (_arr[index]) {
       pushUndo('products');
-      moveToTrash('product', products[index], index);
-      sendEmailAlert(`Product Deleted: ${products[index].name}`,
-        `"${products[index].name}" was deleted from stock. Time: ${new Date().toLocaleString()}`);
-      SheetsAPI.withToken(() => SheetsAPI.deleteProduct(index));
-      products.splice(index, 1);
-      localStorage.setItem('iflow_products', JSON.stringify(products));
+      moveToTrash('product', _arr[index], index);
+      try { sendEmailAlert('Product Deleted: ' + _arr[index].name, '"' + _arr[index].name + '" deleted. Time: ' + new Date().toLocaleString()); } catch(_) {}
+      SheetsAPI.withToken(function() { SheetsAPI.deleteProduct(index); });
+      _arr.splice(index, 1);
+      _saveProds(_arr);       // write first
     }
     renderProducts();
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  //  PRODUCTS & STOCK — fully self-contained render function
-  //
-  //  Design rules:
-  //  • Reads localStorage on EVERY call — never trusts in-memory state
-  //  • Side-effect helpers (_syncAutoReplyUrl, _refreshProfitStat) run in
-  //    their own try/catch so they CANNOT wipe the products table
-  //  • No external function can break this render
-  //  • Blob fetch uses 10-second timestamp debounce (never permanently stuck)
+  //  PRODUCTS & STOCK — fully self-contained render
+  //  Reads via _getProds() every call. No external function can wipe the table.
   // ══════════════════════════════════════════════════════════════════════════
   function renderProducts() {
 
-    // ── A. Read fresh from localStorage every time ────────────────────────
-    var _prods = [];
-    try {
-      var _raw = localStorage.getItem('iflow_products');
-      if (_raw) {
-        var _parsed = JSON.parse(_raw);
-        if (Array.isArray(_parsed)) _prods = _parsed;
-      }
-    } catch(_) { _prods = []; }
+    // ── A. Read fresh every time via the safe helper ──────────────────────
+    var _prods = _getProds();
 
-    // Keep in-memory array in sync (other functions like deductStock use it)
-    products.length = 0;
-    _prods.forEach(function(p) { products.push(p); });
+    // Sync in-memory cache — inside try/catch so it can NEVER crash the render
+    try { products.length = 0; _prods.forEach(function(p) { products.push(p); }); } catch(_) {}
 
     // ── B. Nothing local → fetch from cloud ──────────────────────────────
     if (!_prods.length) {
@@ -6467,9 +6477,8 @@
           var _loaded = Array.isArray(d) ? d
                       : (Array.isArray(d && d.products) ? d.products : []);
           if (_loaded.length) {
-            // Save to localStorage — interceptor will also trigger cloud push
-            try { localStorage.setItem('iflow_products', JSON.stringify(_loaded)); } catch(_) {}
-            renderProducts(); // re-render now that localStorage is populated
+            _saveProds(_loaded);    // save + sync cache; interceptor will push to blob
+            renderProducts();       // re-render now that localStorage is populated
           } else {
             _tbl.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px 20px">'
               + '<div style="color:var(--muted);font-size:.88rem;line-height:1.8">'
@@ -6763,11 +6772,7 @@
             code:     p.code     || (typeof generateProductCode === 'function' ? generateProductCode(p.type || '', p.name || '') : '')
           });
         });
-        // Replace in-place so all closures see the update
-        products.length = 0;
-        incoming.forEach(function(p) { products.push(p); });
-        // Persist to localStorage (the interceptor debounce-push is harmless here)
-        localStorage.setItem('iflow_products', JSON.stringify(products));
+        _saveProds(incoming);   // write + sync cache via the single safe path
         if (typeof renderProducts      === 'function') renderProducts();
         if (typeof refreshProductsList === 'function') refreshProductsList();
         if (typeof render              === 'function') render();

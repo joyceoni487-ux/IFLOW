@@ -6381,8 +6381,8 @@
       existing.lowStockThreshold = threshold;
       if (!existing.category) existing.category = existing.name;
       if (existing.variant === undefined) existing.variant = '';
-      renderProducts();
       localStorage.setItem('iflow_products', JSON.stringify(products));
+      renderProducts();
       refreshProductsList();
       SheetsAPI.withToken(() => SheetsAPI.updateProduct(existingIdx, existing));
       toggleAddProductForm();
@@ -6909,18 +6909,27 @@ async function _restoreFromBlob(force) {
     if (!force && existingProds !== null && existingProds.length > 0) return;
     var r = await fetch('/api/products');
     if (!r.ok) return;
-    var data = await r.json();
-    // Also merge legacy paymentInfo/riderEmails into data.settings for the bridge
-    if (!data.settings) data.settings = {};
-    if (data.paymentInfo) {
-      if (!data.settings.payBank)        data.settings.payBank        = data.paymentInfo.bank          || '';
-      if (!data.settings.payAccountNum)  data.settings.payAccountNum  = data.paymentInfo.accountNumber || '';
-      if (!data.settings.payAccountName) data.settings.payAccountName = data.paymentInfo.accountName   || '';
+    var raw = await r.json();
+
+    // Normalise: blob may be a root array OR a wrapped {products:[]} object
+    var data;
+    if (Array.isArray(raw)) {
+      data = { products: raw, settings: {} };
+    } else {
+      data = raw || {};
+      if (!data.settings) data.settings = {};
+      // Merge legacy paymentInfo/riderEmails into data.settings
+      if (data.paymentInfo) {
+        if (!data.settings.payBank)        data.settings.payBank        = data.paymentInfo.bank          || '';
+        if (!data.settings.payAccountNum)  data.settings.payAccountNum  = data.paymentInfo.accountNumber || '';
+        if (!data.settings.payAccountName) data.settings.payAccountName = data.paymentInfo.accountName   || '';
+      }
+      if (data.riderEmails && data.riderEmails.length && !data.settings.riderEmails) {
+        data.settings.riderEmails = data.riderEmails.join(',');
+      }
     }
-    if (data.riderEmails && data.riderEmails.length && !data.settings.riderEmails) {
-      data.settings.riderEmails = data.riderEmails.join(',');
-    }
-    var hasProducts = data.products && data.products.length > 0;
+
+    var hasProducts = Array.isArray(data.products) && data.products.length > 0;
     var hasSettings = data.settings && Object.values(data.settings).some(Boolean);
     if (!hasProducts && !hasSettings) return;
     // Delegate into main script scope via bridge (has access to let-scoped `products`)

@@ -66,7 +66,7 @@ export default async function handler(req, res) {
   const isPureGreeting = /^\s*(hi+|hello|hey+|sup|howdy|good\s*(morning|afternoon|evening|day))\s*[!?.]?\s*$/i.test(Body);
 
   // Server-side payment proof detection — don't rely solely on AI appending PAYMENT ALERT
-  const looksLikePaymentProof = /\b(paid|payment|transferred|sent money|done|receipt|proof|screenshot|transfer|deposited|i've paid|i have paid|check it|already paid|i don pay|i done pay|i send am|e don done|money don enter|i dey come pick|i'll pick it up|coming to pick|pick it up|picking up|on my way|i dey road|i dey come|collecting it|self pickup|will pick up|come get it)\b/i.test(Body);
+  const looksLikePaymentProof = /\b(paid|payment|transferred|sent money|receipt|proof|screenshot|transfer|deposited|i've paid|i have paid|check it|already paid|i don pay|i done pay|i send am|e don done|money don enter|i dey come pick|i'll pick it up|coming to pick|pick it up|picking up|on my way|i dey road|i dey come|collecting it|self pickup|will pick up|come get it)\b/i.test(Body);
   const hasActiveOrderInMemory = history.some(m =>
     /ORDER ALERT:|Got it.*✅|delivery address|please pay|make payment/i.test(m.content)
   );
@@ -81,6 +81,13 @@ export default async function handler(req, res) {
         ? `[System: The customer just said "${Body}". This continues the conversation — do NOT greet. Respond in context.]`
         : `[System: "${Body}" is not a greeting. Ask what they need help with.]`;
       aiReply = await _callAi(nudge + '\n' + Body, ProfileName, storeName, apiKey, productCtx, history, paymentInfo) || aiReply;
+    }
+
+    // Guard: if AI triggered "payment received" but no ORDER has been placed yet, correct it
+    const aiClaimsPayment = aiReply && /payment received|our team is verifying|PAYMENT ALERT:/i.test(aiReply);
+    if (aiClaimsPayment && !hasActiveOrderInMemory) {
+      const correction = `[System: CORRECTION — no order has been placed yet in this conversation. "${Body}" is a purchase confirmation ("yes/ok/sure"), NOT payment. The customer wants to buy but hasn't paid. You must ask for their delivery address next. Do NOT say payment received.]`;
+      aiReply = await _callAi(correction + '\n' + Body, ProfileName, storeName, apiKey, productCtx, history, paymentInfo) || aiReply;
     }
 
     if (aiReply) {
@@ -216,6 +223,7 @@ ORDER FLOW (flexible, not a rigid script):
 1. Figure out what they want — from this message and history combined.
 2. If multiple variants exist AND customer didn't specify: list options, ask which one. Wait for answer.
 3. Once you have: item + specific variant (if needed) + qty → ask for delivery address IF not already given.
+   - "yes", "ok", "I want it", "that one", "yes please" = buyer confirming purchase interest. This is NOT payment. Move to step 3: ask for address.
 4. Once you have item + qty + address → confirm ONCE and send payment:
    "Got it! ✅ [item] x[qty] → [address]."
    Append on new line: ORDER ALERT: ${name || 'Customer'} | [item] x[qty] | Address: [address]
@@ -226,7 +234,10 @@ IMPORTANT — ONE THING PER RESPONSE:
 - If you're offering a variant as an option ("would that work?"), do NOT also confirm the order in the same message. Wait for yes/no.
 - Never say "we don't have X but we have Y — would that work? Got it, Y confirmed!" in one message. Offer first. Confirm after.
 
-PAYMENT PROOF — when customer says paid / sends screenshot / done / transferred / I don pay:
+PAYMENT PROOF — ONLY when customer explicitly says they have already sent money / paid / transferred:
+- CRITICAL: Only fire this if ORDER ALERT has already been sent earlier in this conversation. If ORDER ALERT is NOT in history yet, the order hasn't been placed — "yes", "done", "ok" means they're confirming purchase, NOT paying. Ask for their address instead.
+- "yes" / "ok" / "sure" alone = purchase confirmation, NOT payment proof. Never reply with payment-received for these.
+- Trigger only for: paid, transferred, I've paid, sent it, receipt, screenshot, I don pay, i done pay, money don enter, etc.
 Reply: "Got it! 🙏 Payment received — our team is verifying now, you'll hear from us shortly."
 Append on new line: PAYMENT ALERT: ${name || 'Customer'} | [item from history] x[qty] | Address: [address from history]`;
 

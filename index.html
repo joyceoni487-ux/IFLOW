@@ -6094,20 +6094,34 @@
   renderConvList();
 
   // ── Products & Stock ──
-  let products = JSON.parse(localStorage.getItem('iflow_products') || '[]');
-  // Migrate old products: ensure category + variant + code fields exist
-  products = products.map(p => ({
-    ...p,
-    category: p.category || p.name,
-    variant:  p.variant  !== undefined ? p.variant : '',
-    code:     p.code     || generateProductCode(p.type || '')
-  }));
+  let products = [];
+  try {
+    const _rawProds = localStorage.getItem('iflow_products');
+    if (_rawProds) {
+      const _parsedProds = JSON.parse(_rawProds);
+      if (Array.isArray(_parsedProds)) {
+        products = _parsedProds.map(p => ({
+          ...p,
+          category: p.category || p.name || '',
+          variant:  p.variant  !== undefined ? p.variant : '',
+          code:     p.code     || generateProductCode(p.type || '', p.name || '')
+        }));
+        // Always persist migrated format — triggers interceptor to sync blob
+        if (products.length > 0) localStorage.setItem('iflow_products', JSON.stringify(products));
+      }
+    }
+  } catch(_initE) {
+    console.error('[iFlow] Products init error:', _initE);
+    products = [];
+  }
   // Auto-detect variants from word prefixes in existing data and regroup
   // e.g. "iPhone 13 Black" + "iPhone 13 White" → both get category "iPhone 13"
   (function autoRegroup() {
+    try {
     let changed = false;
     // Try comma-split first pass
     products.forEach(p => {
+      if (!p.name) return;
       const m = p.name.match(/^([^,\/\\|]{2,})[,\/\\|]\s*(.+)$/);
       if (m && !p.variant) {
         p.category = m[1].trim();
@@ -6117,6 +6131,7 @@
     });
     // Word-prefix second pass: find products that share 2+ leading words
     for (let i = 0; i < products.length; i++) {
+      if (!products[i].name) continue;
       const aWords = products[i].name.split(/\s+/);
       for (let j = i + 1; j < products.length; j++) {
         const bWords = products[j].name.split(/\s+/);
@@ -6134,6 +6149,7 @@
       }
     }
     if (changed) localStorage.setItem('iflow_products', JSON.stringify(products));
+    } catch(_rg) { console.error('[iFlow] autoRegroup error:', _rg); }
   })();
 
   // Convert condition text → short code tokens (e.g. "cracked screen, bh87, uk used" → "sc-bh87-uk")
@@ -6406,137 +6422,161 @@
   }
 
   function renderProducts() {
-    // Always reload from localStorage first — handles cross-block scoping on refresh
-    const _ls = JSON.parse(localStorage.getItem('iflow_products') || '[]');
-    if (_ls.length) {
+    // ── 1. Load from localStorage (safe parse — never crashes on bad data) ──
+    let _stored = null;
+    try {
+      const _raw = localStorage.getItem('iflow_products');
+      if (_raw) { const _p = JSON.parse(_raw); if (Array.isArray(_p)) _stored = _p; }
+    } catch(e) { _stored = null; }
+
+    if (_stored && _stored.length) {
       products.length = 0;
-      _ls.forEach(p => products.push(p));
+      _stored.forEach(function(p){ products.push(p); });
     }
 
-    // If products still empty, show loading state and trigger cloud restore
+    // ── 2. If products still empty, fetch DIRECTLY from blob (no bridge needed) ──
     if (!products.length) {
-      const tbody = document.getElementById('productsBody');
-      if (tbody) tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--muted);font-size:0.88rem;">Loading products… <button onclick="_restoreFromBlob(true)" style="margin-left:8px;padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;">Restore from Cloud</button></td></tr>';
-      if (typeof _restoreFromBlob === 'function') _restoreFromBlob(true);
-      return;
-    }
-
-    document.getElementById('productsDate').textContent =
-      new Date().toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-    const cur = getCurrency();
-    const query = (document.getElementById('productsSearch')?.value || '').toLowerCase();
-    const settings = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-    const defThresh = parseInt(settings.lowStockThreshold) || 5;
-
-    const tokens = query.split(/\s+/).filter(Boolean);
-    const filtered = products.filter(p => {
-      if (!tokens.length) return true;
-      const hay = [p.name, p.code, p.type, p.category, p.variant].join(' ').toLowerCase();
-      return tokens.every(tok => hay.includes(tok));
-    });
-
-    const totalVal = filtered.reduce((s,p) => s + p.stockQty * p.unitPrice, 0);
-    const lowCount = filtered.filter(p => p.stockQty <= (p.lowStockThreshold || defThresh)).length;
-
-    // Profit stat: use shared function for consistent logic + normalized name matching
-    _refreshProfitStat();
-
-    document.getElementById('statTotalProducts').textContent = filtered.length;
-    document.getElementById('statStockValue').textContent = cur + fmtComma(totalVal);
-    document.getElementById('statLowStockCount').textContent = lowCount;
-    const badge = document.getElementById('lowStockBadge');
-    if (badge) { badge.textContent = lowCount; badge.style.display = lowCount > 0 ? '' : 'none'; }
-
-    const tbody = document.getElementById('productsBody');
-    if (!tbody) return;
-    if (filtered.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem;">No products yet — use Quick Add or "+ Add Product" above.</td></tr>`;
-      return;
-    }
-
-    // Group by category
-    const groups = new Map();
-    filtered.forEach(p => {
-      const cat = p.category || p.name;
-      if (!groups.has(cat)) groups.set(cat, []);
-      groups.get(cat).push(p);
-    });
-
-    let rowNum = 1;
-    const rows = [];
-    groups.forEach((items, cat) => {
-      if (items.length === 1 && !items[0].variant) {
-        // ── Single product, no variant: render flat ──
-        const p = items[0];
-        const realIdx = products.indexOf(p);
-        const isLow = p.stockQty <= (p.lowStockThreshold || defThresh);
-        rows.push(`<tr class="${isLow ? 'low-stock-row' : ''}" style="transition:opacity .35s,background .35s" id="prod-row-${realIdx}" data-index="${realIdx}">
-          <td class="row-num">${rowNum++}</td>
-          <td style="padding:8px 12px"><span class="prod-code-cell">${escHtml(p.code)}</span></td>
-          <td style="padding:10px 14px;font-weight:600;color:var(--text)">${escHtml(p.name)}</td>
-          <td style="padding:10px 14px;color:var(--muted)">${escHtml(p.type||'—')}</td>
-          <td class="cell-datetime" style="text-align:center;color:${isLow?'#e53e3e':'inherit'};font-weight:${isLow?700:400}">${p.stockQty}${isLow?' ⚠':''}</td>
-          <td class="cell-datetime">${cur}${fmtComma(p.unitPrice)}</td>
-          <td class="cell-subtotal" data-val="${p.stockQty*p.unitPrice}">${cur}${fmtComma(p.stockQty*p.unitPrice)}</td>
-          <td class="cell-datetime">${p.lowStockThreshold||defThresh}</td>
-          <td class="cell-datetime">${escHtml(p.dateAdded||'')}</td>
-          <td class="cell-action"><button class="btn-terminate" onclick="confirmDeleteProduct(${realIdx})" title="Remove">&#9632;</button></td>
-        </tr>`);
-      } else {
-        // ── Category with variants: group row + expandable sub-table ──
-        const totalStock = items.reduce((s,p) => s + p.stockQty, 0);
-        const anyLow = items.some(p => p.stockQty <= (p.lowStockThreshold || defThresh));
-        const catId = 'vg-' + cat.replace(/[^a-zA-Z0-9]/g,'_');
-        // Last updated = newest dateAdded among variants
-        const lastUpdated = items
-          .map(p => p.lastUpdated || p.dateAdded || '')
-          .filter(Boolean)
-          .sort((a,b) => new Date(b) - new Date(a))[0] || '—';
-        const variantRows = items.map(p => {
-          const realIdx  = products.indexOf(p);
-          const isLow    = p.stockQty <= (p.lowStockThreshold || defThresh);
-          const hasCond  = !!(p.condition);
-          const condBadge = hasCond ? `<span style="color:#f59e0b;font-size:.7rem;font-weight:600;display:block;margin-top:2px">⚠ ${escHtml(p.condition)}</span>` : '';
-          return `<tr class="${isLow ? 'variant-row-low' : ''}" data-index="${realIdx}" style="${hasCond ? 'background:rgba(245,158,11,.04)' : ''}">
-            <td><span class="prod-code-cell" style="${hasCond ? 'color:#f59e0b' : ''}">${escHtml(p.code)}</span></td>
-            <td style="font-weight:600;color:var(--text)">${escHtml(p.variant || p.name)}${condBadge}</td>
-            <td style="color:${isLow?'#e53e3e':'inherit'};font-weight:${isLow?700:400}">${p.stockQty}${isLow?' ⚠':''}</td>
-            <td>${cur}${fmtComma(p.unitPrice)}</td>
-            <td>${p.lowStockThreshold||defThresh}</td>
-            <td>${escHtml(p.dateAdded||'')}  </td>
-            <td class="cell-action"><button class="btn-terminate" onclick="confirmDeleteProduct(${realIdx})" title="Remove">&#9632;</button></td>
-          </tr>`;
-        }).join('');
-        rows.push(`
-          <tr class="category-header-row" onclick="toggleVariantGroup('${catId}')">
-            <td class="row-num">${rowNum++}</td>
-            <td style="padding:8px 12px" colspan="2">
-              <span style="font-weight:700;color:var(--text)">${escHtml(cat)}</span>
-              <span style="font-size:0.74rem;color:var(--muted);margin-left:8px">${items.length} variant${items.length>1?'s':''}</span>
-            </td>
-            <td style="padding:10px 14px;color:var(--muted)">—</td>
-            <td class="cell-datetime" style="text-align:center;color:${anyLow?'#e53e3e':'inherit'};font-weight:${anyLow?700:400}">${totalStock}${anyLow?' ⚠':''}</td>
-            <td class="cell-datetime">—</td>
-            <td class="cell-subtotal">—</td>
-            <td class="cell-datetime">—</td>
-            <td class="cell-datetime" title="Last updated"><span style="font-size:0.7rem;opacity:.6">🕒</span> ${escHtml(lastUpdated)}</td>
-            <td class="cell-action"><button class="btn-variants" onclick="event.stopPropagation();toggleVariantGroup('${catId}')">▼ variants</button></td>
-          </tr>
-          <tr id="${catId}" style="display:none">
-            <td colspan="10" style="padding:8px 0 4px;border-top:none;background:var(--surface2)">
-              <table class="variant-sub-table">
-                <thead><tr>
-                  <th>Code</th><th>Variant</th><th>Stock</th><th>Price</th><th>Low Stock At</th><th>Date Added</th><th></th>
-                </tr></thead>
-                <tbody>${variantRows}</tbody>
-              </table>
-            </td>
-          </tr>`);
+      const tbody2 = document.getElementById('productsBody');
+      if (tbody2 && !tbody2._iflowFetching) {
+        tbody2._iflowFetching = true;
+        tbody2.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--muted);font-size:0.88rem;">Loading your products from cloud…</td></tr>';
+        fetch('/api/products')
+          .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
+          .then(function(data) {
+            tbody2._iflowFetching = false;
+            const prods = Array.isArray(data && data.products) ? data.products : [];
+            if (prods.length) {
+              products.length = 0;
+              prods.forEach(function(p){ products.push(p); });
+              localStorage.setItem('iflow_products', JSON.stringify(products));
+              renderProducts();
+            } else {
+              tbody2.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem;">No products yet — use Quick Add or "+ Add Product" above.</td></tr>';
+            }
+          })
+          .catch(function() {
+            tbody2._iflowFetching = false;
+            tbody2.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem;">Could not load products. <button onclick="renderProducts()" style="margin-left:8px;padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;">↻ Retry</button></td></tr>';
+          });
       }
-    });
-    tbody.innerHTML = rows.join('');
-    // Keep the WhatsApp webhook URL current whenever the product list changes
-    _syncAutoReplyUrl();
+      return;
+    }
+
+    // ── 3. Render — fully wrapped in try/catch so any error shows a message ──
+    try {
+      const dateEl = document.getElementById('productsDate');
+      if (dateEl) dateEl.textContent = new Date().toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+      const cur = getCurrency();
+      const query = (document.getElementById('productsSearch')?.value || '').toLowerCase();
+      const settings = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+      const defThresh = parseInt(settings.lowStockThreshold) || 5;
+
+      const tokens = query.split(/\s+/).filter(Boolean);
+      const filtered = products.filter(p => {
+        if (!tokens.length) return true;
+        const hay = [p.name, p.code, p.type, p.category, p.variant].join(' ').toLowerCase();
+        return tokens.every(tok => hay.includes(tok));
+      });
+
+      const totalVal = filtered.reduce((s,p) => s + (p.stockQty||0) * (p.unitPrice||0), 0);
+      const lowCount = filtered.filter(p => (p.stockQty||0) <= (p.lowStockThreshold || defThresh)).length;
+
+      _refreshProfitStat();
+
+      const stEl = document.getElementById('statTotalProducts'); if (stEl) stEl.textContent = filtered.length;
+      const svEl = document.getElementById('statStockValue');    if (svEl) svEl.textContent = cur + fmtComma(totalVal);
+      const slEl = document.getElementById('statLowStockCount'); if (slEl) slEl.textContent = lowCount;
+      const badge = document.getElementById('lowStockBadge');
+      if (badge) { badge.textContent = lowCount; badge.style.display = lowCount > 0 ? '' : 'none'; }
+
+      const tbody = document.getElementById('productsBody');
+      if (!tbody) return;
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem;">No products yet — use Quick Add or "+ Add Product" above.</td></tr>`;
+        return;
+      }
+
+      // Group by category
+      const groups = new Map();
+      filtered.forEach(p => {
+        const cat = p.category || p.name;
+        if (!groups.has(cat)) groups.set(cat, []);
+        groups.get(cat).push(p);
+      });
+
+      let rowNum = 1;
+      const rows = [];
+      groups.forEach((items, cat) => {
+        if (items.length === 1 && !items[0].variant) {
+          const p = items[0];
+          const realIdx = products.indexOf(p);
+          const isLow = (p.stockQty||0) <= (p.lowStockThreshold || defThresh);
+          rows.push(`<tr class="${isLow ? 'low-stock-row' : ''}" style="transition:opacity .35s,background .35s" id="prod-row-${realIdx}" data-index="${realIdx}">
+            <td class="row-num">${rowNum++}</td>
+            <td style="padding:8px 12px"><span class="prod-code-cell">${escHtml(p.code)}</span></td>
+            <td style="padding:10px 14px;font-weight:600;color:var(--text)">${escHtml(p.name)}</td>
+            <td style="padding:10px 14px;color:var(--muted)">${escHtml(p.type||'—')}</td>
+            <td class="cell-datetime" style="text-align:center;color:${isLow?'#e53e3e':'inherit'};font-weight:${isLow?700:400}">${p.stockQty||0}${isLow?' ⚠':''}</td>
+            <td class="cell-datetime">${cur}${fmtComma(p.unitPrice)}</td>
+            <td class="cell-subtotal" data-val="${(p.stockQty||0)*(p.unitPrice||0)}">${cur}${fmtComma((p.stockQty||0)*(p.unitPrice||0))}</td>
+            <td class="cell-datetime">${p.lowStockThreshold||defThresh}</td>
+            <td class="cell-datetime">${escHtml(p.dateAdded||'')}</td>
+            <td class="cell-action"><button class="btn-terminate" onclick="confirmDeleteProduct(${realIdx})" title="Remove">&#9632;</button></td>
+          </tr>`);
+        } else {
+          const totalStock = items.reduce((s,p) => s + (p.stockQty||0), 0);
+          const anyLow = items.some(p => (p.stockQty||0) <= (p.lowStockThreshold || defThresh));
+          const catId = 'vg-' + cat.replace(/[^a-zA-Z0-9]/g,'_');
+          const lastUpdated = items.map(p => p.lastUpdated || p.dateAdded || '').filter(Boolean).sort((a,b) => new Date(b) - new Date(a))[0] || '—';
+          const variantRows = items.map(p => {
+            const realIdx = products.indexOf(p);
+            const isLow = (p.stockQty||0) <= (p.lowStockThreshold || defThresh);
+            const hasCond = !!(p.condition);
+            const condBadge = hasCond ? `<span style="color:#f59e0b;font-size:.7rem;font-weight:600;display:block;margin-top:2px">⚠ ${escHtml(p.condition)}</span>` : '';
+            return `<tr class="${isLow ? 'variant-row-low' : ''}" data-index="${realIdx}" style="${hasCond ? 'background:rgba(245,158,11,.04)' : ''}">
+              <td><span class="prod-code-cell" style="${hasCond ? 'color:#f59e0b' : ''}">${escHtml(p.code)}</span></td>
+              <td style="font-weight:600;color:var(--text)">${escHtml(p.variant || p.name)}${condBadge}</td>
+              <td style="color:${isLow?'#e53e3e':'inherit'};font-weight:${isLow?700:400}">${p.stockQty||0}${isLow?' ⚠':''}</td>
+              <td>${cur}${fmtComma(p.unitPrice)}</td>
+              <td>${p.lowStockThreshold||defThresh}</td>
+              <td>${escHtml(p.dateAdded||'')}</td>
+              <td class="cell-action"><button class="btn-terminate" onclick="confirmDeleteProduct(${realIdx})" title="Remove">&#9632;</button></td>
+            </tr>`;
+          }).join('');
+          rows.push(`
+            <tr class="category-header-row" onclick="toggleVariantGroup('${catId}')">
+              <td class="row-num">${rowNum++}</td>
+              <td style="padding:8px 12px" colspan="2">
+                <span style="font-weight:700;color:var(--text)">${escHtml(cat)}</span>
+                <span style="font-size:0.74rem;color:var(--muted);margin-left:8px">${items.length} variant${items.length>1?'s':''}</span>
+              </td>
+              <td style="padding:10px 14px;color:var(--muted)">—</td>
+              <td class="cell-datetime" style="text-align:center;color:${anyLow?'#e53e3e':'inherit'};font-weight:${anyLow?700:400}">${totalStock}${anyLow?' ⚠':''}</td>
+              <td class="cell-datetime">—</td>
+              <td class="cell-subtotal">—</td>
+              <td class="cell-datetime">—</td>
+              <td class="cell-datetime" title="Last updated"><span style="font-size:0.7rem;opacity:.6">🕒</span> ${escHtml(lastUpdated)}</td>
+              <td class="cell-action"><button class="btn-variants" onclick="event.stopPropagation();toggleVariantGroup('${catId}')">▼ variants</button></td>
+            </tr>
+            <tr id="${catId}" style="display:none">
+              <td colspan="10" style="padding:8px 0 4px;border-top:none;background:var(--surface2)">
+                <table class="variant-sub-table">
+                  <thead><tr>
+                    <th>Code</th><th>Variant</th><th>Stock</th><th>Price</th><th>Low Stock At</th><th>Date Added</th><th></th>
+                  </tr></thead>
+                  <tbody>${variantRows}</tbody>
+                </table>
+              </td>
+            </tr>`);
+        }
+      });
+      tbody.innerHTML = rows.join('');
+      _syncAutoReplyUrl();
+    } catch(err) {
+      console.error('[iFlow] renderProducts error:', err);
+      const tbody = document.getElementById('productsBody');
+      if (tbody) tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem;">Error: ${escHtml(String(err.message))} — <button onclick="renderProducts()" style="padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.8rem;">Retry</button></td></tr>`;
+    }
   }
 
   function toggleVariantGroup(catId) {

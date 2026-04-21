@@ -73,7 +73,21 @@ export default async function handler(req, res) {
   const serverDetectedPayment = looksLikePaymentProof && hasActiveOrderInMemory;
 
   if (apiKey && Body.trim()) {
-    let aiReply = await _callAi(Body, ProfileName, storeName, apiKey, productCtx, history, paymentInfo);
+    // If this looks like a short variant/colour selection and the previous assistant message
+    // was listing options, inject that context explicitly so the AI can't confuse products.
+    const lastAssistantMsg = history.filter(m => m.role === 'assistant').pop();
+    const bodyWordCount = Body.trim().split(/\s+/).length;
+    const looksLikeSelection = bodyWordCount <= 8 &&
+      /\b(green|black|white|red|blue|gold|silver|first|second|third|one|two|three|1st|2nd|3rd|the one|that one|this one|option\s*\d|smaller|bigger|cheaper|expensive|that|this)\b/i.test(Body);
+    const lastMsgOfferedOptions = lastAssistantMsg &&
+      /which (one|would you|do you)|two options|both options|we have.*and.*which|option 1|option 2|\bor\b.*\bwhich\b/i.test(lastAssistantMsg.content);
+
+    let messageToAi = Body;
+    if (looksLikeSelection && lastMsgOfferedOptions) {
+      messageToAi = `[Context: I just offered these options to the customer: "${lastAssistantMsg.content.slice(0, 300)}". The customer is now choosing from that list.]\nCustomer message: ${Body}`;
+    }
+
+    let aiReply = await _callAi(messageToAi, ProfileName, storeName, apiKey, productCtx, history, paymentInfo);
 
     // Guard: if AI greeted on a non-greeting message, retry with explicit nudge
     if (aiReply && !isPureGreeting && /^Hi[!,]?\s+How can I help/i.test(aiReply.trim())) {
@@ -88,6 +102,15 @@ export default async function handler(req, res) {
     if (aiClaimsPayment && !hasActiveOrderInMemory) {
       const correction = `[System: CORRECTION — no order has been placed yet in this conversation. "${Body}" is a purchase confirmation ("yes/ok/sure"), NOT payment. The customer wants to buy but hasn't paid. You must ask for their delivery address next. Do NOT say payment received.]`;
       aiReply = await _callAi(correction + '\n' + Body, ProfileName, storeName, apiKey, productCtx, history, paymentInfo) || aiReply;
+    }
+
+    // Guard: if AI says "no order placed" or "need to choose" but history shows an active ORDER, correct it
+    const aiConfusedAboutOrder = aiReply && /haven.t ordered|no order.*placed|need to (choose|select|pick|decide)|still need to (choose|select)|you haven.t (placed|made|selected)/i.test(aiReply);
+    if (aiConfusedAboutOrder && hasActiveOrderInMemory) {
+      const lastOrder = history.filter(m => /ORDER ALERT:/i.test(m.content)).pop();
+      const orderCtx = lastOrder ? lastOrder.content.slice(0, 300) : 'See history for confirmed order';
+      const fix = `[System: CORRECTION — an order WAS confirmed earlier in this conversation. Do NOT ask the customer to choose again. Confirmed order evidence from history: "${orderCtx}". The customer's current message is: "${Body}". Respond appropriately to this — if they said they paid, confirm payment received.]`;
+      aiReply = await _callAi(fix + '\n' + Body, ProfileName, storeName, apiKey, productCtx, history, paymentInfo) || aiReply;
     }
 
     if (aiReply) {
@@ -197,6 +220,19 @@ STYLE:
 - Max 3-4 sentences. Never start with "Certainly" or "Of course" or "How can I help?".
 - ONLY greet ("Hi! How can I help?") if the message is purely a greeting — Hi, Hello, Good morning, Hey. Nothing else triggers a greeting.
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SELECTION RULE — HIGHEST PRIORITY — READ BEFORE ANYTHING ELSE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SITUATION: You JUST offered specific options (e.g. "We have iPhone 12 Black ₦100 and iPhone 12 Green ₦200 — which?")
+THEN: Customer replies with a short selection ("the green one", "option 2", "the black one", "that one", "the second", "the cheaper one", "the first")
+MANDATORY: You MUST confirm the matching item from YOUR OFFERED LIST. Period.
+
+WRONG: Customer picks "the green one" from your iPhone 12 list → you talk about green AirPods Max. NEVER.
+RIGHT:  Customer picks "the green one" from your iPhone 12 list → confirm iPhone 12 Green ₦200. DONE.
+
+This rule overrides catalogue search. When customer is choosing from YOUR list, DO NOT search the catalogue for the colour/feature — match it to what YOU offered.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 PRODUCT KNOWLEDGE:
 - Catalogue above is the only truth for availability, prices and stock.
 - Fuzzy match aggressively: "iphone13pro" = "iPhone 13 Pro", "xr" = "XR", spelling errors fine.
@@ -210,11 +246,7 @@ CONVERSATION INTELLIGENCE — CRITICAL:
 - "I want 1", "order it", "yes", "that one", "give me that" = they mean the product last discussed. NEVER ask "what would you like to order?" when context makes it obvious.
 - If address was already given, don't ask again. If item was already confirmed, move to next missing piece.
 - Connect the dots like a human would. Piece together fragmented messages naturally.
-
-SELECTION RULE — CRITICAL:
-- If you just listed 2+ options (e.g. "We have iPhone 12 Black and iPhone 12 Green — which?") and the customer picks one ("the green one", "option 2", "the second", "that one") → they are choosing from YOUR LIST. Do NOT search the catalogue for something else.
-- Confirm EXACTLY the item from your offered list. Never substitute a different product just because it shares a colour or feature.
-- Example: you offered [iPhone 12 Black ₦100, iPhone 12 Green ₦200]. Customer says "the green one" → confirm iPhone 12 Green at ₦200. Do not offer any iPhone 13.
+- If history shows a completed ORDER ALERT for an item, that order is DONE. Do not ask the customer to re-select or re-confirm it.
 
 BRAND NEW RULE:
 - "brand new", "new", "sealed" as a condition means the product is perfect — never describe it as having defects or limitations.

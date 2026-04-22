@@ -67,9 +67,14 @@ export default async function handler(req, res) {
 
   // Server-side payment proof detection — don't rely solely on AI appending PAYMENT ALERT
   const looksLikePaymentProof = /\b(paid|payment|transferred|sent money|receipt|proof|screenshot|transfer|deposited|i've paid|i have paid|check it|already paid|i don pay|i done pay|i send am|e don done|money don enter|i dey come pick|i'll pick it up|coming to pick|pick it up|picking up|on my way|i dey road|i dey come|collecting it|self pickup|will pick up|come get it)\b/i.test(Body);
-  const hasActiveOrderInMemory = history.some(m =>
-    /ORDER ALERT:|Got it.*✅|delivery address|please pay|make payment/i.test(m.content)
-  );
+  // "Active" order = an ORDER ALERT that has NO subsequent PAYMENT ALERT.
+  // If the last PAYMENT ALERT comes after the last ORDER ALERT, the order is DONE.
+  let _lastOrderIdx = -1, _lastPaymentIdx = -1;
+  history.forEach((m, i) => {
+    if (/ORDER ALERT:/i.test(m.content))   _lastOrderIdx   = i;
+    if (/PAYMENT ALERT:/i.test(m.content)) _lastPaymentIdx = i;
+  });
+  const hasActiveOrderInMemory = _lastOrderIdx !== -1 && _lastOrderIdx > _lastPaymentIdx;
   const serverDetectedPayment = looksLikePaymentProof && hasActiveOrderInMemory;
 
   if (apiKey && Body.trim()) {
@@ -82,9 +87,21 @@ export default async function handler(req, res) {
     const lastMsgOfferedOptions = lastAssistantMsg &&
       /which (one|would you|do you)|two options|both options|we have.*and.*which|option 1|option 2|\bor\b.*\bwhich\b/i.test(lastAssistantMsg.content);
 
+    // Extract last known delivery address from ORDER ALERT history
+    const lastOrderWithAddr = history.filter(m => /ORDER ALERT:/i.test(m.content) && /Address:/i.test(m.content)).pop();
+    const lastKnownAddress  = lastOrderWithAddr
+      ? (lastOrderWithAddr.content.match(/Address:\s*([^|\n]+)/i) || [])[1]?.trim()
+      : null;
+
     let messageToAi = Body;
     if (looksLikeSelection && lastMsgOfferedOptions) {
       messageToAi = `[Context: I just offered these options to the customer: "${lastAssistantMsg.content.slice(0, 300)}". The customer is now choosing from that list.]\nCustomer message: ${Body}`;
+    }
+
+    // "Usual address" injection — resolve before AI sees the message
+    const looksLikeUsualAddress = /\b(usual|same|last|previous|normal|regular)\b.{0,20}\b(address|place|location)\b|\bmy address\b|\bdeliver.*same\b|\bsame.*address\b/i.test(Body);
+    if (looksLikeUsualAddress && lastKnownAddress) {
+      messageToAi = `[Context: Customer said "my usual address" — the last address on file is: "${lastKnownAddress}". Use this address directly without asking any questions.]\nCustomer: ${Body}`;
     }
 
     // Proactive order injection for payment messages — inject confirmed order before AI call
@@ -256,7 +273,14 @@ CONVERSATION INTELLIGENCE — CRITICAL:
 - "I want 1", "order it", "yes", "that one", "give me that" = they mean the product last discussed. NEVER ask "what would you like to order?" when context makes it obvious.
 - If address was already given, don't ask again. If item was already confirmed, move to next missing piece.
 - Connect the dots like a human would. Piece together fragmented messages naturally.
-- If history shows a completed ORDER ALERT for an item, that order is DONE. Do not ask the customer to re-select or re-confirm it.
+- If history shows a completed ORDER ALERT followed by a PAYMENT ALERT, that order is FULLY DONE. Start fresh — do not reference it as if it's still pending.
+- Focus only on what the customer is asking for RIGHT NOW.
+
+ADDRESS RULES — DO NOT BE NOSY:
+- Customer gives a specific address → use it immediately. Do NOT ask questions or confirm it back.
+- Customer says "my usual address" / "same address" / "deliver there" → use the address in the [Context] injection above. Do NOT ask which address or compare old addresses. Just use it.
+- Customer says nothing about address yet → ask once: "What delivery address should I send it to?"
+- NEVER bring up or compare multiple old addresses. Only ever use the most recent one.
 
 BRAND NEW RULE:
 - "brand new", "new", "sealed" as a condition means the product is perfect — never describe it as having defects or limitations.
@@ -376,8 +400,11 @@ async function _handlePaymentAlert(orderLine, customerFrom, customerName, storeN
       if (r.ok) orders = await r.json();
     } catch {}
     if (!Array.isArray(orders)) orders = [];
-    // Dedup: skip if this customer already has a pending payment_proof order
-    if (orders.some(o => o.customerNum === customerFrom && o.status === 'payment_proof')) return;
+    // Dedup: skip only if this customer sent a payment_proof in the last 10 minutes
+    // (prevents double-alerts from accidental double-sends, but allows new orders hours later)
+    const tenMinsAgo = Date.now() - 10 * 60 * 1000;
+    if (orders.some(o => o.customerNum === customerFrom && o.status === 'payment_proof'
+        && new Date(o.createdAt).getTime() > tenMinsAgo)) return;
     orders.push({
       id:           'order_' + Date.now(),
       customerNum:  customerFrom,

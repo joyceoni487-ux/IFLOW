@@ -7088,6 +7088,7 @@ function checkAuth() {
 var _currentPayAlert = null;
 var _orderPollingStarted = false;
 var _chimeInterval = null;
+var _dismissedPayAlerts = new Set(); // session-local; prevents dismissed alerts from resurging
 
 function _playNotificationChime() {
   try {
@@ -7177,7 +7178,7 @@ function _dismissPayAlert() {
   ['payAlertPanel','payAlertBackdrop','payAlertBanner'].forEach(function(id) {
     var el = document.getElementById(id); if (el) el.style.display = 'none';
   });
-  // Don't call dismiss API — keep order as payment_proof so it re-appears on next poll
+  if (_currentPayAlert && _currentPayAlert.id) _dismissedPayAlerts.add(_currentPayAlert.id);
   _currentPayAlert = null;
 }
 
@@ -7374,7 +7375,9 @@ async function _checkPendingOrders() {
     var orders = await r.json();
     if (!Array.isArray(orders)) return;
 
-    var pending = orders.filter(function(o){ return o.status === 'payment_proof'; });
+    var pending = orders.filter(function(o){
+      return o.status === 'payment_proof' && !_dismissedPayAlerts.has(o.id);
+    });
     _updatePayBadge(pending.length);
     if (pending.length > 0) _showPaymentAlert(pending[0]);
 

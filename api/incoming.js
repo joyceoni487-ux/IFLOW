@@ -75,12 +75,36 @@ export default async function handler(req, res) {
     if (/PAYMENT ALERT:/i.test(m.content)) _lastPaymentIdx = i;
   });
   const hasActiveOrderInMemory = _lastOrderIdx !== -1 && _lastOrderIdx > _lastPaymentIdx;
-  const serverDetectedPayment = looksLikePaymentProof && hasActiveOrderInMemory;
 
   if (apiKey && Body.trim()) {
-    // If this looks like a short variant/colour selection and the previous assistant message
-    // was listing options, inject that context explicitly so the AI can't confuse products.
-    const lastAssistantMsg = history.filter(m => m.role === 'assistant').pop();
+    // Prune history for AI: discard everything up to and including the last PAYMENT ALERT.
+    // This strips completed-order context so old MacBook/AirPods chatter can't pollute
+    // a brand-new Samsung conversation.
+    const historyForAi = _lastPaymentIdx >= 0 ? history.slice(_lastPaymentIdx + 1) : history;
+
+    // ── PAYMENT BYPASS — deterministic, no AI involved ────────────────────────
+    // When the customer clearly says "paid" and we have an unconfirmed ORDER ALERT,
+    // skip the AI entirely. The AI is too unreliable here — it ignores injections.
+    if (looksLikePaymentProof && hasActiveOrderInMemory) {
+      const lastOrder = history.filter(m => /ORDER ALERT:/i.test(m.content)).pop();
+      const orderLine = lastOrder
+        ? ((lastOrder.content.match(/ORDER ALERT:(.*)/i) || [])[1]?.trim() || lastOrder.content.slice(0, 200))
+        : `${ProfileName || 'Customer'} | details in conversation`;
+      const confirmMsg = `Got it! 🙏 Payment received — our team is verifying now, you'll hear from us shortly.`;
+      const fullReply  = confirmMsg + '\nPAYMENT ALERT: ' + orderLine;
+      const sid   = process.env.TWILIO_SID   || '';
+      const token = process.env.TWILIO_TOKEN || '';
+      _handlePaymentAlert(orderLine, From, ProfileName, storeName, sid, token, notifyNum, riderEmails).catch(() => {});
+      _saveChatMemory(From, blobBase, [
+        ...history,
+        { role: 'user',      content: Body },
+        { role: 'assistant', content: fullReply }
+      ]).catch(() => {});
+      return res.status(200).send(`<Response><Message>${escapeXml(confirmMsg)}</Message></Response>`);
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
+    const lastAssistantMsg = historyForAi.filter(m => m.role === 'assistant').pop();
     const bodyWordCount = Body.trim().split(/\s+/).length;
     const looksLikeSelection = bodyWordCount <= 8 &&
       /\b(green|black|white|red|blue|gold|silver|first|second|third|one|two|three|1st|2nd|3rd|the one|that one|this one|option\s*\d|smaller|bigger|cheaper|expensive|that|this)\b/i.test(Body);
@@ -104,40 +128,30 @@ export default async function handler(req, res) {
       messageToAi = `[Context: Customer said "my usual address" — the last address on file is: "${lastKnownAddress}". Use this address directly without asking any questions.]\nCustomer: ${Body}`;
     }
 
-    // Proactive order injection for payment messages — inject confirmed order before AI call
-    // so AI can NEVER say "you haven't ordered" or "select an item first" when order exists
-    if (looksLikePaymentProof && hasActiveOrderInMemory) {
-      const lastOrder = history.filter(m => /ORDER ALERT:/i.test(m.content)).pop();
-      if (lastOrder) {
-        const orderDetails = (lastOrder.content.match(/ORDER ALERT:(.*)/i) || [])[1]?.trim() || lastOrder.content.slice(0, 200);
-        messageToAi = `[System: CONFIRMED ORDER ON FILE — "${orderDetails}". This customer is saying they have paid for THIS order. Respond ONLY with payment received confirmation. Do NOT ask them to select an item, place an order, or choose anything.]\nCustomer: ${Body}`;
-      }
-    }
-
-    let aiReply = await _callAi(messageToAi, ProfileName, storeName, apiKey, productCtx, history, paymentInfo);
+    let aiReply = await _callAi(messageToAi, ProfileName, storeName, apiKey, productCtx, historyForAi, paymentInfo);
 
     // Guard: if AI greeted on a non-greeting message, retry with explicit nudge
     if (aiReply && !isPureGreeting && /^Hi[!,]?\s+How can I help/i.test(aiReply.trim())) {
-      const nudge = history.length
+      const nudge = historyForAi.length
         ? `[System: The customer just said "${Body}". This continues the conversation — do NOT greet. Respond in context.]`
         : `[System: "${Body}" is not a greeting. Ask what they need help with.]`;
-      aiReply = await _callAi(nudge + '\n' + Body, ProfileName, storeName, apiKey, productCtx, history, paymentInfo) || aiReply;
+      aiReply = await _callAi(nudge + '\n' + Body, ProfileName, storeName, apiKey, productCtx, historyForAi, paymentInfo) || aiReply;
     }
 
-    // Guard: if AI triggered "payment received" but no ORDER has been placed yet, correct it
+    // Guard: if AI claimed payment received but no active order in history, correct it
     const aiClaimsPayment = aiReply && /payment received|our team is verifying|PAYMENT ALERT:/i.test(aiReply);
     if (aiClaimsPayment && !hasActiveOrderInMemory) {
-      const correction = `[System: CORRECTION — no order has been placed yet in this conversation. "${Body}" is a purchase confirmation ("yes/ok/sure"), NOT payment. The customer wants to buy but hasn't paid. You must ask for their delivery address next. Do NOT say payment received.]`;
-      aiReply = await _callAi(correction + '\n' + Body, ProfileName, storeName, apiKey, productCtx, history, paymentInfo) || aiReply;
+      const correction = `[System: CORRECTION — no order has been confirmed yet. "${Body}" is a purchase confirmation, NOT payment. Ask for the delivery address next. Do NOT say payment received.]`;
+      aiReply = await _callAi(correction + '\n' + Body, ProfileName, storeName, apiKey, productCtx, historyForAi, paymentInfo) || aiReply;
     }
 
-    // Guard: if AI says "no order placed" or "need to choose" but history shows an active ORDER, correct it
+    // Guard: if AI says "need to choose / haven't ordered" but active order exists, correct it
     const aiConfusedAboutOrder = aiReply && /haven.t ordered|no order.*placed|need to (choose|select|pick|decide)|still need to (choose|select)|you haven.t (placed|made|selected)|can.t pay without|cannot pay without|(select|choose|pick).*first|without (selecting|choosing|picking)/i.test(aiReply);
     if (aiConfusedAboutOrder && hasActiveOrderInMemory) {
       const lastOrder = history.filter(m => /ORDER ALERT:/i.test(m.content)).pop();
       const orderCtx = lastOrder ? lastOrder.content.slice(0, 300) : 'See history for confirmed order';
-      const fix = `[System: CORRECTION — an order WAS confirmed earlier in this conversation. Do NOT ask the customer to choose again. Confirmed order evidence from history: "${orderCtx}". The customer's current message is: "${Body}". Respond appropriately to this — if they said they paid, confirm payment received.]`;
-      aiReply = await _callAi(fix + '\n' + Body, ProfileName, storeName, apiKey, productCtx, history, paymentInfo) || aiReply;
+      const fix = `[System: CORRECTION — an order WAS already confirmed. Evidence: "${orderCtx}". Customer said: "${Body}". Respond appropriately — do NOT ask them to re-select or re-confirm.]`;
+      aiReply = await _callAi(fix + '\n' + Body, ProfileName, storeName, apiKey, productCtx, historyForAi, paymentInfo) || aiReply;
     }
 
     if (aiReply) {
@@ -148,15 +162,11 @@ export default async function handler(req, res) {
         _notifyOwner(aiReply, From, ProfileName, storeName, sid, token, notifyNum).catch(() => {});
       }
 
-      // Trigger payment alert if AI detected it OR server-side detection fired
-      if (/PAYMENT ALERT:/i.test(aiReply) || serverDetectedPayment) {
-        // Build alert line from AI reply or extract from history
-        const alertFromAi = (aiReply.match(/PAYMENT ALERT:(.*)/i) || [])[1]?.trim();
-        const orderFromHistory = history.filter(m => /ORDER ALERT:/i.test(m.content)).pop();
-        const orderLine = alertFromAi
-          || (orderFromHistory ? (orderFromHistory.content.match(/ORDER ALERT:(.*)/i) || [])[1]?.trim() : null)
+      // AI-triggered payment alert (edge case: AI fires PAYMENT ALERT without server bypass)
+      if (/PAYMENT ALERT:/i.test(aiReply)) {
+        const alertFromAi = (aiReply.match(/PAYMENT ALERT:(.*)/i) || [])[1]?.trim()
           || `${ProfileName || 'Customer'} | details in conversation`;
-        _handlePaymentAlert(orderLine, From, ProfileName, storeName, sid, token, notifyNum, riderEmails).catch(() => {});
+        _handlePaymentAlert(alertFromAi, From, ProfileName, storeName, sid, token, notifyNum, riderEmails).catch(() => {});
       }
 
       const customerReply = aiReply
@@ -164,7 +174,7 @@ export default async function handler(req, res) {
         .replace(/\n?PAYMENT ALERT:.*$/im, '')
         .trim();
 
-      // Save full aiReply (ORDER ALERT preserved) so payment fallback can find order details
+      // Save full aiReply (ORDER ALERT preserved) so payment bypass can find order details later
       _saveChatMemory(From, blobBase, [
         ...history,
         { role: 'user',      content: Body },

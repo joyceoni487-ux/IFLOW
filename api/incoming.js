@@ -94,12 +94,14 @@ export default async function handler(req, res) {
       const fullReply  = confirmMsg + '\nPAYMENT ALERT: ' + orderLine;
       const sid   = process.env.TWILIO_SID   || '';
       const token = process.env.TWILIO_TOKEN || '';
-      _handlePaymentAlert(orderLine, From, ProfileName, storeName, sid, token, notifyNum, riderEmails).catch(() => {});
-      _saveChatMemory(From, blobBase, [
-        ...history,
-        { role: 'user',      content: Body },
-        { role: 'assistant', content: fullReply }
-      ]).catch(() => {});
+      await Promise.allSettled([
+        _handlePaymentAlert(orderLine, From, ProfileName, storeName, sid, token, notifyNum, riderEmails),
+        _saveChatMemory(From, blobBase, [
+          ...history,
+          { role: 'user',      content: Body },
+          { role: 'assistant', content: fullReply }
+        ])
+      ]);
       return res.status(200).send(`<Response><Message>${escapeXml(confirmMsg)}</Message></Response>`);
     }
     // ─────────────────────────────────────────────────────────────────────────

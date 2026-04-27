@@ -51,7 +51,12 @@ export default async function handler(req, res) {
   const productCtx     = blobData.ctx || ctxFromUrl || (process.env.PRODUCTS_JSON || '');
   const paymentInfo    = blobData.paymentInfo || {};
   const riderEmails    = blobData.riderEmails || [];
-  const negotiationPct = blobData.negotiationPct ?? (parseFloat(process.env.NEGOTIATION_FLOOR_PCT) || 0);
+  const negotiationPct    = blobData.negotiationPct ?? (parseFloat(process.env.NEGOTIATION_FLOOR_PCT) || 0);
+  const loyalDiscountOn   = blobData.loyalDiscountOn  || false;
+  const loyalDiscountAmt  = blobData.loyalDiscountAmt || 0;
+  const loyalDiscountType = blobData.loyalDiscountType || 'pct';
+  const hasEverOrdered    = history.some(m => /ORDER ALERT:/i.test(m.content));
+  const isLoyalCustomer   = loyalDiscountOn && loyalDiscountAmt > 0 && hasEverOrdered;
 
   console.log(JSON.stringify({
     event: 'twilio_incoming', sid: MessageSid, from: From,
@@ -131,21 +136,21 @@ export default async function handler(req, res) {
       messageToAi = `[Context: Customer said "my usual address" — the last address on file is: "${lastKnownAddress}". Use this address directly without asking any questions.]\nCustomer: ${Body}`;
     }
 
-    let aiReply = await _callAi(messageToAi, ProfileName, storeName, apiKey, productCtx, historyForAi, paymentInfo, negotiationPct);
+    let aiReply = await _callAi(messageToAi, ProfileName, storeName, apiKey, productCtx, historyForAi, paymentInfo, negotiationPct, isLoyalCustomer, loyalDiscountAmt, loyalDiscountType);
 
     // Guard: if AI greeted on a non-greeting message, retry with explicit nudge
     if (aiReply && !isPureGreeting && /^Hi[!,]?\s+How can I help/i.test(aiReply.trim())) {
       const nudge = historyForAi.length
         ? `[System: The customer just said "${Body}". This continues the conversation — do NOT greet. Respond in context.]`
         : `[System: "${Body}" is not a greeting. Ask what they need help with.]`;
-      aiReply = await _callAi(nudge + '\n' + Body, ProfileName, storeName, apiKey, productCtx, historyForAi, paymentInfo, negotiationPct) || aiReply;
+      aiReply = await _callAi(nudge + '\n' + Body, ProfileName, storeName, apiKey, productCtx, historyForAi, paymentInfo, negotiationPct, isLoyalCustomer, loyalDiscountAmt, loyalDiscountType) || aiReply;
     }
 
     // Guard: if AI claimed payment received but no active order in history, correct it
     const aiClaimsPayment = aiReply && /payment received|our team is verifying|PAYMENT ALERT:/i.test(aiReply);
     if (aiClaimsPayment && !hasActiveOrderInMemory) {
       const correction = `[System: CORRECTION — no order has been confirmed yet. "${Body}" is a purchase confirmation, NOT payment. Ask for the delivery address next. Do NOT say payment received.]`;
-      aiReply = await _callAi(correction + '\n' + Body, ProfileName, storeName, apiKey, productCtx, historyForAi, paymentInfo, negotiationPct) || aiReply;
+      aiReply = await _callAi(correction + '\n' + Body, ProfileName, storeName, apiKey, productCtx, historyForAi, paymentInfo, negotiationPct, isLoyalCustomer, loyalDiscountAmt, loyalDiscountType) || aiReply;
     }
 
     // Guard: if AI says "need to choose / haven't ordered" but active order exists, correct it
@@ -154,7 +159,7 @@ export default async function handler(req, res) {
       const lastOrder = history.filter(m => /ORDER ALERT:/i.test(m.content)).pop();
       const orderCtx = lastOrder ? lastOrder.content.slice(0, 300) : 'See history for confirmed order';
       const fix = `[System: CORRECTION — an order WAS already confirmed. Evidence: "${orderCtx}". Customer said: "${Body}". Respond appropriately — do NOT ask them to re-select or re-confirm.]`;
-      aiReply = await _callAi(fix + '\n' + Body, ProfileName, storeName, apiKey, productCtx, historyForAi, paymentInfo, negotiationPct) || aiReply;
+      aiReply = await _callAi(fix + '\n' + Body, ProfileName, storeName, apiKey, productCtx, historyForAi, paymentInfo, negotiationPct, isLoyalCustomer, loyalDiscountAmt, loyalDiscountType) || aiReply;
     }
 
     if (aiReply) {
@@ -172,9 +177,25 @@ export default async function handler(req, res) {
         _handlePaymentAlert(alertFromAi, From, ProfileName, storeName, sid, token, notifyNum, riderEmails).catch(() => {});
       }
 
+      // Complaint alert
+      if (/COMPLAINT ALERT:/i.test(aiReply)) {
+        const summary = (aiReply.match(/COMPLAINT ALERT:(.*)/i) || [])[1]?.trim()
+          || `${ProfileName || 'Customer'} has a complaint`;
+        _saveAlert('complaint', summary, From, ProfileName, sid, token, notifyNum).catch(() => {});
+      }
+
+      // Price escalation
+      if (/ESCALATE ALERT:/i.test(aiReply)) {
+        const summary = (aiReply.match(/ESCALATE ALERT:(.*)/i) || [])[1]?.trim()
+          || `${ProfileName || 'Customer'} wants to negotiate further`;
+        _saveAlert('negotiation', summary, From, ProfileName, sid, token, notifyNum).catch(() => {});
+      }
+
       const customerReply = aiReply
         .replace(/\n?ORDER ALERT:.*$/im, '')
         .replace(/\n?PAYMENT ALERT:.*$/im, '')
+        .replace(/\n?COMPLAINT ALERT:.*$/im, '')
+        .replace(/\n?ESCALATE ALERT:.*$/im, '')
         .trim();
 
       // Save full aiReply (ORDER ALERT preserved) so payment bypass can find order details later
@@ -235,7 +256,7 @@ async function _saveChatMemory(from, blobBase, messages) {
   });
 }
 
-async function _callAi(message, name, storeName, apiKey, productCtx = '', history = [], paymentInfo = {}, negotiationPct = 0) {
+async function _callAi(message, name, storeName, apiKey, productCtx = '', history = [], paymentInfo = {}, negotiationPct = 0, isLoyalCustomer = false, loyalDiscountAmt = 0, loyalDiscountType = 'pct') {
   const productSection = productCtx
     ? `\nCurrent product catalogue (name, price, stock):\n${productCtx}\n\n` +
       `Stock rules:\n` +
@@ -259,6 +280,13 @@ STYLE:
 - Sound 100% human. Friendly, direct. Nigerian English / Naija pidgin totally fine.
 - Max 3-4 sentences. Never start with "Certainly" or "Of course" or "How can I help?".
 - ONLY greet ("Hi! How can I help?") if the message is purely a greeting — Hi, Hello, Good morning, Hey. Nothing else triggers a greeting.
+
+INTELLIGENCE — READ THIS BEFORE EVERYTHING ELSE:
+- You understand intent, not just keywords. "make am 60k" = negotiate to 60,000 naira. "I no go pay that" = they find the price too high. "e too cost abeg" = asking for a lower price. "i wan buy for my madam" = they want to purchase as a gift. "carry am go" = they've decided to buy. "how far na" = just checking in. "nothing dey" / "nothing available?" = asking if it's in stock.
+- Context is everything. Read the whole conversation before you reply. Two-word messages mean what the conversation context says they mean.
+- Connect dots like a real human would. If someone said "I want the blue one" three messages ago and now says "how much again?", they're asking about the blue one — not a random product.
+- Never ask for info the customer already gave you. If they mentioned an address, use it. If they chose a product, remember it.
+- When rules clash or a situation is genuinely ambiguous, use common sense and do what a helpful salesperson would do.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SELECTION RULE — HIGHEST PRIORITY — READ BEFORE ANYTHING ELSE
@@ -313,17 +341,33 @@ IMPORTANT — ONE THING PER RESPONSE:
 - If you're offering a variant as an option ("would that work?"), do NOT also confirm the order in the same message. Wait for yes/no.
 - Never say "we don't have X but we have Y — would that work? Got it, Y confirmed!" in one message. Offer first. Confirm after.
 
+LOYAL CUSTOMER:
+${isLoyalCustomer
+  ? `- This customer has ordered from ${storeName} before. They qualify for a loyal shopper reward: ${loyalDiscountType === 'amt' ? '₦' + loyalDiscountAmt + ' off' : loyalDiscountAmt + '% off'} their order.
+- When they're placing a new order (after you have item + qty + address), mention this warmly before sharing payment details: "By the way, as one of our returning customers you get ${loyalDiscountType === 'amt' ? '₦' + loyalDiscountAmt + ' off' : loyalDiscountAmt + '% off'} — so your total is ₦[discounted amount]. 🎉"
+- Apply the discount when calculating the total in ORDER ALERT and the payment amount.
+- Don't mention the discount until they're about to pay — don't lead with it.`
+  : '- No loyal customer discount active for this customer.'}
+
+COMPLAINT HANDLING:
+- If a customer expresses frustration, dissatisfaction, or complains about an order, delivery, product quality, or any part of the service:
+  → Respond briefly and warmly. 1-2 sentences max. Acknowledge the problem, don't make excuses. Example: "I'm sorry to hear that — that's not the experience we want for you. 🙏 I'm flagging this to the team right away."
+  → Append on a new line: COMPLAINT ALERT: [customer name] — [one-sentence summary of the complaint]
+  → Do NOT try to resolve the issue yourself. Just acknowledge and flag it.
+- "Annoyed" / "I've been waiting" / "this is too long" / "what is happening" / "I'm not happy" are all complaints.
+
 PRICE NEGOTIATION:
 ${negotiationPct > 0
   ? `- You CAN offer a discount — maximum ${negotiationPct}% below the listed price. Calculate the floor price yourself (listed price × ${(1 - negotiationPct / 100).toFixed(2)}).
 - When a customer asks for a lower price / says it's too expensive / asks for discount:
   → Counter-offer ONCE at a meaningful but not maximum discount (aim for half the max, round to nearest 500 or 1000 naira).
   → Be warm and firm: "Tightest I can go is ₦X — that's saving you ₦Y. Deal? 😊"
-- If they push further below your counter: hold firm. "That's genuinely my best price, I can't go below ₦X 🙏"
+- If they push further below your counter: hold firm. "That's genuinely my best price, I can't go below ₦X 🙏" — then append: ESCALATE ALERT: [customer name] pushing price below floor on [item]
+- If they STILL keep pushing after that: "Let me flag this to the store owner — they'll reach out to you directly 🙏" — append: ESCALATE ALERT: [customer name] very persistent on price, needs owner attention
 - If they accept your counter-offer: use the AGREED price (not the catalogue price) in the ORDER ALERT and payment instructions.
 - Never volunteer a discount unprompted. Only negotiate when customer explicitly asks.`
-  : `- Prices are fixed. If a customer asks for a discount or lower price, decline warmly:
-  "Prices are set, I can't budge on that — but trust me it's worth it! 😊 Want to go ahead?"`}
+  : `- Prices are fixed. If a customer pushes hard more than once, say: "I totally understand — let me pass this to the owner and they'll reach out to you shortly 🙏" then append: ESCALATE ALERT: [customer name] pushing on price for [item], prices are fixed
+  Otherwise just decline warmly: "Prices are set — but it's worth every kobo! 😊 Want to go ahead?"`}
 
 PAYMENT PROOF — ONLY when customer explicitly says they have already sent money / paid / transferred:
 - CRITICAL: Only fire this if ORDER ALERT has already been sent earlier in this conversation. If ORDER ALERT is NOT in history yet, the order hasn't been placed — "yes", "done", "ok" means they're confirming purchase, NOT paying. Ask for their address instead.
@@ -460,6 +504,55 @@ async function _handlePaymentAlert(orderLine, customerFrom, customerName, storeN
   }).catch(() => {});
 }
 
+async function _saveAlert(type, summary, customerFrom, customerName, sid, token, notifyFromUrl) {
+  const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+  const blobBase  = (process.env.PRODUCTS_BLOB_URL || '').replace('iflow-products.json', '');
+  if (blobToken && blobBase) {
+    const ordersUrl = blobBase + 'iflow-orders.json';
+    let orders = [];
+    try {
+      const r = await fetch(ordersUrl, { cache: 'no-store' });
+      if (r.ok) orders = await r.json();
+    } catch {}
+    if (!Array.isArray(orders)) orders = [];
+    // Dedup: skip if same customer already has same type alert in last 5 mins
+    const fiveMinsAgo = Date.now() - 5 * 60 * 1000;
+    if (orders.some(o => o.customerNum === customerFrom && o.type === type && o.status === 'pending'
+        && new Date(o.createdAt).getTime() > fiveMinsAgo)) return;
+    orders.push({
+      id:           type + '_' + Date.now(),
+      type,
+      customerNum:  customerFrom,
+      customerName: customerName || customerFrom,
+      details:      summary,
+      status:       'pending',
+      createdAt:    new Date().toISOString()
+    });
+    await put('iflow-orders.json', JSON.stringify(orders), {
+      access: 'public', token: blobToken,
+      contentType: 'application/json', addRandomSuffix: false
+    }).catch(() => {});
+  }
+
+  // WhatsApp notification to owner
+  const from     = process.env.TWILIO_FROM;
+  const ownerNum = notifyFromUrl || process.env.OWNER_WHATSAPP;
+  if (!sid || !token || !from || !ownerNum) return;
+  const emojis   = { complaint: '⚠️', negotiation: '🔥' };
+  const labels   = { complaint: 'Customer Complaint', negotiation: 'Price Standoff' };
+  const emoji    = emojis[type] || '📣';
+  const label    = labels[type] || 'Alert';
+  const storeName = process.env.STORE_NAME || 'your store';
+  const body = `${emoji} *${label} — ${storeName}*\n${summary}\nFrom: ${customerName || customerFrom}\n\nCheck iFlow for details.`;
+  const to   = ownerNum.startsWith('whatsapp:') ? ownerNum : 'whatsapp:' + ownerNum;
+  const auth = 'Basic ' + Buffer.from(sid + ':' + token).toString('base64');
+  await fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Messages.json`, {
+    method:  'POST',
+    headers: { Authorization: auth, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body:    new URLSearchParams({ From: from, To: to, Body: body }).toString()
+  }).catch(() => {});
+}
+
 function escapeXml(str) {
   return str
     .replace(/&/g, '&amp;')
@@ -481,16 +574,20 @@ async function _fetchBlobData() {
     const prods = Array.isArray(data) ? data : (data.products || []);
     const paymentInfo = data.paymentInfo || {};
     const riderEmails    = Array.isArray(data.riderEmails) ? data.riderEmails : [];
-    const negotiationPct = typeof data.negotiationPct === 'number' ? data.negotiationPct : null;
+    const negotiationPct   = typeof data.negotiationPct === 'number' ? data.negotiationPct : null;
+    const loyalDiscountOn  = !!data.loyalDiscountOn;
+    const loyalDiscountAmt = data.loyalDiscountAmt  || 0;
+    const loyalDiscountType = data.loyalDiscountType || 'pct';
     const ctx = prods.map(p => {
       const price = p.unitPrice ? ' (₦' + p.unitPrice + ')' : (p.price ? ' (₦' + p.price + ')' : '');
       const qty   = p.stockQty !== undefined ? p.stockQty : (p.qty !== undefined ? p.qty : null);
       const stock = qty !== null ? ' [stock:' + qty + ']' : '';
       const cond  = p.condition ? ' [condition:' + p.condition + ']' : '';
-      return (p.name || '') + price + stock + cond;
+      const disc  = p.discount  ? (p.discountType === 'amt' ? ' [discount:₦' + p.discount + ' off]' : ' [discount:' + p.discount + '% off]') : '';
+      return (p.name || '') + price + stock + cond + disc;
     }).filter(Boolean).join(', ');
-    return { ctx, paymentInfo, riderEmails, negotiationPct };
+    return { ctx, paymentInfo, riderEmails, negotiationPct, loyalDiscountOn, loyalDiscountAmt, loyalDiscountType };
   } catch {
-    return { ctx: '', paymentInfo: {}, riderEmails: [], negotiationPct: null };
+    return { ctx: '', paymentInfo: {}, riderEmails: [], negotiationPct: null, loyalDiscountOn: false, loyalDiscountAmt: 0, loyalDiscountType: 'pct' };
   }
 }

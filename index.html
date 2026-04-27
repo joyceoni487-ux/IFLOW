@@ -2296,6 +2296,16 @@
         <input type="number" id="npPrice" min="0" step="0.01" placeholder="e.g. 999.99" />
       </div>
       <div class="field">
+        <label>Discount <span style="color:#94a3b8;font-weight:400;font-size:.78rem">(optional)</span></label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="number" id="npDiscount" min="0" placeholder="0" style="flex:1" />
+          <select id="npDiscountType" style="padding:9px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);color:var(--text);font-size:0.82rem;cursor:pointer">
+            <option value="pct">% off</option>
+            <option value="amt">₦ off</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
         <label>Cost Price</label>
         <input type="number" id="npCostPrice" min="0" step="0.01" placeholder="e.g. 600.00" />
       </div>
@@ -2978,50 +2988,82 @@
           <span class="settings-icon">💳</span>
           <div>
             <h3>Payment &amp; Delivery</h3>
-            <p>Nova sends these details to customers when they order via WhatsApp. Riders are emailed when you confirm a payment.</p>
+            <p>Bank details Nova shares with customers + rider emails for dispatch.</p>
           </div>
         </div>
         <div class="settings-fields">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-            <div class="settings-field">
-              <label>Bank Name</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div>
+              <label style="font-size:.8rem;font-weight:600;color:var(--text);display:block;margin-bottom:5px">Bank</label>
               <input type="text" id="settingsPayBank" placeholder="e.g. GTBank"
                 style="padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:0.85rem;width:100%;box-sizing:border-box"
                 oninput="savePaymentSettings()" />
             </div>
-            <div class="settings-field">
-              <label>Account Number</label>
+            <div>
+              <label style="font-size:.8rem;font-weight:600;color:var(--text);display:block;margin-bottom:5px">Account Number</label>
               <input type="text" id="settingsPayAcct" placeholder="e.g. 0123456789"
                 style="padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:0.85rem;width:100%;box-sizing:border-box"
                 oninput="savePaymentSettings()" />
             </div>
           </div>
-          <div class="settings-field" style="margin-top:10px">
-            <label>Account Name</label>
+          <div style="margin-top:10px">
+            <label style="font-size:.8rem;font-weight:600;color:var(--text);display:block;margin-bottom:5px">Account Name</label>
             <input type="text" id="settingsPayName" placeholder="e.g. Joyce Boutique Ltd"
               style="padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:0.85rem;width:100%;box-sizing:border-box"
               oninput="savePaymentSettings()" />
           </div>
-          <div class="settings-field" style="margin-top:10px">
-            <label>Rider Emails <small style="font-weight:400;color:var(--muted)">— comma-separated, all get emailed when you confirm a payment</small></label>
+          <div style="margin-top:10px">
+            <label style="font-size:.8rem;font-weight:600;color:var(--text);display:block;margin-bottom:5px">Rider Emails <span style="font-weight:400;color:var(--muted)">(comma-separated)</span></label>
             <textarea id="settingsRiderEmails" rows="2" placeholder="rider1@gmail.com, rider2@gmail.com"
               style="padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:0.85rem;width:100%;box-sizing:border-box;resize:vertical;font-family:inherit"
               oninput="savePaymentSettings()"></textarea>
-            <p style="font-size:0.72rem;color:var(--muted);margin:4px 0 0">First rider to reply accepts the delivery. iFlow emails them automatically when you confirm payment.</p>
-          </div>
-
-          <!-- Negotiation Setting -->
-          <div style="margin-top:18px">
-            <label>Nova Price Negotiation <small style="font-weight:400;color:var(--muted)">— max % discount Nova can offer customers</small></label>
-            <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
-              <input type="number" id="settingsNegotiationPct" min="0" max="50" step="1" placeholder="0"
-                style="width:90px;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:0.85rem;box-sizing:border-box"
-                oninput="savePaymentSettings()">
-              <span style="font-size:.85rem;color:var(--muted)">%</span>
-            </div>
-            <p style="font-size:0.72rem;color:var(--muted);margin:4px 0 0">Set to <strong>0</strong> to keep prices fixed (Nova politely declines discounts). Set e.g. <strong>10</strong> to let Nova negotiate up to 10% off, then hold firm.</p>
           </div>
         </div>
+      </div>
+
+      <!-- Nova Selling Rules -->
+      <div class="settings-section">
+        <div class="settings-section-title">
+          <span class="settings-icon">🤝</span>
+          <div>
+            <h3>Nova Selling Rules</h3>
+            <p>How Nova handles pricing, discounts and loyal customers on WhatsApp.</p>
+          </div>
+        </div>
+        <div class="settings-fields">
+          <!-- Negotiation -->
+          <div>
+            <label style="font-size:.8rem;font-weight:600;color:var(--text);display:block;margin-bottom:5px">Price Negotiation <span style="font-weight:400;color:var(--muted)">— max discount Nova can offer</span></label>
+            <div style="display:flex;align-items:center;gap:8px">
+              <input type="number" id="settingsNegotiationPct" min="0" max="50" step="1" placeholder="0"
+                style="width:80px;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:0.85rem;box-sizing:border-box"
+                oninput="savePaymentSettings()">
+              <span style="font-size:.82rem;color:var(--muted)">% off (0 = fixed prices)</span>
+            </div>
+          </div>
+          <!-- Loyal Customer Discount -->
+          <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px">
+              <div>
+                <div style="font-size:.8rem;font-weight:600;color:var(--text)">Loyal Shopper Discount</div>
+                <div style="font-size:.72rem;color:var(--muted);margin-top:2px">Auto-applied for returning customers (anyone who's ordered before)</div>
+              </div>
+              <label class="toggle-pill">
+                <input type="checkbox" id="settingsLoyalDiscountOn" onchange="savePaymentSettings()" />
+                <span class="pill-track"><span class="pill-thumb"></span></span>
+              </label>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="number" id="settingsLoyalDiscountAmt" min="0" placeholder="e.g. 500"
+                style="width:100px;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:0.85rem;box-sizing:border-box"
+                oninput="savePaymentSettings()">
+              <select id="settingsLoyalDiscountType" onchange="savePaymentSettings()"
+                style="padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:0.82rem;cursor:pointer">
+                <option value="pct">% off</option>
+                <option value="amt">₦ off</option>
+              </select>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -3192,6 +3234,74 @@
     <button onclick="_dismissPayAlert()"
       style="padding:11px;background:transparent;border:1.5px solid var(--border);border-radius:12px;color:var(--muted);font-size:0.85rem;cursor:pointer">
       Dismiss (check later)
+    </button>
+  </div>
+</div>
+
+<!-- Complaint Alert Badge -->
+<div id="complaintAlertBadge" style="display:none;position:fixed;top:12px;right:200px;z-index:9939;background:#d97706;color:#fff;font-size:0.72rem;font-weight:800;border-radius:20px;padding:5px 12px;box-shadow:0 2px 10px rgba(217,119,6,.55);cursor:pointer;white-space:nowrap"
+  onclick="_showNextComplaintAlert()">
+  ⚠️ <span id="complaintAlertBadgeNum">1</span> complaint
+</div>
+
+<!-- Complaint Alert Backdrop + Banner + Panel -->
+<div id="complaintAlertBackdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9940;backdrop-filter:blur(2px)" onclick="_dismissComplaintAlert()"></div>
+<div id="complaintAlertBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9960;background:linear-gradient(90deg,#d97706,#f59e0b,#d97706);background-size:200% 100%;animation:pay-banner-slide 2s linear infinite;padding:10px 20px;align-items:center;gap:10px;justify-content:center;cursor:pointer" onclick="document.getElementById('complaintAlertPanel').style.display='flex'">
+  <span style="font-size:1.1rem">⚠️</span>
+  <span style="color:#fff;font-weight:700;font-size:0.9rem;letter-spacing:.5px">CUSTOMER COMPLAINT — Tap to review</span>
+</div>
+<div id="complaintAlertPanel" style="display:none;position:fixed;top:0;right:0;width:min(400px,100vw);height:100%;background:var(--surface);z-index:9961;flex-direction:column;box-shadow:-8px 0 40px rgba(0,0,0,.5);border-left:3px solid #d97706;animation:pay-slide-in .3s ease-out both">
+  <div style="background:linear-gradient(135deg,#b45309,#d97706);padding:22px 20px 18px;display:flex;align-items:center;gap:12px">
+    <div style="width:14px;height:14px;border-radius:50%;background:#fff;animation:nova-ring .8s ease-out infinite;flex-shrink:0"></div>
+    <div style="flex:1">
+      <div style="font-size:1.05rem;font-weight:800;color:#fff;letter-spacing:.3px">⚠️ Customer Complaint</div>
+      <div id="complaintAlertTime" style="font-size:0.75rem;color:rgba(255,255,255,.9);margin-top:2px">Just now</div>
+    </div>
+    <button onclick="_dismissComplaintAlert()" title="Dismiss" style="background:rgba(255,255,255,.25);border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;color:#fff;font-size:1.3rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-weight:300">×</button>
+  </div>
+  <div style="padding:20px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:16px">
+    <div style="background:rgba(217,119,6,.1);border:1.5px solid rgba(217,119,6,.4);border-radius:12px;padding:16px">
+      <p style="font-size:0.72rem;font-weight:700;color:#d97706;margin:0 0 8px;text-transform:uppercase;letter-spacing:.8px">Complaint Summary</p>
+      <div id="complaintAlertDetails" style="font-size:0.88rem;color:var(--text);line-height:1.9;white-space:pre-wrap"></div>
+    </div>
+    <p style="font-size:0.8rem;color:var(--muted);margin:0;line-height:1.6">Nova has already responded with sympathy. You may want to follow up directly.</p>
+    <button onclick="_dismissComplaintAlert()"
+      style="padding:13px;background:linear-gradient(135deg,#d97706,#b45309);border:none;border-radius:12px;color:#fff;font-size:0.95rem;font-weight:700;cursor:pointer">
+      Got it — I'll handle it
+    </button>
+  </div>
+</div>
+
+<!-- Escalation Alert Badge -->
+<div id="escalationAlertBadge" style="display:none;position:fixed;top:12px;right:330px;z-index:9939;background:#7c3aed;color:#fff;font-size:0.72rem;font-weight:800;border-radius:20px;padding:5px 12px;box-shadow:0 2px 10px rgba(124,58,237,.55);cursor:pointer;white-space:nowrap"
+  onclick="_showNextEscalationAlert()">
+  🔥 <span id="escalationAlertBadgeNum">1</span> price standoff
+</div>
+
+<!-- Escalation Alert Backdrop + Banner + Panel -->
+<div id="escalationAlertBackdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9940;backdrop-filter:blur(2px)" onclick="_dismissEscalationAlert()"></div>
+<div id="escalationAlertBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9960;background:linear-gradient(90deg,#7c3aed,#a78bfa,#7c3aed);background-size:200% 100%;animation:pay-banner-slide 2s linear infinite;padding:10px 20px;align-items:center;gap:10px;justify-content:center;cursor:pointer" onclick="document.getElementById('escalationAlertPanel').style.display='flex'">
+  <span style="font-size:1.1rem">🔥</span>
+  <span style="color:#fff;font-weight:700;font-size:0.9rem;letter-spacing:.5px">PRICE STANDOFF — Customer wants your personal attention</span>
+</div>
+<div id="escalationAlertPanel" style="display:none;position:fixed;top:0;right:0;width:min(400px,100vw);height:100%;background:var(--surface);z-index:9961;flex-direction:column;box-shadow:-8px 0 40px rgba(0,0,0,.5);border-left:3px solid #7c3aed;animation:pay-slide-in .3s ease-out both">
+  <div style="background:linear-gradient(135deg,#5b21b6,#7c3aed);padding:22px 20px 18px;display:flex;align-items:center;gap:12px">
+    <div style="width:14px;height:14px;border-radius:50%;background:#fff;animation:nova-ring .8s ease-out infinite;flex-shrink:0"></div>
+    <div style="flex:1">
+      <div style="font-size:1.05rem;font-weight:800;color:#fff;letter-spacing:.3px">🔥 Price Standoff</div>
+      <div id="escalationAlertTime" style="font-size:0.75rem;color:rgba(255,255,255,.9);margin-top:2px">Just now</div>
+    </div>
+    <button onclick="_dismissEscalationAlert()" title="Dismiss" style="background:rgba(255,255,255,.25);border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;color:#fff;font-size:1.3rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-weight:300">×</button>
+  </div>
+  <div style="padding:20px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:16px">
+    <div style="background:rgba(124,58,237,.1);border:1.5px solid rgba(124,58,237,.4);border-radius:12px;padding:16px">
+      <p style="font-size:0.72rem;font-weight:700;color:#7c3aed;margin:0 0 8px;text-transform:uppercase;letter-spacing:.8px">What's happening</p>
+      <div id="escalationAlertDetails" style="font-size:0.88rem;color:var(--text);line-height:1.9;white-space:pre-wrap"></div>
+    </div>
+    <p style="font-size:0.8rem;color:var(--muted);margin:0;line-height:1.6">Nova has held firm. The customer was told you'd reach out personally. Jump in or let it go.</p>
+    <button onclick="_dismissEscalationAlert()"
+      style="padding:13px;background:linear-gradient(135deg,#7c3aed,#5b21b6);border:none;border-radius:12px;color:#fff;font-size:0.95rem;font-weight:700;cursor:pointer">
+      Got it — I'll reach out
     </button>
   </div>
 </div>
@@ -3858,11 +3968,14 @@
   // ── Payment Settings ────────────────────────────────────────────────────────
   function savePaymentSettings() {
     var s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-    s.payBank          = (document.getElementById('settingsPayBank')?.value  || '').trim();
-    s.payAccountNum    = (document.getElementById('settingsPayAcct')?.value  || '').trim();
-    s.payAccountName   = (document.getElementById('settingsPayName')?.value  || '').trim();
-    s.riderEmails      = (document.getElementById('settingsRiderEmails')?.value || '').trim();
-    s.negotiationPct   = parseFloat(document.getElementById('settingsNegotiationPct')?.value) || 0;
+    s.payBank             = (document.getElementById('settingsPayBank')?.value  || '').trim();
+    s.payAccountNum       = (document.getElementById('settingsPayAcct')?.value  || '').trim();
+    s.payAccountName      = (document.getElementById('settingsPayName')?.value  || '').trim();
+    s.riderEmails         = (document.getElementById('settingsRiderEmails')?.value || '').trim();
+    s.negotiationPct      = parseFloat(document.getElementById('settingsNegotiationPct')?.value) || 0;
+    s.loyalDiscountOn     = document.getElementById('settingsLoyalDiscountOn')?.checked ? '1' : '0';
+    s.loyalDiscountAmt    = parseFloat(document.getElementById('settingsLoyalDiscountAmt')?.value) || 0;
+    s.loyalDiscountType   = document.getElementById('settingsLoyalDiscountType')?.value || 'pct';
     localStorage.setItem('iflow_settings', JSON.stringify(s));
     _novaSyncProducts(false);
   }
@@ -3887,7 +4000,10 @@
             accountName:   s.payAccountName || ''
           },
           riderEmails:    (s.riderEmails || '').split(',').map(function(e){ return e.trim(); }).filter(Boolean),
-          negotiationPct: typeof s.negotiationPct === 'number' ? s.negotiationPct : 0,
+          negotiationPct:   typeof s.negotiationPct === 'number' ? s.negotiationPct : 0,
+          loyalDiscountOn:  s.loyalDiscountOn === '1',
+          loyalDiscountAmt: s.loyalDiscountAmt || 0,
+          loyalDiscountType: s.loyalDiscountType || 'pct',
           settings: {
             twilioSid:   s.twilioSid   || '',
             twilioToken: s.twilioToken || '',
@@ -5440,6 +5556,9 @@
     const pnEl = document.getElementById('settingsPayName');      if (pnEl) pnEl.value = s.payAccountName || '';
     const reEl = document.getElementById('settingsRiderEmails');  if (reEl) reEl.value = s.riderEmails    || '';
     const npEl = document.getElementById('settingsNegotiationPct'); if (npEl) npEl.value = s.negotiationPct ?? 0;
+    const ldoEl = document.getElementById('settingsLoyalDiscountOn');   if (ldoEl) ldoEl.checked = s.loyalDiscountOn === '1';
+    const ldaEl = document.getElementById('settingsLoyalDiscountAmt');  if (ldaEl) ldaEl.value   = s.loyalDiscountAmt || '';
+    const ldtEl = document.getElementById('settingsLoyalDiscountType'); if (ldtEl) ldtEl.value   = s.loyalDiscountType || 'pct';
     // Populate Vercel webhook URLs dynamically
     _syncAutoReplyUrl();
     // AI Assistant
@@ -6461,6 +6580,10 @@
     var condCode  = condition ? _conditionToCode(condition) : '';
     var codeEl    = document.getElementById('npCode');
     var code      = (codeEl && codeEl.value) ? codeEl.value : generateProductCode(type, rawNpName, condition);
+    var discountEl   = document.getElementById('npDiscount');
+    var discountTypeEl = document.getElementById('npDiscountType');
+    var discount     = discountEl ? (parseFloat(discountEl.value) || 0) : 0;
+    var discountType = discountTypeEl ? discountTypeEl.value : 'pct';
     if (!name) { showToast('Product name is required'); return; }
 
     var _arr = _getProds();  // always fresh from localStorage
@@ -6471,6 +6594,7 @@
       if (costPrice !== undefined) _arr[existingIdx].costPrice = costPrice;
       _arr[existingIdx].type = type || _arr[existingIdx].type;
       _arr[existingIdx].lowStockThreshold = threshold;
+      if (discount > 0) { _arr[existingIdx].discount = discount; _arr[existingIdx].discountType = discountType; }
       if (!_arr[existingIdx].category) _arr[existingIdx].category = _arr[existingIdx].name;
       if (_arr[existingIdx].variant === undefined) _arr[existingIdx].variant = '';
       _saveProds(_arr);         // write first
@@ -6479,13 +6603,14 @@
       toggleAddProductForm();
       showToast('"' + name + '" stock updated (+' + stockQty + ')');
       try { checkLowStock(); } catch(_) {}
-      ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode','npCondition'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+      ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode','npCondition','npDiscount'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+      var dtEl = document.getElementById('npDiscountType'); if (dtEl) dtEl.value = 'pct';
       var pv = document.getElementById('npConditionPreview'); if (pv) pv.style.display = 'none';
       return;
     }
 
     pushUndo('products');
-    var p = { code: code, name: name, category: parsed.category, variant: parsed.variant, type: type, stockQty: stockQty, unitPrice: unitPrice, costPrice: costPrice, lowStockThreshold: threshold, dateAdded: new Date().toLocaleDateString(), condition: condition || undefined, conditionCode: condCode || undefined };
+    var p = { code: code, name: name, category: parsed.category, variant: parsed.variant, type: type, stockQty: stockQty, unitPrice: unitPrice, costPrice: costPrice, lowStockThreshold: threshold, dateAdded: new Date().toLocaleDateString(), condition: condition || undefined, conditionCode: condCode || undefined, discount: discount || undefined, discountType: discount ? discountType : undefined };
     _arr.push(p);
     sendEmailAlert('New Stock Added: ' + name, '"' + name + '" added to stock. Qty: ' + stockQty + '. Time: ' + new Date().toLocaleString());
     _saveProds(_arr);           // write first
@@ -7005,6 +7130,11 @@ async function _restoreFromBlob(force) {
       if (typeof data.negotiationPct === 'number' && !data.settings.negotiationPct) {
         data.settings.negotiationPct = data.negotiationPct;
       }
+      if (typeof data.loyalDiscountOn !== 'undefined' && !data.settings.loyalDiscountOn) {
+        data.settings.loyalDiscountOn  = data.loyalDiscountOn ? '1' : '0';
+        data.settings.loyalDiscountAmt = data.loyalDiscountAmt || 0;
+        data.settings.loyalDiscountType = data.loyalDiscountType || 'pct';
+      }
     }
 
     var hasProducts = Array.isArray(data.products) && data.products.length > 0;
@@ -7387,6 +7517,68 @@ function _startOrderPolling() {
   window.addEventListener('focus', function() { _checkPendingOrders(); });
 }
 
+var _dismissedComplaintAlerts   = new Set();
+var _dismissedEscalationAlerts  = new Set();
+var _currentComplaintAlert      = null;
+var _currentEscalationAlert     = null;
+
+function _showNextComplaintAlert() {
+  if (_currentComplaintAlert) _showComplaintAlert(_currentComplaintAlert);
+}
+function _showNextEscalationAlert() {
+  if (_currentEscalationAlert) _showEscalationAlert(_currentEscalationAlert);
+}
+
+function _showComplaintAlert(o) {
+  _currentComplaintAlert = o;
+  var bd = document.getElementById('complaintAlertBackdrop');
+  var bn = document.getElementById('complaintAlertBanner');
+  var pn = document.getElementById('complaintAlertPanel');
+  var dt = document.getElementById('complaintAlertDetails');
+  var tm = document.getElementById('complaintAlertTime');
+  if (bd) bd.style.display = 'block';
+  if (bn) { bn.style.display = 'flex'; }
+  if (pn) pn.style.display = 'flex';
+  if (dt) dt.textContent = o.details || 'No details';
+  if (tm) tm.textContent = o.createdAt ? _timeAgo(new Date(o.createdAt)) : 'Just now';
+}
+
+function _dismissComplaintAlert() {
+  if (_currentComplaintAlert && _currentComplaintAlert.id) {
+    _dismissedComplaintAlerts.add(_currentComplaintAlert.id);
+    fetch('/api/orders?id=' + encodeURIComponent(_currentComplaintAlert.id) + '&action=dismiss', { method: 'PATCH' }).catch(function(){});
+  }
+  _currentComplaintAlert = null;
+  ['complaintAlertBackdrop','complaintAlertBanner','complaintAlertPanel'].forEach(function(id) {
+    var el = document.getElementById(id); if (el) el.style.display = 'none';
+  });
+}
+
+function _showEscalationAlert(o) {
+  _currentEscalationAlert = o;
+  var bd = document.getElementById('escalationAlertBackdrop');
+  var bn = document.getElementById('escalationAlertBanner');
+  var pn = document.getElementById('escalationAlertPanel');
+  var dt = document.getElementById('escalationAlertDetails');
+  var tm = document.getElementById('escalationAlertTime');
+  if (bd) bd.style.display = 'block';
+  if (bn) { bn.style.display = 'flex'; }
+  if (pn) pn.style.display = 'flex';
+  if (dt) dt.textContent = o.details || 'No details';
+  if (tm) tm.textContent = o.createdAt ? _timeAgo(new Date(o.createdAt)) : 'Just now';
+}
+
+function _dismissEscalationAlert() {
+  if (_currentEscalationAlert && _currentEscalationAlert.id) {
+    _dismissedEscalationAlerts.add(_currentEscalationAlert.id);
+    fetch('/api/orders?id=' + encodeURIComponent(_currentEscalationAlert.id) + '&action=dismiss', { method: 'PATCH' }).catch(function(){});
+  }
+  _currentEscalationAlert = null;
+  ['escalationAlertBackdrop','escalationAlertBanner','escalationAlertPanel'].forEach(function(id) {
+    var el = document.getElementById(id); if (el) el.style.display = 'none';
+  });
+}
+
 async function _checkPendingOrders() {
   try {
     var r = await fetch('/api/orders');
@@ -7399,6 +7591,26 @@ async function _checkPendingOrders() {
     });
     _updatePayBadge(pending.length);
     if (pending.length > 0) _showPaymentAlert(pending[0]);
+
+    // Complaint alerts
+    var complaints = orders.filter(function(o){
+      return o.type === 'complaint' && o.status === 'pending' && !_dismissedComplaintAlerts.has(o.id);
+    });
+    var complaintBadge = document.getElementById('complaintAlertBadge');
+    var complaintBadgeNum = document.getElementById('complaintAlertBadgeNum');
+    if (complaintBadge) { complaintBadge.style.display = complaints.length ? 'block' : 'none'; }
+    if (complaintBadgeNum) complaintBadgeNum.textContent = complaints.length;
+    if (complaints.length > 0 && !_currentComplaintAlert) _showComplaintAlert(complaints[0]);
+
+    // Escalation alerts
+    var escalations = orders.filter(function(o){
+      return o.type === 'negotiation' && o.status === 'pending' && !_dismissedEscalationAlerts.has(o.id);
+    });
+    var escalationBadge = document.getElementById('escalationAlertBadge');
+    var escalationBadgeNum = document.getElementById('escalationAlertBadgeNum');
+    if (escalationBadge) { escalationBadge.style.display = escalations.length ? 'block' : 'none'; }
+    if (escalationBadgeNum) escalationBadgeNum.textContent = escalations.length;
+    if (escalations.length > 0 && !_currentEscalationAlert) _showEscalationAlert(escalations[0]);
 
     // Rider accepted — move dispatch to transit
     orders.filter(function(o){ return o.status === 'rider_accepted'; }).forEach(function(o) {

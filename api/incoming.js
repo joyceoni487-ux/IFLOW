@@ -48,9 +48,10 @@ export default async function handler(req, res) {
     _loadChatMemory(From, blobBase)
   ]);
 
-  const productCtx  = blobData.ctx || ctxFromUrl || (process.env.PRODUCTS_JSON || '');
-  const paymentInfo = blobData.paymentInfo || {};
-  const riderEmails = blobData.riderEmails || [];
+  const productCtx     = blobData.ctx || ctxFromUrl || (process.env.PRODUCTS_JSON || '');
+  const paymentInfo    = blobData.paymentInfo || {};
+  const riderEmails    = blobData.riderEmails || [];
+  const negotiationPct = blobData.negotiationPct ?? (parseFloat(process.env.NEGOTIATION_FLOOR_PCT) || 0);
 
   console.log(JSON.stringify({
     event: 'twilio_incoming', sid: MessageSid, from: From,
@@ -130,21 +131,21 @@ export default async function handler(req, res) {
       messageToAi = `[Context: Customer said "my usual address" — the last address on file is: "${lastKnownAddress}". Use this address directly without asking any questions.]\nCustomer: ${Body}`;
     }
 
-    let aiReply = await _callAi(messageToAi, ProfileName, storeName, apiKey, productCtx, historyForAi, paymentInfo);
+    let aiReply = await _callAi(messageToAi, ProfileName, storeName, apiKey, productCtx, historyForAi, paymentInfo, negotiationPct);
 
     // Guard: if AI greeted on a non-greeting message, retry with explicit nudge
     if (aiReply && !isPureGreeting && /^Hi[!,]?\s+How can I help/i.test(aiReply.trim())) {
       const nudge = historyForAi.length
         ? `[System: The customer just said "${Body}". This continues the conversation — do NOT greet. Respond in context.]`
         : `[System: "${Body}" is not a greeting. Ask what they need help with.]`;
-      aiReply = await _callAi(nudge + '\n' + Body, ProfileName, storeName, apiKey, productCtx, historyForAi, paymentInfo) || aiReply;
+      aiReply = await _callAi(nudge + '\n' + Body, ProfileName, storeName, apiKey, productCtx, historyForAi, paymentInfo, negotiationPct) || aiReply;
     }
 
     // Guard: if AI claimed payment received but no active order in history, correct it
     const aiClaimsPayment = aiReply && /payment received|our team is verifying|PAYMENT ALERT:/i.test(aiReply);
     if (aiClaimsPayment && !hasActiveOrderInMemory) {
       const correction = `[System: CORRECTION — no order has been confirmed yet. "${Body}" is a purchase confirmation, NOT payment. Ask for the delivery address next. Do NOT say payment received.]`;
-      aiReply = await _callAi(correction + '\n' + Body, ProfileName, storeName, apiKey, productCtx, historyForAi, paymentInfo) || aiReply;
+      aiReply = await _callAi(correction + '\n' + Body, ProfileName, storeName, apiKey, productCtx, historyForAi, paymentInfo, negotiationPct) || aiReply;
     }
 
     // Guard: if AI says "need to choose / haven't ordered" but active order exists, correct it
@@ -153,7 +154,7 @@ export default async function handler(req, res) {
       const lastOrder = history.filter(m => /ORDER ALERT:/i.test(m.content)).pop();
       const orderCtx = lastOrder ? lastOrder.content.slice(0, 300) : 'See history for confirmed order';
       const fix = `[System: CORRECTION — an order WAS already confirmed. Evidence: "${orderCtx}". Customer said: "${Body}". Respond appropriately — do NOT ask them to re-select or re-confirm.]`;
-      aiReply = await _callAi(fix + '\n' + Body, ProfileName, storeName, apiKey, productCtx, historyForAi, paymentInfo) || aiReply;
+      aiReply = await _callAi(fix + '\n' + Body, ProfileName, storeName, apiKey, productCtx, historyForAi, paymentInfo, negotiationPct) || aiReply;
     }
 
     if (aiReply) {
@@ -234,7 +235,7 @@ async function _saveChatMemory(from, blobBase, messages) {
   });
 }
 
-async function _callAi(message, name, storeName, apiKey, productCtx = '', history = [], paymentInfo = {}) {
+async function _callAi(message, name, storeName, apiKey, productCtx = '', history = [], paymentInfo = {}, negotiationPct = 0) {
   const productSection = productCtx
     ? `\nCurrent product catalogue (name, price, stock):\n${productCtx}\n\n` +
       `Stock rules:\n` +
@@ -311,6 +312,18 @@ ${hasPayment ? `   Also in the same message:
 IMPORTANT — ONE THING PER RESPONSE:
 - If you're offering a variant as an option ("would that work?"), do NOT also confirm the order in the same message. Wait for yes/no.
 - Never say "we don't have X but we have Y — would that work? Got it, Y confirmed!" in one message. Offer first. Confirm after.
+
+PRICE NEGOTIATION:
+${negotiationPct > 0
+  ? `- You CAN offer a discount — maximum ${negotiationPct}% below the listed price. Calculate the floor price yourself (listed price × ${(1 - negotiationPct / 100).toFixed(2)}).
+- When a customer asks for a lower price / says it's too expensive / asks for discount:
+  → Counter-offer ONCE at a meaningful but not maximum discount (aim for half the max, round to nearest 500 or 1000 naira).
+  → Be warm and firm: "Tightest I can go is ₦X — that's saving you ₦Y. Deal? 😊"
+- If they push further below your counter: hold firm. "That's genuinely my best price, I can't go below ₦X 🙏"
+- If they accept your counter-offer: use the AGREED price (not the catalogue price) in the ORDER ALERT and payment instructions.
+- Never volunteer a discount unprompted. Only negotiate when customer explicitly asks.`
+  : `- Prices are fixed. If a customer asks for a discount or lower price, decline warmly:
+  "Prices are set, I can't budge on that — but trust me it's worth it! 😊 Want to go ahead?"`}
 
 PAYMENT PROOF — ONLY when customer explicitly says they have already sent money / paid / transferred:
 - CRITICAL: Only fire this if ORDER ALERT has already been sent earlier in this conversation. If ORDER ALERT is NOT in history yet, the order hasn't been placed — "yes", "done", "ok" means they're confirming purchase, NOT paying. Ask for their address instead.
@@ -467,7 +480,8 @@ async function _fetchBlobData() {
     const data = await r.json();
     const prods = Array.isArray(data) ? data : (data.products || []);
     const paymentInfo = data.paymentInfo || {};
-    const riderEmails = Array.isArray(data.riderEmails) ? data.riderEmails : [];
+    const riderEmails    = Array.isArray(data.riderEmails) ? data.riderEmails : [];
+    const negotiationPct = typeof data.negotiationPct === 'number' ? data.negotiationPct : null;
     const ctx = prods.map(p => {
       const price = p.unitPrice ? ' (₦' + p.unitPrice + ')' : (p.price ? ' (₦' + p.price + ')' : '');
       const qty   = p.stockQty !== undefined ? p.stockQty : (p.qty !== undefined ? p.qty : null);
@@ -475,8 +489,8 @@ async function _fetchBlobData() {
       const cond  = p.condition ? ' [condition:' + p.condition + ']' : '';
       return (p.name || '') + price + stock + cond;
     }).filter(Boolean).join(', ');
-    return { ctx, paymentInfo, riderEmails };
+    return { ctx, paymentInfo, riderEmails, negotiationPct };
   } catch {
-    return { ctx: '', paymentInfo: {}, riderEmails: [] };
+    return { ctx: '', paymentInfo: {}, riderEmails: [], negotiationPct: null };
   }
 }

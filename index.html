@@ -3009,6 +3009,19 @@
               oninput="savePaymentSettings()"></textarea>
             <p style="font-size:0.72rem;color:var(--muted);margin:4px 0 0">First rider to reply accepts the delivery. iFlow emails them automatically when you confirm payment.</p>
           </div>
+
+          <!-- Negotiation Setting -->
+          <div style="margin-top:18px">
+            <label>Nova Price Negotiation <small style="font-weight:400;color:var(--muted)">— max % discount Nova can offer customers</small></label>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
+              <input type="number" id="settingsNegotiationPct" min="0" max="50" step="1" placeholder="0"
+                style="width:90px;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:0.85rem;box-sizing:border-box"
+                oninput="savePaymentSettings()">
+              <span style="font-size:.85rem;color:var(--muted)">%</span>
+            </div>
+            <p style="font-size:0.72rem;color:var(--muted);margin:4px 0 0">Set to <strong>0</strong> to keep prices fixed (Nova politely declines discounts). Set e.g. <strong>10</strong> to let Nova negotiate up to 10% off, then hold firm.</p>
+          </div>
+        </div>
         </div>
       </div>
 
@@ -3845,10 +3858,11 @@
   // ── Payment Settings ────────────────────────────────────────────────────────
   function savePaymentSettings() {
     var s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-    s.payBank        = (document.getElementById('settingsPayBank')?.value  || '').trim();
-    s.payAccountNum  = (document.getElementById('settingsPayAcct')?.value  || '').trim();
-    s.payAccountName = (document.getElementById('settingsPayName')?.value  || '').trim();
-    s.riderEmails    = (document.getElementById('settingsRiderEmails')?.value || '').trim();
+    s.payBank          = (document.getElementById('settingsPayBank')?.value  || '').trim();
+    s.payAccountNum    = (document.getElementById('settingsPayAcct')?.value  || '').trim();
+    s.payAccountName   = (document.getElementById('settingsPayName')?.value  || '').trim();
+    s.riderEmails      = (document.getElementById('settingsRiderEmails')?.value || '').trim();
+    s.negotiationPct   = parseFloat(document.getElementById('settingsNegotiationPct')?.value) || 0;
     localStorage.setItem('iflow_settings', JSON.stringify(s));
     _novaSyncProducts(false);
   }
@@ -3872,7 +3886,8 @@
             accountNumber: s.payAccountNum  || '',
             accountName:   s.payAccountName || ''
           },
-          riderEmails: (s.riderEmails || '').split(',').map(function(e){ return e.trim(); }).filter(Boolean),
+          riderEmails:    (s.riderEmails || '').split(',').map(function(e){ return e.trim(); }).filter(Boolean),
+          negotiationPct: typeof s.negotiationPct === 'number' ? s.negotiationPct : 0,
           settings: {
             twilioSid:   s.twilioSid   || '',
             twilioToken: s.twilioToken || '',
@@ -5424,6 +5439,7 @@
     const paEl = document.getElementById('settingsPayAcct');      if (paEl) paEl.value = s.payAccountNum  || '';
     const pnEl = document.getElementById('settingsPayName');      if (pnEl) pnEl.value = s.payAccountName || '';
     const reEl = document.getElementById('settingsRiderEmails');  if (reEl) reEl.value = s.riderEmails    || '';
+    const npEl = document.getElementById('settingsNegotiationPct'); if (npEl) npEl.value = s.negotiationPct ?? 0;
     // Populate Vercel webhook URLs dynamically
     _syncAutoReplyUrl();
     // AI Assistant
@@ -6985,6 +7001,9 @@ async function _restoreFromBlob(force) {
       }
       if (data.riderEmails && data.riderEmails.length && !data.settings.riderEmails) {
         data.settings.riderEmails = data.riderEmails.join(',');
+      }
+      if (typeof data.negotiationPct === 'number' && !data.settings.negotiationPct) {
+        data.settings.negotiationPct = data.negotiationPct;
       }
     }
 

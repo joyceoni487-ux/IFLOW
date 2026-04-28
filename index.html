@@ -2236,7 +2236,13 @@
       </div>
     </div>
 
-    <div class="orders-table-wrap">
+    <!-- Product sub-tab bar -->
+    <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid var(--border)">
+      <button id="prodTabStock" class="sheets-tab active" onclick="switchProdTab('stock')" style="border-radius:8px 8px 0 0">📦 Stock</button>
+      <button id="prodTabIMEI"  class="sheets-tab"        onclick="switchProdTab('imei')"  style="border-radius:8px 8px 0 0">📱 IMEI Vault</button>
+    </div>
+
+    <div class="orders-table-wrap" id="prodViewStock">
       <div class="orders-table-header">
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
           <p class="inventory-heading" style="margin:0">Stock Records</p>
@@ -2268,6 +2274,30 @@
         </table>
       </div>
     </div>
+
+    <!-- IMEI Vault -->
+    <div id="prodViewIMEI" style="display:none">
+      <div style="display:flex;gap:10px;padding:4px 0 16px;flex-wrap:wrap;align-items:center">
+        <input id="imeiSearch" type="text" class="orders-search" placeholder="Search IMEI or product…" style="flex:1;min-width:180px" oninput="renderIMEIVault()" />
+        <button onclick="_openCameraScanner('lookup')" style="padding:8px 16px;background:linear-gradient(135deg,#4f8ef7,#6366f1);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:600;cursor:pointer">📷 Scan</button>
+        <button onclick="_openCameraScanner('add')"    style="padding:8px 16px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:600;cursor:pointer">+ Add IMEI</button>
+        <button onclick="_startAudit()" id="auditBtn"  style="padding:8px 16px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:10px;font-size:.83rem;font-weight:600;cursor:pointer">🔍 Audit</button>
+      </div>
+      <div id="auditBar" style="display:none;background:rgba(99,102,241,.07);border:1px solid rgba(99,102,241,.22);border-radius:10px;padding:10px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:.85rem;font-weight:700;color:var(--text)">🔍 Audit in progress</span>
+        <span id="auditCount" style="font-size:.8rem;color:var(--muted)">0 of 0 scanned</span>
+        <button onclick="_endAudit()" style="padding:5px 14px;background:#e53e3e;color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer;margin-left:auto">End Audit</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>#</th><th>IMEI / Serial</th><th>Product</th><th>Status</th><th>Added</th><th>Sold To</th><th></th>
+          </tr></thead>
+          <tbody id="imeiVaultBody"></tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
 </div><!-- end page-products -->
 
@@ -2317,6 +2347,15 @@
         <label>Condition / Defects <span style="color:#94a3b8;font-weight:400;font-size:.78rem">(optional — for used/defective items)</span></label>
         <input type="text" id="npCondition" placeholder="e.g. Cracked screen, BH87, slight edge scratches, UK used, e-sim only" oninput="previewCode()" style="width:100%" />
         <div id="npConditionPreview" style="font-size:.75rem;color:#f59e0b;margin-top:4px;display:none"></div>
+      </div>
+      <div class="field" style="grid-column:1/-1">
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 0">
+          <label class="toggle-pill"><input type="checkbox" id="npIsIMEI" /><span class="pill-track"><span class="pill-thumb"></span></span></label>
+          <div>
+            <div style="font-size:.85rem;font-weight:600;color:var(--text)">IMEI / Serial Tracking</div>
+            <div style="font-size:.72rem;color:var(--muted)">Enable for phones — track individual units by IMEI</div>
+          </div>
+        </div>
       </div>
       <div class="field">
         <label>Product Code (auto-generated)</label>
@@ -2373,8 +2412,9 @@
     </div>
     <div class="sheets-tabs" style="display:flex;align-items:center;justify-content:space-between">
       <div style="display:flex;gap:0">
-        <button class="sheets-tab active" id="sheetsTabSales" onclick="switchSheetsTab('sales')">📋 Sales</button>
-        <button class="sheets-tab" id="sheetsTabProducts" onclick="switchSheetsTab('products')">🗃️ Products</button>
+        <button class="sheets-tab active" id="sheetsTabSales"     onclick="switchSheetsTab('sales')">📋 Sales</button>
+        <button class="sheets-tab"        id="sheetsTabProducts" onclick="switchSheetsTab('products')">🗃️ Products</button>
+        <button class="sheets-tab"        id="sheetsTabCustomers" onclick="switchSheetsTab('customers')">👥 Customers</button>
       </div>
       <button id="sheetsClearBtn" onclick="clearCurrentSheet()" style="background:none;border:1px solid var(--border2);color:var(--muted);border-radius:7px;padding:5px 13px;font-size:0.78rem;cursor:pointer;margin-bottom:2px;transition:color .2s,border-color .2s" onmouseover="this.style.color='#e53e3e';this.style.borderColor='#e53e3e'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border2)'">Clear All</button>
     </div>
@@ -2396,6 +2436,15 @@
           <th>Stock Qty</th><th>Unit Price</th><th>Low Stock Threshold</th><th>Date Added</th>
         </tr></thead>
         <tbody id="sheetsProductsTbody"></tbody>
+      </table>
+    </div>
+    <div id="sheetsViewCustomers" class="sheets-table-wrap" style="display:none">
+      <table class="sheets-table">
+        <thead><tr>
+          <th class="sheets-rownum">#</th>
+          <th>Customer</th><th>Orders</th><th>Total Spent</th><th>Profit Generated</th><th>Last Purchase</th>
+        </tr></thead>
+        <tbody id="sheetsCustomersTbody"></tbody>
       </table>
     </div>
   </div>
@@ -3238,6 +3287,56 @@
   </div>
 </div>
 
+<!-- Camera / IMEI Scanner Modal -->
+<div id="imeiScanModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9800;flex-direction:column;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border-radius:20px;padding:24px;max-width:460px;width:94%;max-height:92vh;overflow-y:auto;box-shadow:0 12px 48px rgba(0,0,0,.5)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h3 id="imeiScanTitle" style="margin:0;font-size:1rem;font-weight:700;color:var(--text)">📷 Scan Barcode / IMEI</h3>
+      <button onclick="_closeIMEIScan()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted);line-height:1">✕</button>
+    </div>
+    <div style="position:relative;border-radius:14px;overflow:hidden;background:#111;margin-bottom:14px;min-height:160px">
+      <video id="imeiScanVideo" autoplay playsinline muted style="width:100%;max-height:240px;object-fit:cover;display:block"></video>
+      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
+        <div style="width:210px;height:72px;border:2.5px solid rgba(79,142,247,.9);border-radius:8px;box-shadow:0 0 0 2000px rgba(0,0,0,.28)"></div>
+      </div>
+      <div id="imeiScanFeedback" style="position:absolute;bottom:8px;left:0;right:0;text-align:center;color:#fff;font-size:.78rem;text-shadow:0 1px 4px rgba(0,0,0,.9);padding:0 12px">Point camera at barcode</div>
+    </div>
+    <div id="noBarcodeNotice" style="display:none;padding:9px 12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:8px;font-size:.75rem;color:#d97706;margin-bottom:12px">
+      📱 Auto-scan works on <strong>Android Chrome</strong>. On iOS / Safari — type IMEI below.
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="font-size:.8rem;font-weight:600;color:var(--text);display:block;margin-bottom:6px">Or type IMEI / Serial manually</label>
+      <div style="display:flex;gap:8px">
+        <input id="imeiManualInput" type="text" inputmode="numeric" placeholder="15-digit IMEI or serial number"
+          style="flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:.88rem"
+          oninput="_onIMEIInput(this.value)" onkeydown="if(event.key==='Enter')_processIMEIValue(this.value)" />
+        <button onclick="_processIMEIValue(document.getElementById('imeiManualInput').value)"
+          style="padding:10px 18px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:.85rem;font-weight:600;cursor:pointer">Go</button>
+      </div>
+    </div>
+    <div id="imeiScanResult" style="display:none;padding:14px;border-radius:12px;background:rgba(79,142,247,.07);border:1.5px solid rgba(79,142,247,.28)">
+      <div id="imeiScanResultText" style="font-size:.88rem;color:var(--text);line-height:1.7"></div>
+      <div id="imeiScanActions" style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"></div>
+    </div>
+  </div>
+</div>
+
+<!-- IMEI Link-to-Product Modal -->
+<div id="imeiLinkModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9810;flex-direction:column;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border-radius:18px;padding:24px;max-width:440px;width:94%;box-shadow:0 12px 48px rgba(0,0,0,.45)">
+    <h3 style="margin:0 0 16px;font-size:1rem;font-weight:700;color:var(--text)">Link IMEI to Product</h3>
+    <p id="imeiLinkIMEIDisplay" style="font-family:monospace;font-size:.95rem;font-weight:700;color:var(--accent);margin:0 0 14px;padding:8px 12px;background:rgba(79,142,247,.07);border-radius:8px"></p>
+    <label style="font-size:.8rem;font-weight:600;color:var(--text);display:block;margin-bottom:6px">Select Product</label>
+    <select id="imeiLinkProductSelect" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:.88rem;margin-bottom:16px">
+      <option value="">— Choose product —</option>
+    </select>
+    <div style="display:flex;gap:10px">
+      <button onclick="_confirmIMEILink()" style="flex:1;padding:11px;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;border-radius:10px;color:#fff;font-weight:700;cursor:pointer">Save to Vault</button>
+      <button onclick="document.getElementById('imeiLinkModal').style.display='none'" style="padding:11px 20px;background:none;border:1.5px solid var(--border);border-radius:10px;color:var(--muted);cursor:pointer">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- Complaint Alert Badge -->
 <div id="complaintAlertBadge" style="display:none;position:fixed;top:12px;right:200px;z-index:9939;background:#d97706;color:#fff;font-size:0.72rem;font-weight:800;border-radius:20px;padding:5px 12px;box-shadow:0 2px 10px rgba(217,119,6,.55);cursor:pointer;white-space:nowrap"
   onclick="_showNextComplaintAlert()">
@@ -3485,10 +3584,13 @@
   let _currentSheetsTab = 'sales';
   function switchSheetsTab(tab) {
     _currentSheetsTab = tab;
-    document.getElementById('sheetsViewSales').style.display = tab === 'sales' ? '' : 'none';
-    document.getElementById('sheetsViewProducts').style.display = tab === 'products' ? '' : 'none';
-    document.getElementById('sheetsTabSales').classList.toggle('active', tab === 'sales');
-    document.getElementById('sheetsTabProducts').classList.toggle('active', tab === 'products');
+    document.getElementById('sheetsViewSales').style.display     = tab === 'sales'     ? '' : 'none';
+    document.getElementById('sheetsViewProducts').style.display  = tab === 'products'  ? '' : 'none';
+    document.getElementById('sheetsViewCustomers').style.display = tab === 'customers' ? '' : 'none';
+    document.getElementById('sheetsTabSales').classList.toggle('active',     tab === 'sales');
+    document.getElementById('sheetsTabProducts').classList.toggle('active',  tab === 'products');
+    document.getElementById('sheetsTabCustomers').classList.toggle('active', tab === 'customers');
+    if (tab === 'customers') renderCustomers();
   }
 
   function clearCurrentSheet() {
@@ -6399,21 +6501,30 @@
   }
 
   function generateProductCode(type, name, condition) {
-    const condCode = _conditionToCode(condition || '');
-    const nameSlug = _nameToSlug(name || type || '');
-    // If condition codes exist, build a descriptive code: "sc-iph13-bh87"
-    if (condCode && nameSlug) {
-      const parts = [condCode.split('-')[0]]; // leading defect code (e.g. sc)
-      parts.push(nameSlug);
-      const rest = condCode.split('-').slice(1).join('-'); // remaining condition codes
-      if (rest) parts.push(rest);
-      return parts.join('-');
+    // Build a recognisable prefix from the product name: "iPhone 15 Pro" → "IPH15P"
+    var words = (name || type || 'SKU').replace(/[^a-zA-Z0-9\s]/g,'').split(/\s+/).filter(Boolean);
+    var prefix = '';
+    if (words.length === 1) {
+      prefix = words[0].slice(0, 6).toUpperCase();
+    } else {
+      prefix = words.slice(0, 3).map(function(w) {
+        return w.length <= 2 ? w.toUpperCase() : w.slice(0, w.length <= 5 ? 2 : 3).toUpperCase();
+      }).join('').slice(0, 6);
     }
-    const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-    const store = (s.storeName || 'IFL').replace(/[^A-Za-z0-9]/g,'').substring(0,4).toUpperCase();
-    const typeCode = (type || 'GEN').replace(/[^A-Za-z]/g,'').substring(0,3).toUpperCase();
-    const rand = Math.random().toString(36).substring(2,6).toUpperCase();
-    return `${store}-${typeCode}-${rand}`;
+    if (prefix.length < 2) prefix = 'SKU';
+
+    // Sequential number — highest existing for this prefix + 1
+    var prods = _getProds ? _getProds() : JSON.parse(localStorage.getItem('iflow_products') || '[]');
+    var maxNum = 0;
+    var re = new RegExp('^' + prefix.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '-(\\d+)', 'i');
+    prods.forEach(function(p) {
+      if (p.code) { var m = p.code.match(re); if (m && parseInt(m[1]) > maxNum) maxNum = parseInt(m[1]); }
+    });
+    var seq = ('000' + (maxNum + 1)).slice(-3);
+
+    // Append leading condition code suffix for defective items
+    var condLeader = _conditionToCode(condition || '').split('-')[0];
+    return condLeader ? (prefix + '-' + seq + '-' + condLeader) : (prefix + '-' + seq);
   }
 
   // Smart category/variant parser
@@ -6580,10 +6691,11 @@
     var condCode  = condition ? _conditionToCode(condition) : '';
     var codeEl    = document.getElementById('npCode');
     var code      = (codeEl && codeEl.value) ? codeEl.value : generateProductCode(type, rawNpName, condition);
-    var discountEl   = document.getElementById('npDiscount');
+    var discountEl     = document.getElementById('npDiscount');
     var discountTypeEl = document.getElementById('npDiscountType');
-    var discount     = discountEl ? (parseFloat(discountEl.value) || 0) : 0;
-    var discountType = discountTypeEl ? discountTypeEl.value : 'pct';
+    var discount       = discountEl ? (parseFloat(discountEl.value) || 0) : 0;
+    var discountType   = discountTypeEl ? discountTypeEl.value : 'pct';
+    var isIMEITracked  = !!(document.getElementById('npIsIMEI')?.checked);
     if (!name) { showToast('Product name is required'); return; }
 
     var _arr = _getProds();  // always fresh from localStorage
@@ -6605,12 +6717,13 @@
       try { checkLowStock(); } catch(_) {}
       ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode','npCondition','npDiscount'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
       var dtEl = document.getElementById('npDiscountType'); if (dtEl) dtEl.value = 'pct';
+      var imeiEl = document.getElementById('npIsIMEI'); if (imeiEl) imeiEl.checked = false;
       var pv = document.getElementById('npConditionPreview'); if (pv) pv.style.display = 'none';
       return;
     }
 
     pushUndo('products');
-    var p = { code: code, name: name, category: parsed.category, variant: parsed.variant, type: type, stockQty: stockQty, unitPrice: unitPrice, costPrice: costPrice, lowStockThreshold: threshold, dateAdded: new Date().toLocaleDateString(), condition: condition || undefined, conditionCode: condCode || undefined, discount: discount || undefined, discountType: discount ? discountType : undefined };
+    var p = { code: code, name: name, category: parsed.category, variant: parsed.variant, type: type, stockQty: stockQty, unitPrice: unitPrice, costPrice: costPrice, lowStockThreshold: threshold, dateAdded: new Date().toLocaleDateString(), condition: condition || undefined, conditionCode: condCode || undefined, discount: discount || undefined, discountType: discount ? discountType : undefined, isIMEITracked: isIMEITracked || undefined };
     _arr.push(p);
     sendEmailAlert('New Stock Added: ' + name, '"' + name + '" added to stock. Qty: ' + stockQty + '. Time: ' + new Date().toLocaleString());
     _saveProds(_arr);           // write first
@@ -8131,7 +8244,8 @@ function _buildStoreContext() {
     '\nToday:' + todaySales.length + ' sales rev ' + todayRev +
     ' AllTime:' + allSales.length + ' sales rev ' + totalRev +
     '\nTopSellers:' + (top.join(',')||'N/A') + ' LowStock(≤'+threshold+'):' + (low.join(',')||'None') +
-    (customerLines.length ? '\nRecent WhatsApp customers (name | phone | status):\n' + customerLines.join('\n') : '');
+    (customerLines.length ? '\nRecent WhatsApp customers (name | phone | status):\n' + customerLines.join('\n') : '')
+    + (typeof _novaIMEIContext === 'function' ? _novaIMEIContext() : '');
 }
 
 // ── Action Executor ───────────────────────────────────────────────────────────
@@ -8199,6 +8313,33 @@ function _novaExecuteAction(actionStr) {
       if (typeof renderProducts      ==='function') renderProducts();
       if (typeof refreshProductsList ==='function') refreshProductsList();
       showToast('Stock updated by Nova ✓'); return;
+    }
+    if (a.type === 'findIMEI') {
+      var imei = String(a.imei || '').replace(/\D/g,'');
+      if (!imei) { showToast('Nova: no IMEI specified'); return; }
+      var records = _getIMEI ? _getIMEI() : [];
+      var rec = records.find(function(r){ return r.imei === imei; });
+      if (rec) {
+        navigateTo('products');
+        setTimeout(function(){ switchProdTab('imei'); renderIMEIVault(); _highlightIMEIRow(imei); }, 350);
+        showToast('📱 IMEI ' + imei.slice(0,6) + '… → ' + (rec.productName || 'found'));
+      } else {
+        navigateTo('products');
+        setTimeout(function(){ switchProdTab('imei'); }, 350);
+        showToast('IMEI ' + imei + ' not found in vault');
+      }
+      return;
+    }
+    if (a.type === 'highlightProduct') {
+      var query = a.query || a.name || '';
+      navigateTo('products');
+      setTimeout(function(){
+        var sq = document.getElementById('productsSearch');
+        if (sq) { sq.value = query; renderProducts(); }
+        var rows = document.querySelectorAll('#productsBody tr[data-index]');
+        if (rows.length) _flashRow(rows[0]);
+      }, 350);
+      return;
     }
     if (a.type === 'sendWhatsApp') {
       var waTo  = (a.to || '').trim();
@@ -8818,6 +8959,380 @@ function _triggerPwaInstall() {
   } else {
     alert('To install iFlow:\n• Chrome/Edge: click the ⊕ icon in the address bar\n• Safari (iOS): tap Share → "Add to Home Screen"\n• Firefox: Menu → "Install"');
   }
+}
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════════
+// iFlow — IMEI Vault + Customer Database
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function _getIMEI()       { try { return JSON.parse(localStorage.getItem('iflow_imei') || '[]'); } catch(_){ return []; } }
+function _saveIMEI(arr)   { localStorage.setItem('iflow_imei', JSON.stringify(arr)); }
+function _imeiEsc(s)      { return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── Products sub-tab switch ───────────────────────────────────────────────────
+function switchProdTab(tab) {
+  var stock = document.getElementById('prodViewStock');
+  var imei  = document.getElementById('prodViewIMEI');
+  var tStock = document.getElementById('prodTabStock');
+  var tIMEI  = document.getElementById('prodTabIMEI');
+  if (stock)  stock.style.display  = tab === 'stock' ? '' : 'none';
+  if (imei)   imei.style.display   = tab === 'imei'  ? '' : 'none';
+  if (tStock) tStock.classList.toggle('active', tab === 'stock');
+  if (tIMEI)  tIMEI.classList.toggle('active',  tab === 'imei');
+  if (tab === 'imei') renderIMEIVault();
+}
+
+// ── Audit session ─────────────────────────────────────────────────────────────
+var _auditSession = null; // Set of scanned IMEIs, or null if no session active
+
+function _startAudit() {
+  _auditSession = new Set();
+  var bar = document.getElementById('auditBar');
+  if (bar) bar.style.display = 'flex';
+  var btn = document.getElementById('auditBtn');
+  if (btn) { btn.textContent = '📷 Scan to Audit'; btn.onclick = function(){ _openCameraScanner('audit'); }; }
+  renderIMEIVault();
+  showToast('Audit started — scan each item to verify');
+}
+
+function _endAudit() {
+  var imeis   = _getIMEI();
+  var inStock = imeis.filter(function(r){ return r.status === 'in_stock'; });
+  var missing = inStock.filter(function(r){ return !_auditSession.has(r.imei); });
+  _auditSession = null;
+  var bar = document.getElementById('auditBar');
+  if (bar) bar.style.display = 'none';
+  var btn = document.getElementById('auditBtn');
+  if (btn) { btn.textContent = '🔍 Audit'; btn.onclick = _startAudit; }
+  renderIMEIVault();
+  if (missing.length === 0) showToast('✅ Audit complete — all ' + inStock.length + ' items accounted for');
+  else showToast('⚠️ Audit done — ' + missing.length + ' item' + (missing.length>1?'s':'') + ' not scanned!');
+}
+
+// ── Render IMEI Vault ─────────────────────────────────────────────────────────
+function renderIMEIVault() {
+  var tbody = document.getElementById('imeiVaultBody');
+  if (!tbody) return;
+  var imeis   = _getIMEI();
+  var query   = (document.getElementById('imeiSearch') || {}).value || '';
+  query = query.toLowerCase().trim();
+  var filtered = query ? imeis.filter(function(r){
+    return (r.imei + ' ' + (r.productName||'') + ' ' + (r.productCode||'')).toLowerCase().indexOf(query) !== -1;
+  }) : imeis;
+
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted);font-size:.88rem">'
+      + (imeis.length ? '🔍 No results for "' + _imeiEsc(query) + '"' : '📱 No IMEI records yet — press <strong>Scan</strong> or <strong>+ Add IMEI</strong>.')
+      + '</td></tr>';
+    return;
+  }
+  var cur = typeof getCurrency === 'function' ? getCurrency() : '₦';
+  var html = '';
+  filtered.forEach(function(r, i) {
+    var isSold    = r.status === 'sold';
+    var isAuditOK = _auditSession && _auditSession.has(r.imei);
+    var isAuditNG = _auditSession && !_auditSession.has(r.imei) && !isSold;
+    var rowBg     = isAuditOK ? 'rgba(34,197,94,.09)' : (isAuditNG ? 'rgba(245,158,11,.09)' : '');
+    var badge     = isSold
+      ? '<span style="background:rgba(100,116,139,.15);color:#64748b;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">SOLD</span>'
+      : isAuditNG
+      ? '<span style="background:rgba(245,158,11,.15);color:#d97706;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">⚠ NOT SCANNED</span>'
+      : '<span style="background:rgba(34,197,94,.15);color:#16a34a;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">IN STOCK</span>';
+    html += '<tr id="imei-row-' + _imeiEsc(r.imei) + '" style="transition:background .35s;background:' + rowBg + '">'
+      + '<td class="row-num">' + (i+1) + '</td>'
+      + '<td style="padding:10px 14px;font-family:monospace;font-size:.82rem;font-weight:700;color:var(--text)">' + _imeiEsc(r.imei) + '</td>'
+      + '<td style="padding:10px 14px;font-weight:600;color:var(--text)">'  + _imeiEsc(r.productName || '—') + '</td>'
+      + '<td style="padding:10px 14px">' + badge + '</td>'
+      + '<td style="padding:10px 14px;font-size:.79rem;color:var(--muted)">' + (r.addedAt ? new Date(r.addedAt).toLocaleDateString() : '—') + '</td>'
+      + '<td style="padding:10px 14px;font-size:.79rem;color:var(--muted)">' + _imeiEsc(r.customerName || (isSold ? 'Sold' : '—')) + '</td>'
+      + '<td class="cell-action">'
+        + (!isSold ? '<button onclick="_markIMEISold(\'' + _imeiEsc(r.imei) + '\')" style="padding:4px 10px;font-size:.71rem;background:rgba(239,68,68,.1);color:#e53e3e;border:1px solid rgba(239,68,68,.25);border-radius:6px;cursor:pointer;margin-right:4px">Mark Sold</button>' : '')
+        + '<button onclick="_deleteIMEIRecord(\'' + _imeiEsc(r.imei) + '\')" style="padding:4px 8px;font-size:.71rem;background:none;color:var(--muted);border:none;cursor:pointer" title="Delete">✕</button>'
+      + '</td>'
+      + '</tr>';
+  });
+  tbody.innerHTML = html;
+
+  // Audit counter
+  var countEl = document.getElementById('auditCount');
+  if (countEl && _auditSession) {
+    var inStockCount = imeis.filter(function(r){ return r.status === 'in_stock'; }).length;
+    countEl.textContent = _auditSession.size + ' of ' + inStockCount + ' scanned';
+  }
+}
+
+// ── IMEI record operations ────────────────────────────────────────────────────
+function _markIMEISold(imei, customerName) {
+  var arr = _getIMEI();
+  var rec = arr.find(function(r){ return r.imei === imei; });
+  if (rec) {
+    rec.status = 'sold'; rec.soldAt = new Date().toISOString();
+    if (customerName) rec.customerName = customerName;
+    _saveIMEI(arr);
+    renderIMEIVault();
+    showToast('IMEI ' + imei.slice(0,6) + '… marked as sold');
+  }
+}
+
+function _deleteIMEIRecord(imei) {
+  var arr = _getIMEI().filter(function(r){ return r.imei !== imei; });
+  _saveIMEI(arr);
+  renderIMEIVault();
+}
+
+function _highlightIMEIRow(imei) {
+  var row = document.getElementById('imei-row-' + imei);
+  if (!row) return;
+  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  _flashRow(row, '#1d4ed8');
+}
+
+function _flashRow(row, color) {
+  color = color || '#1d4ed8';
+  var orig = row.style.background || '';
+  row.style.transition = 'background .15s';
+  row.style.background = 'rgba(59,130,246,.28)';
+  setTimeout(function(){ row.style.background = orig; }, 1800);
+}
+
+// ── Camera Scanner ────────────────────────────────────────────────────────────
+var _imeiScanStream = null;
+var _imeiScanMode   = 'lookup';
+var _imeiScanValue  = '';
+var _imeiScanRAF    = null;
+
+function _openCameraScanner(mode) {
+  _imeiScanMode  = mode || 'lookup';
+  _imeiScanValue = '';
+  var modal = document.getElementById('imeiScanModal');
+  var title = document.getElementById('imeiScanTitle');
+  var result= document.getElementById('imeiScanResult');
+  var inp   = document.getElementById('imeiManualInput');
+  if (modal) modal.style.display = 'flex';
+  if (result) result.style.display = 'none';
+  if (inp) inp.value = '';
+  if (title) {
+    var labels = { lookup:'📷 Scan to Look Up', add:'📷 Scan to Add IMEI', audit:'📷 Scan for Audit' };
+    title.textContent = labels[mode] || '📷 Scan Barcode / IMEI';
+  }
+
+  var video = document.getElementById('imeiScanVideo');
+  var noticeEl = document.getElementById('noBarcodeNotice');
+  if (!video) return;
+
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    .then(function(stream) {
+      _imeiScanStream = stream;
+      video.srcObject = stream;
+      video.play();
+
+      if ('BarcodeDetector' in window) {
+        var detector = new window.BarcodeDetector({ formats: ['code_128','ean_13','ean_8','qr_code','code_39','itf'] });
+        var scan = function() {
+          if (!_imeiScanStream) return;
+          detector.detect(video).then(function(barcodes) {
+            for (var b = 0; b < barcodes.length; b++) {
+              var val = barcodes[b].rawValue.replace(/\D/g,'');
+              if (val.length >= 13) { // IMEI=15, some are shorter serials
+                _processIMEIValue(val, true);
+                return;
+              }
+            }
+            _imeiScanRAF = requestAnimationFrame(scan);
+          }).catch(function(){ _imeiScanRAF = requestAnimationFrame(scan); });
+        };
+        _imeiScanRAF = requestAnimationFrame(scan);
+      } else {
+        if (noticeEl) noticeEl.style.display = 'block';
+      }
+    })
+    .catch(function() {
+      var fb = document.getElementById('imeiScanFeedback');
+      if (fb) fb.textContent = 'Camera unavailable — type IMEI below';
+      if (noticeEl) noticeEl.style.display = 'block';
+    });
+}
+
+function _closeIMEIScan() {
+  if (_imeiScanRAF) { cancelAnimationFrame(_imeiScanRAF); _imeiScanRAF = null; }
+  if (_imeiScanStream) { _imeiScanStream.getTracks().forEach(function(t){ t.stop(); }); _imeiScanStream = null; }
+  var video = document.getElementById('imeiScanVideo');
+  if (video) { video.srcObject = null; }
+  var modal = document.getElementById('imeiScanModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function _onIMEIInput(val) {
+  _imeiScanValue = val;
+}
+
+function _processIMEIValue(val, fromCamera) {
+  val = String(val || '').replace(/[^0-9a-zA-Z]/g, '').trim();
+  if (!val) { showToast('Enter an IMEI or serial number'); return; }
+  _imeiScanValue = val;
+
+  // Stop camera once we have a value
+  if (fromCamera) {
+    if (_imeiScanRAF) { cancelAnimationFrame(_imeiScanRAF); _imeiScanRAF = null; }
+    if (_imeiScanStream) { _imeiScanStream.getTracks().forEach(function(t){ t.stop(); }); _imeiScanStream = null; }
+    var inpEl = document.getElementById('imeiManualInput');
+    if (inpEl) inpEl.value = val;
+  }
+
+  // Audit mode: just record scan
+  if (_imeiScanMode === 'audit') {
+    if (_auditSession) _auditSession.add(val);
+    var imeis = _getIMEI();
+    var rec   = imeis.find(function(r){ return r.imei === val; });
+    var feedback = document.getElementById('imeiScanFeedback');
+    var resultDiv = document.getElementById('imeiScanResult');
+    var resultText = document.getElementById('imeiScanResultText');
+    if (rec) {
+      if (feedback) feedback.textContent = '✅ ' + (rec.productName || val) + ' — verified';
+      if (resultText) resultText.innerHTML = '<strong style="color:#16a34a">✅ ' + _imeiEsc(rec.productName||val) + '</strong><br>Status: ' + rec.status;
+      if (resultDiv) resultDiv.style.display = 'block';
+    } else {
+      if (feedback) feedback.textContent = '⚠️ IMEI not in vault — unknown item';
+      if (resultText) resultText.innerHTML = '<strong style="color:#d97706">⚠️ IMEI ' + _imeiEsc(val) + ' not in vault</strong>';
+      if (resultDiv) resultDiv.style.display = 'block';
+    }
+    renderIMEIVault();
+    // Resume scanning after brief pause
+    if ('BarcodeDetector' in window && _imeiScanStream) {
+      setTimeout(function(){
+        if (resultDiv) resultDiv.style.display = 'none';
+        // restart scan loop
+        _openCameraScanner('audit');
+      }, 1500);
+    }
+    return;
+  }
+
+  // Lookup / add mode
+  var imeis   = _getIMEI();
+  var rec     = imeis.find(function(r){ return r.imei === val; });
+  var resultDiv  = document.getElementById('imeiScanResult');
+  var resultText = document.getElementById('imeiScanResultText');
+  var actionsDiv = document.getElementById('imeiScanActions');
+  if (resultDiv) resultDiv.style.display = 'block';
+
+  if (rec) {
+    var statusColor = rec.status === 'sold' ? '#64748b' : '#16a34a';
+    if (resultText) resultText.innerHTML = '<strong>' + _imeiEsc(rec.productName||'Unknown') + '</strong>'
+      + '<br>IMEI: <span style="font-family:monospace">' + _imeiEsc(val) + '</span>'
+      + '<br>Status: <span style="color:' + statusColor + ';font-weight:700">' + rec.status.toUpperCase() + '</span>'
+      + (rec.customerName ? '<br>Sold to: ' + _imeiEsc(rec.customerName) : '');
+    if (actionsDiv) actionsDiv.innerHTML = rec.status === 'in_stock'
+      ? '<button onclick="_markIMEISold(\'' + _imeiEsc(val) + '\');_closeIMEIScan();" style="padding:8px 18px;background:#e53e3e;color:#fff;border:none;border-radius:9px;font-size:.82rem;font-weight:600;cursor:pointer">Mark Sold</button>'
+      + '<button onclick="_closeIMEIScan();switchProdTab(\'imei\');setTimeout(function(){renderIMEIVault();_highlightIMEIRow(\'' + _imeiEsc(val) + '\');},200);" style="padding:8px 18px;background:var(--accent);color:#fff;border:none;border-radius:9px;font-size:.82rem;font-weight:600;cursor:pointer">View in Vault</button>'
+      : '<button onclick="_closeIMEIScan();" style="padding:8px 18px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:9px;font-size:.82rem;cursor:pointer">Close</button>';
+  } else {
+    if (resultText) resultText.innerHTML = '<strong style="color:#d97706">⚠️ IMEI not in vault</strong>'
+      + '<br><span style="font-family:monospace;font-size:.82rem">' + _imeiEsc(val) + '</span>';
+    if (actionsDiv) actionsDiv.innerHTML = '<button onclick="_openIMEILink(\'' + _imeiEsc(val) + '\')" style="padding:8px 18px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:9px;font-size:.82rem;font-weight:600;cursor:pointer">+ Add to Vault</button>'
+      + '<button onclick="_closeIMEIScan();" style="padding:8px 18px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:9px;font-size:.82rem;cursor:pointer">Cancel</button>';
+  }
+}
+
+function _openIMEILink(imei) {
+  _closeIMEIScan();
+  var modal  = document.getElementById('imeiLinkModal');
+  var disp   = document.getElementById('imeiLinkIMEIDisplay');
+  var sel    = document.getElementById('imeiLinkProductSelect');
+  if (!modal || !sel) return;
+  if (disp) disp.textContent = 'IMEI: ' + imei;
+  modal._pendingIMEI = imei;
+
+  // Populate products dropdown — IMEI-tracked ones first
+  var prods = typeof _getProds === 'function' ? _getProds() : [];
+  var opts = '<option value="">— Choose product —</option>';
+  var imeiProds = prods.filter(function(p){ return p.isIMEITracked; });
+  var otherProds = prods.filter(function(p){ return !p.isIMEITracked; });
+  var allSorted = imeiProds.concat(otherProds);
+  allSorted.forEach(function(p, idx){
+    opts += '<option value="' + _imeiEsc(p.code) + '" data-name="' + _imeiEsc(p.name) + '">' + _imeiEsc(p.name) + (p.isIMEITracked ? ' 📱' : '') + '</option>';
+  });
+  sel.innerHTML = opts;
+  modal.style.display = 'flex';
+}
+
+function _confirmIMEILink() {
+  var modal  = document.getElementById('imeiLinkModal');
+  var sel    = document.getElementById('imeiLinkProductSelect');
+  if (!modal || !sel) return;
+  var imei = modal._pendingIMEI;
+  var code = sel.value;
+  var name = sel.options[sel.selectedIndex]?.dataset?.name || sel.options[sel.selectedIndex]?.text || '';
+  if (!imei || !code) { showToast('Choose a product first'); return; }
+  var arr = _getIMEI();
+  if (arr.find(function(r){ return r.imei === imei; })) { showToast('IMEI already in vault'); modal.style.display='none'; return; }
+  arr.push({ imei: imei, productCode: code, productName: name, status: 'in_stock', addedAt: new Date().toISOString() });
+  _saveIMEI(arr);
+  modal.style.display = 'none';
+  navigateTo('products');
+  setTimeout(function(){ switchProdTab('imei'); renderIMEIVault(); _highlightIMEIRow(imei); }, 300);
+  showToast('IMEI ' + imei.slice(0,6) + '… added to vault ✓');
+}
+
+// ── Customer Database ─────────────────────────────────────────────────────────
+function renderCustomers() {
+  var tbody = document.getElementById('sheetsCustomersTbody');
+  if (!tbody) return;
+  var sales = JSON.parse(localStorage.getItem('iflow_sales') || '[]');
+  var prods = typeof _getProds === 'function' ? _getProds() : [];
+  var cur   = typeof getCurrency === 'function' ? getCurrency() : '₦';
+  var fmtC  = typeof fmtComma === 'function' ? fmtComma : function(n){ return n; };
+
+  if (!sales.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted);font-size:.88rem">👥 No customer data yet — sales will appear here.</td></tr>';
+    return;
+  }
+
+  var map = {};
+  sales.forEach(function(s) {
+    var name = (s.customer || 'Anonymous').trim() || 'Anonymous';
+    if (!map[name]) map[name] = { name: name, orders: 0, spent: 0, profit: 0, lastTs: 0 };
+    var c    = map[name];
+    var qty  = Number(s.quantity) || 1;
+    var price = Number(s.price)  || 0;
+    var total = qty * price;
+    c.orders++;
+    c.spent += total;
+    if (s.timestamp && s.timestamp > c.lastTs) c.lastTs = s.timestamp;
+    // Profit — match product by name
+    var prod = prods.find(function(p){ return p.name === s.product; });
+    if (prod && prod.costPrice) c.profit += (price - prod.costPrice) * qty;
+  });
+
+  var customers = Object.values(map).sort(function(a,b){ return b.spent - a.spent; });
+  var html = '';
+  customers.forEach(function(c, i) {
+    var profitColor = c.profit > 0 ? '#16a34a' : (c.profit < 0 ? '#e53e3e' : 'var(--muted)');
+    var lastDate = c.lastTs ? new Date(c.lastTs).toLocaleDateString() : '—';
+    html += '<tr>'
+      + '<td class="sheets-rownum">' + (i+1) + '</td>'
+      + '<td style="font-weight:600;color:var(--text)">' + _imeiEsc(c.name) + '</td>'
+      + '<td style="text-align:center">' + c.orders + '</td>'
+      + '<td>' + cur + fmtC(c.spent) + '</td>'
+      + '<td style="color:' + profitColor + ';font-weight:600">' + (c.profit !== 0 ? (cur + fmtC(Math.abs(c.profit))) : '—') + '</td>'
+      + '<td style="font-size:.8rem;color:var(--muted)">' + lastDate + '</td>'
+      + '</tr>';
+  });
+  tbody.innerHTML = html;
+}
+
+// ── Nova in-app: add IMEI context to system prompt builder ────────────────────
+// Called by the Nova context builder — augments product awareness with IMEI data
+function _novaIMEIContext() {
+  var imeis = _getIMEI();
+  if (!imeis.length) return '';
+  var inStock = imeis.filter(function(r){ return r.status === 'in_stock'; });
+  var sold    = imeis.filter(function(r){ return r.status === 'sold'; });
+  return '\nIMEI Vault: ' + inStock.length + ' units in stock, ' + sold.length + ' sold. '
+    + 'You can find a product by IMEI using action {"type":"findIMEI","imei":"..."}.';
 }
 </script>
 </body>

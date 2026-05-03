@@ -1772,7 +1772,21 @@
   @keyframes onb-pop { 0%{transform:scale(0)}80%{transform:scale(1.12)}100%{transform:scale(1)} }
   /* Mobile scan FAB */
   @media (max-width:700px) { #scanFAB { display:flex !important } }
+  /* Sonar scanner */
+  .sonar-wrap { position:relative;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,#0a1a0a,#001800);border:2px solid rgba(255,30,30,.35);overflow:hidden;flex-shrink:0 }
+  .sonar-ring { position:absolute;border-radius:50%;border:1px solid rgba(255,30,30,.25);top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none }
+  .sonar-sweep-wrap { position:absolute;inset:0;animation:sonar-rotate 2.5s linear infinite;transform-origin:center }
+  .sonar-sweep { position:absolute;top:50%;left:50%;width:50%;height:1.5px;transform-origin:0 50%;background:linear-gradient(90deg,rgba(255,30,30,.9),rgba(255,30,30,0));box-shadow:0 0 6px rgba(255,30,30,.7) }
+  .sonar-ping { position:absolute;border-radius:50%;border:1.5px solid rgba(255,30,30,.7);top:50%;left:50%;transform:translate(-50%,-50%);animation:sonar-ping 2.5s ease-out infinite }
+  .sonar-video-overlay { position:absolute;inset:20px;border-radius:50%;overflow:hidden;opacity:.45 }
+  @keyframes sonar-rotate { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+  @keyframes sonar-ping { 0%{width:0;height:0;opacity:.8} 100%{width:260px;height:260px;opacity:0} }
+  @keyframes sonar-hit { 0%{box-shadow:0 0 0 rgba(255,30,30,.8)} 50%{box-shadow:0 0 20px 6px rgba(255,30,30,.6)} 100%{box-shadow:0 0 0 rgba(255,30,30,0)} }
+  /* Track-type radio pills */
+  .track-radio-lbl { display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:.82rem;background:var(--surface2);transition:border-color .15s,background .15s }
+  .track-radio-lbl:has(input:checked) { border-color:var(--accent);background:rgba(79,142,247,.09) }
   </style>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -2284,24 +2298,17 @@
     <!-- IMEI Vault -->
     <div id="prodViewIMEI" style="display:none">
       <div style="display:flex;gap:10px;padding:4px 0 16px;flex-wrap:wrap;align-items:center">
-        <input id="imeiSearch" type="text" class="orders-search" placeholder="Search IMEI or product…" style="flex:1;min-width:180px" oninput="renderIMEIVault()" />
-        <button onclick="_openCameraScanner('lookup')" style="padding:8px 16px;background:linear-gradient(135deg,#4f8ef7,#6366f1);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:600;cursor:pointer">📷 Scan</button>
-        <button onclick="_openCameraScanner('add')"    style="padding:8px 16px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:600;cursor:pointer">+ Add IMEI</button>
-        <button onclick="_startAudit()" id="auditBtn"  style="padding:8px 16px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:10px;font-size:.83rem;font-weight:600;cursor:pointer">🔍 Audit</button>
-        <button onclick="_toggleIntegrity()" id="integrityBtn" style="padding:8px 16px;background:linear-gradient(135deg,#e53e3e,#c53030);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:600;cursor:pointer">🛡️ Integrity</button>
-        <button onclick="_openCameraScanner('batch')" style="padding:8px 16px;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:600;cursor:pointer">📷 Batch Scan</button>
+        <input id="imeiSearch" type="text" class="orders-search" placeholder="Search IMEI, serial or product…" style="flex:1;min-width:180px" oninput="renderIMEIVault()" />
+        <button onclick="_openCameraScanner('add')" style="padding:8px 16px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:600;cursor:pointer">+ Add Code</button>
+        <button onclick="_openSonar()" id="integritySearchBtn" style="padding:8px 18px;background:linear-gradient(135deg,#e53e3e,#991b1b);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:700;cursor:pointer;box-shadow:0 2px 12px rgba(229,62,62,.35)">🔍 Integrity Search</button>
       </div>
-      <div id="auditBar" style="display:none;background:rgba(99,102,241,.07);border:1px solid rgba(99,102,241,.22);border-radius:10px;padding:10px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <span style="font-size:.85rem;font-weight:700;color:var(--text)">🔍 Audit in progress</span>
-        <span id="auditCount" style="font-size:.8rem;color:var(--muted)">0 of 0 scanned</span>
-        <button onclick="_endAudit()" style="padding:5px 14px;background:#e53e3e;color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer;margin-left:auto">End Audit</button>
-      </div>
+      <!-- Integrity status bar (restored when active today) -->
       <div id="integrityBar" style="display:none;background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:10px 16px;margin-bottom:12px;align-items:center;gap:12px;flex-wrap:wrap">
-        <span style="font-size:.85rem;font-weight:700;color:#e53e3e">🛡️ Code Integrity Active</span>
+        <span style="font-size:.85rem;font-weight:700;color:#e53e3e">🛡️ Last Integrity Check</span>
         <span id="integrityCount" style="font-size:.8rem;color:var(--muted)">0 confirmed</span>
         <span id="integrityMissing" style="font-size:.8rem;font-weight:600"></span>
-        <button onclick="_openCameraScanner('integrity')" style="padding:5px 14px;background:linear-gradient(135deg,#4f8ef7,#6366f1);color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer">📷 Scan Item</button>
-        <button onclick="_endIntegrity()" style="padding:5px 14px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.78rem;cursor:pointer;margin-left:auto">Done for Today</button>
+        <button onclick="_openSonar()" style="padding:5px 14px;background:linear-gradient(135deg,#e53e3e,#991b1b);color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer">Re-Scan</button>
+        <button onclick="document.getElementById('integrityBar').style.display='none'" style="padding:5px 12px;background:none;border:1px solid var(--border);border-radius:8px;font-size:.78rem;cursor:pointer;color:var(--muted);margin-left:auto">✕</button>
       </div>
       <div class="table-wrap">
         <table>
@@ -2369,12 +2376,16 @@
         <div id="npConditionPreview" style="font-size:.75rem;color:#f59e0b;margin-top:4px;display:none"></div>
       </div>
       <div class="field" style="grid-column:1/-1">
-        <div style="display:flex;align-items:center;gap:12px;padding:10px 0">
-          <label class="toggle-pill"><input type="checkbox" id="npIsIMEI" /><span class="pill-track"><span class="pill-thumb"></span></span></label>
-          <div>
-            <div style="font-size:.85rem;font-weight:600;color:var(--text)">IMEI / Serial Tracking</div>
-            <div style="font-size:.72rem;color:var(--muted)">Enable for phones — track individual units by IMEI</div>
-          </div>
+        <label>Unit Tracking</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+          <label class="track-radio-lbl"><input type="radio" name="npTrackType" value="none" onchange="_updateTrackFields()" checked style="accent-color:var(--accent)"> None</label>
+          <label class="track-radio-lbl"><input type="radio" name="npTrackType" value="imei" onchange="_updateTrackFields()" style="accent-color:var(--accent)"> 📱 IMEI Number</label>
+          <label class="track-radio-lbl"><input type="radio" name="npTrackType" value="unique" onchange="_updateTrackFields()" style="accent-color:var(--accent)"> 🏷️ Unique Code</label>
+        </div>
+        <div id="npImeiNote" style="display:none;font-size:.72rem;color:var(--muted);margin-top:5px">IMEI recorded per sale. Add individual IMEIs in the Vault after saving.</div>
+        <div id="npUniqueField" style="display:none;margin-top:8px">
+          <input type="text" id="npUniqueCode" placeholder="e.g. SN-ABC123, REF-2024-001" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);color:var(--text);font-size:.88rem" />
+          <div style="font-size:.72rem;color:var(--muted);margin-top:3px">Unique serial / reference code for this product</div>
         </div>
       </div>
       <div class="field">
@@ -3136,6 +3147,29 @@
         </div>
       </div>
 
+      <!-- Custom Form Fields -->
+      <div style="margin-top:20px;padding:20px 22px;background:var(--surface2);border-radius:16px;border:1px solid var(--border)">
+        <h3 style="margin:0 0 14px;font-size:.9rem;font-weight:700;color:var(--text)">🧩 Custom Form Fields</h3>
+        <p style="font-size:.78rem;color:var(--muted);margin:0 0 14px">Add extra fields to any entry form. These fields appear when adding products or recording sales.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+          <div style="flex:1;min-width:130px">
+            <label style="font-size:.78rem;color:var(--text);display:block;margin-bottom:4px">Add to section</label>
+            <select id="cfSection" style="width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);font-size:.82rem">
+              <option value="products">Products (Add Product form)</option>
+              <option value="sales">Sales (Sale row entry)</option>
+            </select>
+          </div>
+          <div style="flex:2;min-width:160px">
+            <label style="font-size:.78rem;color:var(--text);display:block;margin-bottom:4px">Field name</label>
+            <input type="text" id="cfName" placeholder="e.g. Colour, Warranty, Ref No." style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);font-size:.82rem" onkeydown="if(event.key==='Enter')_addCustomField()" />
+          </div>
+          <button onclick="_addCustomField()" style="padding:9px 20px;background:var(--accent);color:#fff;border:none;border-radius:9px;font-size:.82rem;font-weight:600;cursor:pointer;white-space:nowrap">+ Add</button>
+        </div>
+        <div id="cfList" style="display:flex;flex-direction:column;gap:6px">
+          <!-- populated by _renderCustomFieldsList() -->
+        </div>
+      </div>
+
       <!-- Save Bar -->
       <div class="settings-save-bar">
         <span class="settings-save-hint">Changes are saved automatically</span>
@@ -3444,19 +3478,95 @@
 </div><!-- end .app-body -->
 </div><!-- end #mainAppWrapper -->
 
-<!-- ── QR Code Modal ─────────────────────────────────────────────────────────── -->
-<div id="qrModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9820;align-items:center;justify-content:center">
-  <div style="background:var(--surface);border-radius:20px;padding:28px;max-width:360px;width:94%;box-shadow:0 12px 48px rgba(0,0,0,.45);text-align:center">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <h3 id="qrModalTitle" style="margin:0;font-size:1rem;font-weight:700;color:var(--text)">Product QR Code</h3>
-      <button onclick="document.getElementById('qrModal').style.display='none'" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted);line-height:1">✕</button>
+<!-- ── Barcode Modal ───────────────────────────────────────────────────────────── -->
+<div id="barcodeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9820;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border-radius:20px;padding:24px;max-width:480px;width:96%;max-height:90vh;overflow-y:auto;box-shadow:0 12px 48px rgba(0,0,0,.45)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h3 id="barcodeModalTitle" style="margin:0;font-size:1rem;font-weight:700;color:var(--text)">Product Barcode</h3>
+      <button onclick="document.getElementById('barcodeModal').style.display='none'" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted);line-height:1">✕</button>
     </div>
-    <div style="background:#fff;border-radius:12px;padding:14px;display:inline-block;margin-bottom:14px">
-      <img id="qrModalImg" src="" alt="QR Code" style="width:200px;height:200px;display:block" />
+    <!-- Single barcode view -->
+    <div id="barcodeModalSingle" style="text-align:center;padding:16px;background:#fff;border-radius:12px;margin-bottom:14px">
+      <svg id="barcodeSVG" style="max-width:100%"></svg>
+      <p id="barcodeModalInfo" style="font-size:.78rem;color:#333;margin:6px 0 0;font-family:monospace"></p>
     </div>
-    <p id="qrModalInfo" style="font-family:monospace;font-size:.82rem;color:var(--text);margin:0 0 4px;font-weight:700"></p>
-    <p style="font-size:.75rem;color:var(--muted);margin:0 0 16px">Scan to retrieve product details</p>
-    <button onclick="document.getElementById('qrModal').style.display='none'" style="width:100%;padding:11px;background:var(--accent);border:none;border-radius:10px;color:#fff;font-weight:600;cursor:pointer">Close</button>
+    <!-- Variant group barcodes -->
+    <div id="barcodeGroupWrap" style="display:none;margin-bottom:14px">
+      <p style="font-size:.8rem;font-weight:700;color:var(--text);margin:0 0 8px">All variants in this group:</p>
+      <div id="barcodeGroupList" style="display:flex;flex-direction:column;gap:10px;max-height:280px;overflow-y:auto;padding:4px"></div>
+    </div>
+    <!-- Controls -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button onclick="_printCurrentBarcode()" style="flex:1;padding:10px;background:linear-gradient(135deg,#4f8ef7,#6366f1);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:600;cursor:pointer">🖨 Print This</button>
+      <button onclick="_printGroupBarcodes()" id="printGroupBtn" style="flex:1;padding:10px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:10px;font-size:.83rem;font-weight:600;cursor:pointer;display:none">🖨 Print Group</button>
+      <button onclick="_printAllBarcodes()" style="flex:1;padding:10px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:10px;font-size:.83rem;font-weight:600;cursor:pointer">🖨 Print All</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Integrity Sonar Search Modal ───────────────────────────────────────────── -->
+<div id="sonarModal" style="display:none;position:fixed;inset:0;background:rgba(0,4,6,.96);z-index:9850;flex-direction:column;align-items:center;overflow:hidden">
+  <!-- Header bar -->
+  <div style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:14px 18px;z-index:1;background:rgba(0,0,0,.4);flex-shrink:0">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div id="sonarStatusDot" style="width:10px;height:10px;border-radius:50%;background:#ff3333;box-shadow:0 0 8px #ff3333;animation:nova-ring 1s ease-out infinite;flex-shrink:0"></div>
+      <span id="sonarStatusTxt" style="color:#ff5555;font-size:.82rem;font-weight:700;text-transform:uppercase;letter-spacing:1.5px">READY</span>
+      <select id="sonarMode" style="background:rgba(255,30,30,.12);border:1px solid rgba(255,30,30,.4);color:#ffaaaa;border-radius:8px;padding:5px 10px;font-size:.78rem;cursor:pointer;outline:none">
+        <option value="multi">Multi-Scan</option>
+        <option value="individual">Individual</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span id="sonarScanCount" style="color:rgba(255,80,80,.9);font-size:.85rem;font-weight:700">0 scanned</span>
+      <button onclick="_sonarFinishScan()" style="padding:8px 18px;background:linear-gradient(135deg,#ff3333,#990000);color:#fff;border:none;border-radius:10px;font-size:.82rem;font-weight:700;cursor:pointer">Search →</button>
+      <button onclick="_closeSonar()" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:50%;width:32px;height:32px;cursor:pointer;color:rgba(255,255,255,.6);font-size:1rem;display:flex;align-items:center;justify-content:center">✕</button>
+    </div>
+  </div>
+
+  <!-- Sonar screen + camera -->
+  <div id="sonarScanView" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:12px">
+    <div class="sonar-wrap" id="sonarScreen">
+      <!-- Concentric reference rings -->
+      <div class="sonar-ring" style="width:80px;height:80px"></div>
+      <div class="sonar-ring" style="width:140px;height:140px"></div>
+      <div class="sonar-ring" style="width:200px;height:200px"></div>
+      <!-- Rotating sweep -->
+      <div class="sonar-sweep-wrap"><div class="sonar-sweep"></div></div>
+      <!-- Pinging rings -->
+      <div class="sonar-ping" style="animation-delay:0s"></div>
+      <div class="sonar-ping" style="animation-delay:.85s"></div>
+      <!-- Camera feed overlay -->
+      <div class="sonar-video-overlay">
+        <video id="sonarVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover"></video>
+      </div>
+      <!-- Center dot -->
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:8px;height:8px;border-radius:50%;background:#ff3333;box-shadow:0 0 8px #ff3333;z-index:2"></div>
+    </div>
+    <p id="sonarHint" style="color:rgba(255,80,80,.7);font-size:.78rem;text-align:center;margin:0">Show each IMEI or serial code to the camera</p>
+    <!-- Running scanned list -->
+    <div id="sonarScanList" style="width:100%;max-width:420px;max-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding:0 4px">
+      <div style="text-align:center;color:rgba(255,80,80,.4);font-size:.75rem;padding:8px 0">Waiting for scan...</div>
+    </div>
+  </div>
+
+  <!-- Results panel (replaces scan view) -->
+  <div id="sonarResults" style="display:none;flex:1;overflow-y:auto;width:100%;background:var(--surface);padding:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <h3 style="margin:0;font-size:1rem;font-weight:700;color:var(--text)">🔍 Scan Results</h3>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <select id="sonarFilter" onchange="_applySonarFilter()" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:.78rem;cursor:pointer">
+          <option value="all">All results</option>
+          <option value="missing">Missing from inventory</option>
+          <option value="unscanned">In inventory, not scanned</option>
+          <option value="found">Found &amp; confirmed</option>
+          <option value="group">Most common product group</option>
+          <option value="sold">Recently sold matches</option>
+        </select>
+        <button onclick="_sonarRescan()" style="padding:6px 14px;background:linear-gradient(135deg,#e53e3e,#991b1b);color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer">↺ Re-scan</button>
+        <button onclick="_closeSonar()" style="padding:6px 12px;background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:8px;font-size:.78rem;cursor:pointer">Close</button>
+      </div>
+    </div>
+    <div id="sonarResultsBody"></div>
   </div>
 </div>
 
@@ -6782,7 +6892,11 @@
     var discountTypeEl = document.getElementById('npDiscountType');
     var discount       = discountEl ? (parseFloat(discountEl.value) || 0) : 0;
     var discountType   = discountTypeEl ? discountTypeEl.value : 'pct';
-    var isIMEITracked  = !!(document.getElementById('npIsIMEI')?.checked);
+    // Tracking type (replaces old npIsIMEI checkbox)
+    var trackTypeEl   = document.querySelector('input[name="npTrackType"]:checked');
+    var trackType     = trackTypeEl ? trackTypeEl.value : 'none';
+    var isIMEITracked = trackType === 'imei';
+    var uniqueCode    = trackType === 'unique' ? ((document.getElementById('npUniqueCode') || {}).value || '').trim() : '';
     if (!name) { showToast('Product name is required'); return; }
 
     var _arr = _getProds();  // always fresh from localStorage
@@ -6802,24 +6916,36 @@
       toggleAddProductForm();
       showToast('"' + name + '" stock updated (+' + stockQty + ')');
       try { checkLowStock(); } catch(_) {}
-      ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode','npCondition','npDiscount'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+      ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode','npCondition','npDiscount','npUniqueCode'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
       var dtEl = document.getElementById('npDiscountType'); if (dtEl) dtEl.value = 'pct';
-      var imeiEl = document.getElementById('npIsIMEI'); if (imeiEl) imeiEl.checked = false;
+      var tDef2 = document.querySelector('input[name="npTrackType"][value="none"]'); if (tDef2) tDef2.checked = true;
+      _updateTrackFields();
       var pv = document.getElementById('npConditionPreview'); if (pv) pv.style.display = 'none';
       return;
     }
 
     pushUndo('products');
-    var p = { code: code, name: name, category: parsed.category, variant: parsed.variant, type: type, stockQty: stockQty, unitPrice: unitPrice, costPrice: costPrice, lowStockThreshold: threshold, dateAdded: new Date().toLocaleDateString(), condition: condition || undefined, conditionCode: condCode || undefined, discount: discount || undefined, discountType: discount ? discountType : undefined, isIMEITracked: isIMEITracked || undefined };
+    var p = { code: code, name: name, category: parsed.category, variant: parsed.variant, type: type, stockQty: stockQty, unitPrice: unitPrice, costPrice: costPrice, lowStockThreshold: threshold, dateAdded: new Date().toLocaleDateString(), condition: condition || undefined, conditionCode: condCode || undefined, discount: discount || undefined, discountType: discount ? discountType : undefined, isIMEITracked: isIMEITracked || undefined, trackType: trackType !== 'none' ? trackType : undefined };
     _arr.push(p);
     sendEmailAlert('New Stock Added: ' + name, '"' + name + '" added to stock. Qty: ' + stockQty + '. Time: ' + new Date().toLocaleString());
     _saveProds(_arr);           // write first
     renderProducts(); try { refreshProductsList(); } catch(_) {}
     SheetsAPI.withToken(function() { SheetsAPI.appendProduct(p); });
+    // Auto-add unique code to vault if provided
+    if (uniqueCode) {
+      var vault = _getIMEI();
+      if (!vault.find(function(r){ return r.imei === uniqueCode; })) {
+        vault.push({ imei: uniqueCode, productCode: code, productName: name, status: 'in_stock', addedAt: new Date().toISOString(), isUnique: true });
+        _saveIMEI(vault);
+      }
+    }
     toggleAddProductForm();
     showToast('"' + name + '" added to stock');
     ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode','npCondition'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
     var pv2 = document.getElementById('npConditionPreview'); if (pv2) pv2.style.display = 'none';
+    var ucEl = document.getElementById('npUniqueCode'); if (ucEl) ucEl.value = '';
+    var tDef = document.querySelector('input[name="npTrackType"][value="none"]'); if (tDef) tDef.checked = true;
+    _updateTrackFields();
     try { checkLowStock(); } catch(_) {}
   }
 
@@ -9244,9 +9370,13 @@ function _openCameraScanner(mode) {
           if (!_imeiScanStream) return;
           detector.detect(video).then(function(barcodes) {
             for (var b = 0; b < barcodes.length; b++) {
-              var val = barcodes[b].rawValue.replace(/\D/g,'');
-              if (val.length >= 13) { // IMEI=15, some are shorter serials
-                _processIMEIValue(val, true);
+              var raw     = barcodes[b].rawValue.trim();
+              var numOnly = raw.replace(/\D/g,'');
+              // Accept IMEI (13+ digits) OR a known product code
+              var prods   = typeof _getProds === 'function' ? _getProds() : [];
+              var isProd  = prods.some(function(p){ return p.code && (p.code === raw || p.code.replace(/-/g,'') === raw.replace(/-/g,'')); });
+              if (numOnly.length >= 13 || isProd) {
+                _processIMEIValue(raw, true);
                 return;
               }
             }
@@ -9279,9 +9409,29 @@ function _onIMEIInput(val) {
 }
 
 function _processIMEIValue(val, fromCamera) {
-  val = String(val || '').replace(/[^0-9a-zA-Z]/g, '').trim();
+  // Keep hyphens/alphanumerics (product codes like IPH15P-001 have hyphens)
+  val = String(val || '').replace(/[^0-9a-zA-Z\-]/g, '').trim();
   if (!val) { showToast('Enter an IMEI or serial number'); return; }
   _imeiScanValue = val;
+
+  // Check if this is a product code from a printed barcode
+  var _prods2 = typeof _getProds === 'function' ? _getProds() : [];
+  var _prodCodeMatch = _prods2.find(function(p){ return p.code && (p.code === val || p.code.replace(/-/g,'') === val.replace(/-/g,'')); });
+  if (_prodCodeMatch && _imeiScanMode === 'lookup') {
+    if (fromCamera) { if (_imeiScanRAF) { cancelAnimationFrame(_imeiScanRAF); _imeiScanRAF = null; } if (_imeiScanStream) { _imeiScanStream.getTracks().forEach(function(t){ t.stop(); }); _imeiScanStream = null; } }
+    _closeIMEIScan();
+    navigateTo('products');
+    setTimeout(function(){
+      document.getElementById('productsSearch').value = _prodCodeMatch.name;
+      renderProducts();
+      setTimeout(function(){
+        var row = document.getElementById('prod-row-' + (_prods2.indexOf(_prodCodeMatch)));
+        if (row) { row.scrollIntoView({behavior:'smooth',block:'center'}); _flashRow(row, '#6366f1'); }
+      }, 350);
+    }, 300);
+    showToast('📦 Found: ' + _prodCodeMatch.name);
+    return;
+  }
 
   // For continuing modes (integrity/batch/audit), don't kill the stream yet
   var _continuingMode = (_imeiScanMode === 'integrity' || _imeiScanMode === 'batch' || _imeiScanMode === 'audit');
@@ -9648,27 +9798,7 @@ _openCameraScanner = function(mode) {
   }
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
-// QR Code Modal
-// ══════════════════════════════════════════════════════════════════════════════
-function _showProductQR(code, name) {
-  var modal = document.getElementById('qrModal');
-  var img   = document.getElementById('qrModalImg');
-  var info  = document.getElementById('qrModalInfo');
-  var title = document.getElementById('qrModalTitle');
-  if (!modal || !img) return;
-  var s     = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-  var store = s.storeName || 'iFlow Store';
-  // Find IMEI if any
-  var imeis = _getIMEI();
-  var imeiRecs = imeis.filter(function(r){ return r.productCode === code; });
-  var imeiStr  = imeiRecs.length ? '\nIMEIs: ' + imeiRecs.map(function(r){ return r.imei; }).join(', ') : '';
-  var data  = 'CODE:' + code + '\nNAME:' + name + '\nSTORE:' + store + imeiStr;
-  img.src   = 'https://api.qrserver.com/v1/create-qr-code/?data=' + encodeURIComponent(data) + '&size=200x200&margin=4';
-  if (info)  info.textContent  = code + ' — ' + name;
-  if (title) title.textContent = 'QR: ' + name;
-  modal.style.display = 'flex';
-}
+// (QR modal replaced by barcode modal — see _showProductBarcode below)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Business Onboarding Wizard
@@ -9771,6 +9901,455 @@ function _finishOnboarding() {
   }
   showToast('🎉 iFlow setup complete — welcome!');
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Tracking type toggle (product form)
+// ══════════════════════════════════════════════════════════════════════════════
+function _updateTrackFields() {
+  var typeEl   = document.querySelector('input[name="npTrackType"]:checked');
+  var type     = typeEl ? typeEl.value : 'none';
+  var imeiNote = document.getElementById('npImeiNote');
+  var uniqFld  = document.getElementById('npUniqueField');
+  if (imeiNote) imeiNote.style.display = type === 'imei'   ? '' : 'none';
+  if (uniqFld)  uniqFld.style.display  = type === 'unique' ? '' : 'none';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Client-side Barcode Generation & Print
+// ══════════════════════════════════════════════════════════════════════════════
+var _barcodeCurrentCode = '';
+var _barcodeCurrentName = '';
+var _barcodeCurrentCat  = '';
+
+function _showProductQR(code, name) { _showProductBarcode(code, name); }
+
+function _showProductBarcode(code, name) {
+  _barcodeCurrentCode = code;
+  _barcodeCurrentName = name;
+  var modal = document.getElementById('barcodeModal');
+  var title = document.getElementById('barcodeModalTitle');
+  var info  = document.getElementById('barcodeModalInfo');
+  var svg   = document.getElementById('barcodeSVG');
+  var grpWrap = document.getElementById('barcodeGroupWrap');
+  var grpBtn  = document.getElementById('printGroupBtn');
+  if (!modal || !svg) return;
+  if (title) title.textContent = name;
+  if (info)  info.textContent  = code;
+
+  // Render barcode
+  try {
+    JsBarcode(svg, code, {
+      format: 'CODE128', lineColor: '#000', background: '#fff',
+      width: 2.2, height: 72, displayValue: true, fontSize: 13, fontOptions: 'bold',
+      margin: 10, text: code + '  ' + name.slice(0, 28)
+    });
+  } catch(e) {
+    // Fallback: try without hyphens
+    try { JsBarcode(svg, code.replace(/-/g,''), { format:'CODE128', displayValue:true, margin:10 }); } catch(_){}
+  }
+
+  // Check if this product has variants in same category
+  var prods = typeof _getProds === 'function' ? _getProds() : [];
+  var myProd = prods.find(function(p){ return p.code === code; });
+  _barcodeCurrentCat = myProd ? (myProd.category || '') : '';
+  var variants = _barcodeCurrentCat ? prods.filter(function(p){ return p.category === _barcodeCurrentCat; }) : [];
+
+  if (variants.length > 1) {
+    // Show variant barcodes
+    var grpList = document.getElementById('barcodeGroupList');
+    if (grpList) {
+      grpList.innerHTML = '';
+      variants.forEach(function(v) {
+        var wrap = document.createElement('div');
+        wrap.style.cssText = 'background:#fff;border-radius:8px;padding:10px;text-align:center';
+        var s = document.createElementNS('http://www.w3.org/2000/svg','svg');
+        s.setAttribute('id', 'bc-' + v.code.replace(/[^a-zA-Z0-9]/g,''));
+        wrap.appendChild(s);
+        grpList.appendChild(wrap);
+        try {
+          JsBarcode(s, v.code, { format:'CODE128', lineColor:'#000', background:'#fff', width:1.8, height:60, displayValue:true, fontSize:11, margin:6, text: v.code + '  ' + (v.variant || v.name).slice(0,28) });
+        } catch(_){}
+      });
+    }
+    if (grpWrap) grpWrap.style.display = '';
+    if (grpBtn)  grpBtn.style.display  = '';
+  } else {
+    if (grpWrap) grpWrap.style.display = 'none';
+    if (grpBtn)  grpBtn.style.display  = 'none';
+  }
+  modal.style.display = 'flex';
+}
+
+function _printCurrentBarcode() {
+  var svgEl = document.getElementById('barcodeSVG');
+  if (!svgEl) return;
+  var s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+  _doPrintBarcodes([{ svg: svgEl.outerHTML, code: _barcodeCurrentCode, name: _barcodeCurrentName }], s.storeName || 'iFlow');
+}
+
+function _printGroupBarcodes() {
+  var grpList = document.getElementById('barcodeGroupList');
+  if (!grpList) return;
+  var prods = typeof _getProds === 'function' ? _getProds() : [];
+  var variants = _barcodeCurrentCat ? prods.filter(function(p){ return p.category === _barcodeCurrentCat; }) : [];
+  var items = variants.map(function(v) {
+    var sid = 'bc-' + v.code.replace(/[^a-zA-Z0-9]/g,'');
+    var s   = document.getElementById(sid);
+    return { svg: s ? s.outerHTML : '', code: v.code, name: v.variant || v.name };
+  });
+  var s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+  _doPrintBarcodes(items, s.storeName || 'iFlow');
+}
+
+function _printAllBarcodes() {
+  var prods = typeof _getProds === 'function' ? _getProds() : [];
+  if (!prods.length) { showToast('No products to print'); return; }
+  var s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+  var store = s.storeName || 'iFlow';
+  // Generate barcodes in memory for all products
+  var items = prods.map(function(p) {
+    var tmpSvg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+    try { JsBarcode(tmpSvg, p.code, { format:'CODE128', lineColor:'#000', background:'#fff', width:1.8, height:60, displayValue:true, fontSize:10, margin:6, text: p.code + '  ' + (p.variant||p.name).slice(0,26) }); } catch(_){}
+    return { svg: tmpSvg.outerHTML, code: p.code, name: p.variant || p.name };
+  });
+  _doPrintBarcodes(items, store);
+}
+
+function _doPrintBarcodes(items, store) {
+  var win = window.open('', '_blank', 'width=800,height=600');
+  if (!win) { showToast('Allow pop-ups to print barcodes'); return; }
+  var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + store + ' — Barcodes</title><style>'
+    + 'body{font-family:sans-serif;background:#fff;margin:0;padding:16px}'
+    + '.header{text-align:center;margin-bottom:18px;font-size:1.1rem;font-weight:700;color:#111}'
+    + '.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}'
+    + '.bc-card{border:1px solid #ddd;border-radius:8px;padding:12px;text-align:center;break-inside:avoid;page-break-inside:avoid}'
+    + '.bc-card svg{max-width:100%}.bc-name{font-size:.78rem;font-weight:600;color:#222;margin-top:4px;word-break:break-word}'
+    + '@media print{body{padding:6px}.grid{gap:8px}.bc-card{border:1px solid #ccc}}'
+    + '</style></head><body>'
+    + '<div class="header">' + store + ' — Stock Barcodes (' + items.length + ' items)</div>'
+    + '<div class="grid">'
+    + items.map(function(it){ return '<div class="bc-card">' + (it.svg || '') + '<div class="bc-name">' + it.name + '</div></div>'; }).join('')
+    + '</div></body></html>';
+  win.document.write(html);
+  win.document.close();
+  win.onload = function(){ win.print(); };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Integrity Sonar Search
+// ══════════════════════════════════════════════════════════════════════════════
+var _sonarStream   = null;
+var _sonarRAF      = null;
+var _sonarScanned  = new Set();  // raw codes scanned this session
+
+function _openSonar() {
+  _sonarScanned.clear();
+  var modal = document.getElementById('sonarModal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  _sonarUpdateUI();
+  // Show scan view, hide results
+  document.getElementById('sonarScanView').style.display = 'flex';
+  document.getElementById('sonarResults').style.display  = 'none';
+
+  var video = document.getElementById('sonarVideo');
+  if (!video) return;
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    .then(function(stream) {
+      _sonarStream = stream;
+      video.srcObject = stream;
+      video.play();
+      document.getElementById('sonarStatusTxt').textContent = 'SCANNING';
+      if ('BarcodeDetector' in window) {
+        var det = new window.BarcodeDetector({ formats: ['code_128','ean_13','ean_8','qr_code','code_39','itf'] });
+        var scan = function() {
+          if (!_sonarStream) return;
+          det.detect(video).then(function(codes) {
+            for (var i = 0; i < codes.length; i++) {
+              var raw     = codes[i].rawValue.trim();
+              var numOnly = raw.replace(/\D/g,'');
+              var isCode  = numOnly.length >= 13 || raw.length >= 6;
+              if (isCode && !_sonarScanned.has(raw)) {
+                _sonarScanned.add(raw);
+                _sonarBeep();
+                _sonarUpdateUI();
+                // In individual mode: pause 1.5s after each scan
+                var mode = (document.getElementById('sonarMode') || {}).value || 'multi';
+                if (mode === 'individual') {
+                  setTimeout(function(){ if (_sonarStream) _sonarRAF = requestAnimationFrame(scan); }, 1500);
+                  return;
+                }
+              }
+            }
+            _sonarRAF = requestAnimationFrame(scan);
+          }).catch(function(){ _sonarRAF = requestAnimationFrame(scan); });
+        };
+        _sonarRAF = requestAnimationFrame(scan);
+      } else {
+        document.getElementById('sonarHint').textContent = 'Camera scan not supported — type codes manually below';
+      }
+    })
+    .catch(function() {
+      document.getElementById('sonarStatusTxt').textContent = 'NO CAMERA';
+      document.getElementById('sonarHint').textContent = 'Camera unavailable — type IMEI/codes manually';
+    });
+}
+
+function _sonarUpdateUI() {
+  var countEl = document.getElementById('sonarScanCount');
+  if (countEl) countEl.textContent = _sonarScanned.size + ' scanned';
+  var list = document.getElementById('sonarScanList');
+  if (!list) return;
+  if (!_sonarScanned.size) return;
+  var imeis = _getIMEI();
+  var html  = '';
+  _sonarScanned.forEach(function(code) {
+    var rec    = imeis.find(function(r){ return r.imei === code || r.imei.replace(/-/g,'') === code.replace(/-/g,''); });
+    var known  = !!rec;
+    var color  = known ? '#16a34a' : '#d97706';
+    var label  = known ? (rec.productName || 'Known') : 'Unknown';
+    html += '<div style="display:flex;justify-content:space-between;padding:4px 10px;background:rgba(255,30,30,.08);border:1px solid rgba(255,30,30,.15);border-radius:7px;font-size:.75rem">'
+      + '<span style="font-family:monospace;color:#ffaaaa">' + _imeiEsc(code.length > 12 ? code.slice(0,10)+'…' : code) + '</span>'
+      + '<span style="color:' + color + ';font-weight:600">' + _imeiEsc(label) + '</span>'
+      + '</div>';
+  });
+  list.innerHTML = html;
+  list.scrollTop = list.scrollHeight;
+}
+
+function _sonarBeep() {
+  try {
+    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+    var osc = ctx.createOscillator();
+    var g   = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.frequency.value = 880; osc.type = 'sine';
+    g.gain.setValueAtTime(0.2, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.12);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.14);
+  } catch(_){}
+}
+
+function _closeSonar() {
+  if (_sonarRAF) { cancelAnimationFrame(_sonarRAF); _sonarRAF = null; }
+  if (_sonarStream) { _sonarStream.getTracks().forEach(function(t){ t.stop(); }); _sonarStream = null; }
+  var video = document.getElementById('sonarVideo');
+  if (video) video.srcObject = null;
+  var modal = document.getElementById('sonarModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function _sonarRescan() {
+  _sonarScanned.clear();
+  document.getElementById('sonarScanView').style.display = 'flex';
+  document.getElementById('sonarResults').style.display  = 'none';
+  _openSonar();
+}
+
+function _sonarFinishScan() {
+  // Stop camera
+  if (_sonarRAF) { cancelAnimationFrame(_sonarRAF); _sonarRAF = null; }
+  if (_sonarStream) { _sonarStream.getTracks().forEach(function(t){ t.stop(); }); _sonarStream = null; }
+  var video = document.getElementById('sonarVideo');
+  if (video) video.srcObject = null;
+
+  // Save integrity state
+  var today = _todayStr();
+  var state = _getIntegrity();
+  if (state.date !== today) state = { date: today, confirmed: [], barVisible: true };
+  else state.barVisible = true;
+  _sonarScanned.forEach(function(code) { if (state.confirmed.indexOf(code) === -1) state.confirmed.push(code); });
+  _saveIntegrity(state);
+
+  // Show results
+  document.getElementById('sonarScanView').style.display = 'none';
+  document.getElementById('sonarResults').style.display  = 'flex';
+  document.getElementById('sonarResults').style.flexDirection = 'column';
+  document.getElementById('sonarFilter').value = 'all';
+  _applySonarFilter();
+  // Update integrity bar on IMEI vault
+  _updateIntegrityBar();
+  var intBar = document.getElementById('integrityBar');
+  if (intBar) intBar.style.display = 'flex';
+}
+
+function _applySonarFilter() {
+  var filter   = (document.getElementById('sonarFilter') || {}).value || 'all';
+  var imeis    = _getIMEI();
+  var scanned  = Array.from(_sonarScanned);
+  var inStock  = imeis.filter(function(r){ return r.status === 'in_stock'; });
+  var body     = document.getElementById('sonarResultsBody');
+  if (!body) return;
+
+  var rows = [];
+
+  if (filter === 'all') {
+    // All scanned codes with their vault status
+    rows = scanned.map(function(code) {
+      var rec = imeis.find(function(r){ return r.imei === code; });
+      return { code: code, name: rec ? rec.productName : '—', found: !!rec, status: rec ? rec.status : 'unknown', isUnscannedInventory: false };
+    });
+  } else if (filter === 'missing') {
+    // Scanned but NOT in vault
+    rows = scanned.filter(function(code){ return !imeis.find(function(r){ return r.imei === code; }); })
+      .map(function(code){ return { code: code, name: '—', found: false, status: 'not_in_vault', isUnscannedInventory: false }; });
+  } else if (filter === 'unscanned') {
+    // In vault (in_stock) but NOT scanned
+    rows = inStock.filter(function(r){ return !_sonarScanned.has(r.imei); })
+      .map(function(r){ return { code: r.imei, name: r.productName || '—', found: true, status: 'unscanned', isUnscannedInventory: true }; });
+  } else if (filter === 'found') {
+    // Scanned AND found in vault
+    rows = scanned.filter(function(code){ return imeis.find(function(r){ return r.imei === code; }); })
+      .map(function(code) {
+        var rec = imeis.find(function(r){ return r.imei === code; });
+        return { code: code, name: rec ? rec.productName : '—', found: true, status: rec.status, isUnscannedInventory: false };
+      });
+  } else if (filter === 'group') {
+    // Find most common product name in scanned set, show all of that product
+    var nameCounts = {};
+    scanned.forEach(function(code) {
+      var rec = imeis.find(function(r){ return r.imei === code; });
+      var n   = rec ? (rec.productName || '—') : '—';
+      nameCounts[n] = (nameCounts[n] || 0) + 1;
+    });
+    var topName = Object.keys(nameCounts).sort(function(a,b){ return nameCounts[b]-nameCounts[a]; })[0] || '';
+    rows = imeis.filter(function(r){ return (r.productName || '—') === topName; })
+      .map(function(r) {
+        return { code: r.imei, name: r.productName || '—', found: true, status: r.status, isUnscannedInventory: !_sonarScanned.has(r.imei) };
+      });
+  } else if (filter === 'sold') {
+    // Scanned codes that are marked as sold
+    rows = scanned.filter(function(code){ var r = imeis.find(function(x){ return x.imei === code; }); return r && r.status === 'sold'; })
+      .map(function(code) {
+        var rec = imeis.find(function(r){ return r.imei === code; });
+        return { code: code, name: rec.productName || '—', found: true, status: 'sold', isUnscannedInventory: false };
+      });
+  }
+
+  if (!rows.length) {
+    body.innerHTML = '<div style="text-align:center;padding:32px;color:var(--muted);font-size:.88rem">No items match this filter.</div>';
+    return;
+  }
+
+  // Group by product name
+  var groups = {};
+  rows.forEach(function(r) {
+    var g = r.name || '—';
+    if (!groups[g]) groups[g] = [];
+    groups[g].push(r);
+  });
+
+  var html = '';
+  Object.keys(groups).sort().forEach(function(grpName) {
+    var grpRows = groups[grpName];
+    html += '<div style="margin-bottom:14px">'
+      + '<div style="font-size:.8rem;font-weight:700;color:var(--text);padding:6px 4px;border-bottom:1px solid var(--border);margin-bottom:6px">'
+      + _imeiEsc(grpName) + ' <span style="color:var(--muted);font-weight:400">(' + grpRows.length + ')</span></div>';
+    grpRows.forEach(function(r) {
+      var isRed   = !r.found || r.status === 'not_in_vault' || r.isUnscannedInventory;
+      var bg      = isRed ? 'rgba(239,68,68,.08)' : 'rgba(34,197,94,.08)';
+      var bdColor = isRed ? 'rgba(239,68,68,.25)' : 'rgba(34,197,94,.25)';
+      var dot     = isRed ? '#e53e3e' : '#16a34a';
+      var statusLbl = r.status === 'sold' ? '🔴 SOLD' : r.isUnscannedInventory ? '🔴 NOT SCANNED' : r.found ? '✅ FOUND' : '🔴 MISSING';
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:' + bg + ';border:1px solid ' + bdColor + ';border-radius:8px;margin-bottom:4px">'
+        + '<div style="width:8px;height:8px;border-radius:50%;background:' + dot + ';flex-shrink:0"></div>'
+        + '<span style="font-family:monospace;font-size:.79rem;color:var(--text);flex:1">' + _imeiEsc(r.code) + '</span>'
+        + '<span style="font-size:.74rem;font-weight:700;color:' + dot + '">' + statusLbl + '</span>'
+        + '</div>';
+    });
+    html += '</div>';
+  });
+
+  // Summary stats
+  var found   = rows.filter(function(r){ return r.found && !r.isUnscannedInventory; }).length;
+  var missing = rows.filter(function(r){ return !r.found || r.isUnscannedInventory; }).length;
+  body.innerHTML = '<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">'
+    + '<div style="flex:1;padding:10px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:10px;text-align:center"><div style="font-size:1.4rem;font-weight:800;color:#16a34a">' + found + '</div><div style="font-size:.72rem;color:var(--muted)">Confirmed</div></div>'
+    + '<div style="flex:1;padding:10px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:10px;text-align:center"><div style="font-size:1.4rem;font-weight:800;color:#e53e3e">' + missing + '</div><div style="font-size:.72rem;color:var(--muted)">Missing / Unscanned</div></div>'
+    + '<div style="flex:1;padding:10px;background:rgba(79,142,247,.1);border:1px solid rgba(79,142,247,.3);border-radius:10px;text-align:center"><div style="font-size:1.4rem;font-weight:800;color:#4f8ef7">' + rows.length + '</div><div style="font-size:.72rem;color:var(--muted)">Total</div></div>'
+    + '</div>' + html;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Settings — Custom Form Fields
+// ══════════════════════════════════════════════════════════════════════════════
+function _getCustomFields() {
+  try { var s = JSON.parse(localStorage.getItem('iflow_settings') || '{}'); return s.customFields || []; } catch(_){ return []; }
+}
+function _saveCustomFields(arr) {
+  var s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+  s.customFields = arr;
+  localStorage.setItem('iflow_settings', JSON.stringify(s));
+}
+
+function _addCustomField() {
+  var sec  = (document.getElementById('cfSection') || {}).value || 'products';
+  var name = ((document.getElementById('cfName') || {}).value || '').trim();
+  if (!name) { showToast('Enter a field name first'); return; }
+  var arr = _getCustomFields();
+  if (arr.some(function(f){ return f.name === name && f.section === sec; })) { showToast('Field "' + name + '" already exists in that section'); return; }
+  arr.push({ id: 'cf_' + Date.now(), section: sec, name: name });
+  _saveCustomFields(arr);
+  var el = document.getElementById('cfName'); if (el) el.value = '';
+  _renderCustomFieldsList();
+  _injectCustomFields();
+  showToast('"' + name + '" field added to ' + (sec === 'products' ? 'Add Product form' : 'Sales entry'));
+}
+
+function _deleteCustomField(id) {
+  var arr  = _getCustomFields();
+  var fld  = arr.find(function(f){ return f.id === id; });
+  if (!fld) return;
+  if (!confirm('Delete field "' + fld.name + '" from ' + (fld.section === 'products' ? 'Products' : 'Sales') + ' form?\n\nThis will not delete existing data.')) return;
+  _saveCustomFields(arr.filter(function(f){ return f.id !== id; }));
+  _renderCustomFieldsList();
+  _injectCustomFields();
+}
+
+function _renderCustomFieldsList() {
+  var el = document.getElementById('cfList');
+  if (!el) return;
+  var arr = _getCustomFields();
+  if (!arr.length) {
+    el.innerHTML = '<div style="font-size:.78rem;color:var(--muted);padding:8px 4px">No custom fields yet.</div>';
+    return;
+  }
+  var sections = { products: '📦 Products', sales: '📋 Sales' };
+  el.innerHTML = arr.map(function(f) {
+    return '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:9px">'
+      + '<span style="font-size:.78rem;padding:2px 8px;background:rgba(79,142,247,.1);color:var(--accent);border-radius:5px">' + (sections[f.section] || f.section) + '</span>'
+      + '<span style="font-size:.85rem;font-weight:600;color:var(--text);flex:1">' + _imeiEsc(f.name) + '</span>'
+      + '<button onclick="_deleteCustomField(\'' + f.id + '\')" style="padding:3px 10px;background:rgba(239,68,68,.1);color:#e53e3e;border:1px solid rgba(239,68,68,.25);border-radius:6px;font-size:.74rem;cursor:pointer">Delete</button>'
+      + '</div>';
+  }).join('');
+}
+
+function _injectCustomFields() {
+  // Inject custom fields into the Add Product form
+  var container = document.getElementById('addProductForm');
+  if (!container) return;
+  // Remove any previously injected custom field divs
+  container.querySelectorAll('.cf-injected').forEach(function(el){ el.remove(); });
+  var prodFields = _getCustomFields().filter(function(f){ return f.section === 'products'; });
+  if (!prodFields.length) return;
+  var formGrid = container.querySelector('.form-grid');
+  if (!formGrid) return;
+  prodFields.forEach(function(f) {
+    var div = document.createElement('div');
+    div.className = 'field cf-injected';
+    div.innerHTML = '<label>' + _imeiEsc(f.name) + ' <span style="color:#94a3b8;font-weight:400;font-size:.75rem">(custom)</span></label>'
+      + '<input type="text" id="cf_' + f.id + '" placeholder="Enter ' + _imeiEsc(f.name).toLowerCase() + '" style="width:100%" />';
+    formGrid.appendChild(div);
+  });
+}
+
+// Load custom fields once DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(function(){
+    _renderCustomFieldsList();
+    _injectCustomFields();
+  }, 600);
+});
 </script>
 </body>
 </html>

@@ -1766,6 +1766,12 @@
   .nova-dot-listen { background:#22c55e; animation:nova-ring .9s ease-out infinite; }
   .nova-dot-think  { background:#f59e0b; animation:nova-spin .8s linear infinite; border-radius:50%; }
   .nova-dot-speak  { background:#818cf8; animation:nova-wave .6s ease-in-out infinite; border-radius:2px; }
+  /* Onboarding wizard */
+  .onb-type-btn { background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);border-radius:14px;color:#fff;padding:18px 10px;cursor:pointer;font-size:.83rem;line-height:1.7;transition:background .2s,transform .15s,border-color .2s;text-align:center }
+  .onb-type-btn:hover { background:rgba(99,102,241,.35);border-color:rgba(99,102,241,.6);transform:scale(1.04) }
+  @keyframes onb-pop { 0%{transform:scale(0)}80%{transform:scale(1.12)}100%{transform:scale(1)} }
+  /* Mobile scan FAB */
+  @media (max-width:700px) { #scanFAB { display:flex !important } }
   </style>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
@@ -2282,11 +2288,20 @@
         <button onclick="_openCameraScanner('lookup')" style="padding:8px 16px;background:linear-gradient(135deg,#4f8ef7,#6366f1);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:600;cursor:pointer">📷 Scan</button>
         <button onclick="_openCameraScanner('add')"    style="padding:8px 16px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:600;cursor:pointer">+ Add IMEI</button>
         <button onclick="_startAudit()" id="auditBtn"  style="padding:8px 16px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:10px;font-size:.83rem;font-weight:600;cursor:pointer">🔍 Audit</button>
+        <button onclick="_toggleIntegrity()" id="integrityBtn" style="padding:8px 16px;background:linear-gradient(135deg,#e53e3e,#c53030);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:600;cursor:pointer">🛡️ Integrity</button>
+        <button onclick="_openCameraScanner('batch')" style="padding:8px 16px;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:600;cursor:pointer">📷 Batch Scan</button>
       </div>
       <div id="auditBar" style="display:none;background:rgba(99,102,241,.07);border:1px solid rgba(99,102,241,.22);border-radius:10px;padding:10px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <span style="font-size:.85rem;font-weight:700;color:var(--text)">🔍 Audit in progress</span>
         <span id="auditCount" style="font-size:.8rem;color:var(--muted)">0 of 0 scanned</span>
         <button onclick="_endAudit()" style="padding:5px 14px;background:#e53e3e;color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer;margin-left:auto">End Audit</button>
+      </div>
+      <div id="integrityBar" style="display:none;background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:10px 16px;margin-bottom:12px;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:.85rem;font-weight:700;color:#e53e3e">🛡️ Code Integrity Active</span>
+        <span id="integrityCount" style="font-size:.8rem;color:var(--muted)">0 confirmed</span>
+        <span id="integrityMissing" style="font-size:.8rem;font-weight:600"></span>
+        <button onclick="_openCameraScanner('integrity')" style="padding:5px 14px;background:linear-gradient(135deg,#4f8ef7,#6366f1);color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer">📷 Scan Item</button>
+        <button onclick="_endIntegrity()" style="padding:5px 14px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.78rem;cursor:pointer;margin-left:auto">Done for Today</button>
       </div>
       <div class="table-wrap">
         <table>
@@ -2296,6 +2311,11 @@
           <tbody id="imeiVaultBody"></tbody>
         </table>
       </div>
+      <!-- Mobile FAB – shown via CSS on screens ≤700px when IMEI tab is visible -->
+      <button id="scanFAB" onclick="_openCameraScanner('lookup')"
+        style="display:none;position:fixed;bottom:76px;right:14px;z-index:9100;width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,#4f8ef7,#6366f1);color:#fff;font-size:1.5rem;border:none;cursor:pointer;box-shadow:0 4px 24px rgba(99,102,241,.5);align-items:center;justify-content:center;flex-shrink:0"
+        title="Scan IMEI">📷
+      </button>
     </div>
 
   </div>
@@ -3318,6 +3338,17 @@
       <div id="imeiScanResultText" style="font-size:.88rem;color:var(--text);line-height:1.7"></div>
       <div id="imeiScanActions" style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"></div>
     </div>
+    <!-- Batch scan live list -->
+    <div id="batchScanPanel" style="display:none;margin-top:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:.85rem;font-weight:700;color:var(--text)">Scanned (<span id="batchCount">0</span>)</span>
+        <button onclick="_processBatchAll()" style="padding:6px 16px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:8px;font-size:.8rem;font-weight:600;cursor:pointer">Process All ✓</button>
+      </div>
+      <div id="batchScanList" style="max-height:130px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding:8px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
+        <span style="color:var(--muted);font-size:.78rem">Waiting for scans...</span>
+      </div>
+      <button onclick="_clearBatchScan()" style="width:100%;padding:6px;background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:.78rem;cursor:pointer;margin-top:8px">Clear List</button>
+    </div>
   </div>
 </div>
 
@@ -3412,6 +3443,62 @@
 
 </div><!-- end .app-body -->
 </div><!-- end #mainAppWrapper -->
+
+<!-- ── QR Code Modal ─────────────────────────────────────────────────────────── -->
+<div id="qrModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9820;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border-radius:20px;padding:28px;max-width:360px;width:94%;box-shadow:0 12px 48px rgba(0,0,0,.45);text-align:center">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h3 id="qrModalTitle" style="margin:0;font-size:1rem;font-weight:700;color:var(--text)">Product QR Code</h3>
+      <button onclick="document.getElementById('qrModal').style.display='none'" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted);line-height:1">✕</button>
+    </div>
+    <div style="background:#fff;border-radius:12px;padding:14px;display:inline-block;margin-bottom:14px">
+      <img id="qrModalImg" src="" alt="QR Code" style="width:200px;height:200px;display:block" />
+    </div>
+    <p id="qrModalInfo" style="font-family:monospace;font-size:.82rem;color:var(--text);margin:0 0 4px;font-weight:700"></p>
+    <p style="font-size:.75rem;color:var(--muted);margin:0 0 16px">Scan to retrieve product details</p>
+    <button onclick="document.getElementById('qrModal').style.display='none'" style="width:100%;padding:11px;background:var(--accent);border:none;border-radius:10px;color:#fff;font-weight:600;cursor:pointer">Close</button>
+  </div>
+</div>
+
+<!-- ── Business Onboarding Wizard ───────────────────────────────────────────── -->
+<div id="onboardingWizard" style="display:none;position:fixed;inset:0;background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);z-index:99999;flex-direction:column;align-items:center;justify-content:center;padding:20px">
+
+  <!-- Step 1: Choose business type -->
+  <div id="onbStep1" style="width:100%;max-width:600px;text-align:center">
+    <div style="font-size:3.2rem;margin-bottom:14px">🚀</div>
+    <h1 style="color:#fff;font-size:1.75rem;font-weight:800;margin:0 0 10px">Welcome to iFlow!</h1>
+    <p style="color:rgba(255,255,255,.7);font-size:.95rem;margin:0 0 28px">Tell us about your business so we can set up the right features.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;max-width:520px;margin:0 auto">
+      <button class="onb-type-btn" onclick="_selectBusinessType('electronics')">📱<br><strong>Electronics</strong><br><small>&amp; Phones</small></button>
+      <button class="onb-type-btn" onclick="_selectBusinessType('fashion')">👗<br><strong>Fashion</strong><br><small>&amp; Clothing</small></button>
+      <button class="onb-type-btn" onclick="_selectBusinessType('food')">🍔<br><strong>Food</strong><br><small>&amp; Restaurant</small></button>
+      <button class="onb-type-btn" onclick="_selectBusinessType('pharmacy')">💊<br><strong>Pharmacy</strong><br><small>&amp; Health</small></button>
+      <button class="onb-type-btn" onclick="_selectBusinessType('retail')">🛒<br><strong>General</strong><br><small>Retail</small></button>
+      <button class="onb-type-btn" onclick="_selectBusinessType('other')">⚡<br><strong>Other</strong><br><small>Business</small></button>
+    </div>
+    <p style="color:rgba(255,255,255,.4);font-size:.75rem;margin-top:22px">You can change this later in Settings</p>
+  </div>
+
+  <!-- Step 2: Animated setup progress -->
+  <div id="onbStep2" style="display:none;width:100%;max-width:480px;text-align:center">
+    <div id="onbSetupIcon" style="font-size:3rem;margin-bottom:14px">⚙️</div>
+    <h2 style="color:#fff;font-size:1.35rem;font-weight:700;margin:0 0 8px">Configuring iFlow for you...</h2>
+    <p id="onbBusinessLabel" style="color:rgba(255,255,255,.55);font-size:.85rem;margin:0 0 18px"></p>
+    <div style="background:rgba(255,255,255,.1);border-radius:20px;height:10px;overflow:hidden;margin-bottom:12px">
+      <div id="onbProgressFill" style="height:100%;width:0%;background:linear-gradient(90deg,#6366f1,#8b5cf6,#a78bfa);border-radius:20px;transition:width .4s ease"></div>
+    </div>
+    <p id="onbProgressLabel" style="color:rgba(255,255,255,.8);font-size:.88rem;min-height:22px;margin:0 0 14px"></p>
+    <div id="onbFeaturesList" style="display:flex;flex-direction:column;gap:5px;max-height:190px;overflow:hidden;text-align:left"></div>
+  </div>
+
+  <!-- Step 3: Done -->
+  <div id="onbStep3" style="display:none;width:100%;max-width:400px;text-align:center">
+    <div style="font-size:4rem;margin-bottom:14px;animation:onb-pop .5s cubic-bezier(.175,.885,.32,1.275)">🎉</div>
+    <h2 style="color:#fff;font-size:1.6rem;font-weight:800;margin:0 0 12px">iFlow is ready!</h2>
+    <p id="onbDoneText" style="color:rgba(255,255,255,.75);font-size:.92rem;margin:0 0 28px;line-height:1.65"></p>
+    <button onclick="_finishOnboarding()" style="padding:14px 48px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:14px;font-size:1rem;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(99,102,241,.4)">Let's go →</button>
+  </div>
+</div>
 
 <script>
   let sales = JSON.parse(localStorage.getItem('iflow_sales') || '[]');
@@ -6890,7 +6977,7 @@
             + '<td class="cell-subtotal" data-val="' + ((Number(p.stockQty)||0)*(Number(p.unitPrice)||0)) + '">' + _cur + fmtComma((Number(p.stockQty)||0)*(Number(p.unitPrice)||0)) + '</td>'
             + '<td class="cell-datetime">' + (p.lowStockThreshold || _defThresh) + '</td>'
             + '<td class="cell-datetime">' + _esc(p.dateAdded) + '</td>'
-            + '<td class="cell-action"><button class="btn-terminate" onclick="confirmDeleteProduct(' + ri + ')" title="Remove">&#9632;</button></td>'
+            + '<td class="cell-action"><button onclick="event.stopPropagation();_showProductQR(\'' + _esc(p.code) + '\',\'' + _esc(p.name) + '\')" style="padding:3px 8px;font-size:.7rem;background:rgba(99,102,241,.1);color:#6366f1;border:1px solid rgba(99,102,241,.25);border-radius:6px;cursor:pointer;margin-right:4px" title="Show QR Code">QR</button><button class="btn-terminate" onclick="confirmDeleteProduct(' + ri + ')" title="Remove">&#9632;</button></td>'
             + '</tr>';
         } else {
           // ── Variant group ──
@@ -6912,7 +6999,7 @@
               + '<td>' + _cur + fmtComma(p.unitPrice) + '</td>'
               + '<td>' + (p.lowStockThreshold||_defThresh) + '</td>'
               + '<td>' + _esc(p.dateAdded) + '</td>'
-              + '<td class="cell-action"><button class="btn-terminate" onclick="confirmDeleteProduct(' + ri + ')" title="Remove">&#9632;</button></td>'
+              + '<td class="cell-action"><button onclick="event.stopPropagation();_showProductQR(\'' + _esc(p.code) + '\',\'' + _esc(p.variant||p.name) + '\')" style="padding:3px 8px;font-size:.7rem;background:rgba(99,102,241,.1);color:#6366f1;border:1px solid rgba(99,102,241,.25);border-radius:6px;cursor:pointer;margin-right:4px" title="Show QR Code">QR</button><button class="btn-terminate" onclick="confirmDeleteProduct(' + ri + ')" title="Remove">&#9632;</button></td>'
               + '</tr>';
           });
           _html += '<tr class="category-header-row" onclick="toggleVariantGroup(\'' + cid + '\')">'
@@ -7322,6 +7409,8 @@ function showApp(user) {
   setTimeout(function(){ if (typeof _startOrderPolling === 'function') _startOrderPolling(); }, 3000);
   // Auto-start tour for first-time users
   if (typeof _maybeAutoTour === 'function') _maybeAutoTour();
+  // Business onboarding wizard for first-time setup
+  setTimeout(function(){ if (typeof _checkOnboarding === 'function') _checkOnboarding(); }, 800);
   // Copyright year
   var cy = document.getElementById('copyrightYear'); if (cy) cy.textContent = new Date().getFullYear();
 }
@@ -9030,17 +9119,37 @@ function renderIMEIVault() {
     return;
   }
   var cur = typeof getCurrency === 'function' ? getCurrency() : '₦';
+
+  // Integrity mode state (restore bar if active today)
+  var _intState   = _getIntegrity();
+  var _intToday   = _todayStr();
+  if (_intState.date === _intToday && _intState.barVisible) {
+    var _intBarEl = document.getElementById('integrityBar');
+    var _intBtnEl = document.getElementById('integrityBtn');
+    if (_intBarEl && _intBarEl.style.display !== 'flex') {
+      _intBarEl.style.display = 'flex';
+      if (_intBtnEl) { _intBtnEl.style.background = 'linear-gradient(135deg,#c53030,#9b1c1c)'; _intBtnEl.textContent = '🛡️ Active'; }
+    }
+  }
+  var _intBarVisible = (function(){ var el = document.getElementById('integrityBar'); return el && el.style.display === 'flex'; })();
+  var _intConfirmed  = (_intState.date === _intToday && _intBarVisible) ? (_intState.confirmed || []) : [];
+
   var html = '';
   filtered.forEach(function(r, i) {
     var isSold    = r.status === 'sold';
     var isAuditOK = _auditSession && _auditSession.has(r.imei);
     var isAuditNG = _auditSession && !_auditSession.has(r.imei) && !isSold;
-    var rowBg     = isAuditOK ? 'rgba(34,197,94,.09)' : (isAuditNG ? 'rgba(245,158,11,.09)' : '');
-    var badge     = isSold
-      ? '<span style="background:rgba(100,116,139,.15);color:#64748b;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">SOLD</span>'
-      : isAuditNG
-      ? '<span style="background:rgba(245,158,11,.15);color:#d97706;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">⚠ NOT SCANNED</span>'
-      : '<span style="background:rgba(34,197,94,.15);color:#16a34a;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">IN STOCK</span>';
+    // Integrity overrides audit when active
+    var isIntOK   = _intBarVisible && !isSold && _intConfirmed.indexOf(r.imei) !== -1;
+    var isIntNG   = _intBarVisible && !isSold && _intConfirmed.indexOf(r.imei) === -1;
+    var rowBg     = isIntOK  ? 'rgba(34,197,94,.14)'
+                  : isIntNG  ? 'rgba(239,68,68,.14)'
+                  : isAuditOK ? 'rgba(34,197,94,.09)' : (isAuditNG ? 'rgba(245,158,11,.09)' : '');
+    var badge     = isSold  ? '<span style="background:rgba(100,116,139,.15);color:#64748b;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">SOLD</span>'
+                  : isIntOK ? '<span style="background:rgba(34,197,94,.15);color:#16a34a;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">✅ CONFIRMED</span>'
+                  : isIntNG ? '<span style="background:rgba(239,68,68,.15);color:#e53e3e;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">🔴 UNCONFIRMED</span>'
+                  : isAuditNG ? '<span style="background:rgba(245,158,11,.15);color:#d97706;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">⚠ NOT SCANNED</span>'
+                  : '<span style="background:rgba(34,197,94,.15);color:#16a34a;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">IN STOCK</span>';
     html += '<tr id="imei-row-' + _imeiEsc(r.imei) + '" style="transition:background .35s;background:' + rowBg + '">'
       + '<td class="row-num">' + (i+1) + '</td>'
       + '<td style="padding:10px 14px;font-family:monospace;font-size:.82rem;font-weight:700;color:var(--text)">' + _imeiEsc(r.imei) + '</td>'
@@ -9174,12 +9283,66 @@ function _processIMEIValue(val, fromCamera) {
   if (!val) { showToast('Enter an IMEI or serial number'); return; }
   _imeiScanValue = val;
 
-  // Stop camera once we have a value
-  if (fromCamera) {
+  // For continuing modes (integrity/batch/audit), don't kill the stream yet
+  var _continuingMode = (_imeiScanMode === 'integrity' || _imeiScanMode === 'batch' || _imeiScanMode === 'audit');
+
+  if (fromCamera && !_continuingMode) {
     if (_imeiScanRAF) { cancelAnimationFrame(_imeiScanRAF); _imeiScanRAF = null; }
     if (_imeiScanStream) { _imeiScanStream.getTracks().forEach(function(t){ t.stop(); }); _imeiScanStream = null; }
+  } else if (fromCamera) {
+    // Just stop the current RAF frame so we restart it after processing
+    if (_imeiScanRAF) { cancelAnimationFrame(_imeiScanRAF); _imeiScanRAF = null; }
+  }
+  if (!_continuingMode) {
     var inpEl = document.getElementById('imeiManualInput');
     if (inpEl) inpEl.value = val;
+  }
+
+  // ── Integrity mode ────────────────────────────────────────────────────────────
+  if (_imeiScanMode === 'integrity') {
+    var today = _todayStr();
+    var intState = _getIntegrity();
+    if (intState.date !== today) intState = { date: today, confirmed: [], barVisible: true };
+    if (!intState.confirmed) intState.confirmed = [];
+    var fb = document.getElementById('imeiScanFeedback');
+    var imeis = _getIMEI();
+    var rec = imeis.find(function(r){ return r.imei === val; });
+    if (intState.confirmed.indexOf(val) === -1) {
+      intState.confirmed.push(val);
+      _saveIntegrity(intState);
+      _playConfirmSound();
+      if (fb) fb.textContent = '✅ ' + (rec ? rec.productName : val.slice(0,8) + '…') + ' — confirmed!';
+    } else {
+      if (fb) fb.textContent = '✓ Already confirmed: ' + (rec ? rec.productName : val.slice(0,8) + '…');
+    }
+    renderIMEIVault();
+    _updateIntegrityBar();
+    if (_imeiScanStream) setTimeout(function(){ if (_imeiScanStream) _restartScanRAF(); }, 1100);
+    return;
+  }
+
+  // ── Batch mode ────────────────────────────────────────────────────────────────
+  if (_imeiScanMode === 'batch') {
+    var isNew = !_batchScanSet.has(val);
+    _batchScanSet.add(val);
+    var bFb    = document.getElementById('imeiScanFeedback');
+    var bCount = document.getElementById('batchCount');
+    var bList  = document.getElementById('batchScanList');
+    if (bFb) bFb.textContent = (isNew ? '+ ' : '✓ ') + val.slice(0,6) + '… (' + _batchScanSet.size + ' total)';
+    if (bCount) bCount.textContent = _batchScanSet.size;
+    if (bList && isNew) {
+      var bImeis = _getIMEI();
+      var bRec = bImeis.find(function(r){ return r.imei === val; });
+      var item = document.createElement('div');
+      item.style.cssText = 'display:flex;justify-content:space-between;padding:4px 8px;background:var(--surface);border-radius:6px;font-size:.78rem';
+      item.innerHTML = '<span style="font-family:monospace">' + _imeiEsc(val.slice(0,8)) + '…</span>'
+        + '<span style="color:' + (bRec ? '#16a34a' : '#d97706') + ';font-weight:600">' + (bRec ? _imeiEsc(bRec.productName || 'Known') : 'Unknown') + '</span>';
+      if (bList.querySelector('span')) bList.innerHTML = '';
+      bList.appendChild(item);
+      bList.scrollTop = bList.scrollHeight;
+    }
+    if (_imeiScanStream) setTimeout(function(){ if (_imeiScanStream) _restartScanRAF(); }, 600);
+    return;
   }
 
   // Audit mode: just record scan
@@ -9333,6 +9496,280 @@ function _novaIMEIContext() {
   var sold    = imeis.filter(function(r){ return r.status === 'sold'; });
   return '\nIMEI Vault: ' + inStock.length + ' units in stock, ' + sold.length + ' sold. '
     + 'You can find a product by IMEI using action {"type":"findIMEI","imei":"..."}.';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Code Integrity Mode
+// ══════════════════════════════════════════════════════════════════════════════
+function _getIntegrity() {
+  try { return JSON.parse(localStorage.getItem('iflow_integrity') || '{}'); } catch(_){ return {}; }
+}
+function _saveIntegrity(s) { localStorage.setItem('iflow_integrity', JSON.stringify(s)); }
+function _todayStr() { return new Date().toISOString().split('T')[0]; }
+function _isIntegrityToday() { return _getIntegrity().date === _todayStr(); }
+
+function _toggleIntegrity() {
+  var bar = document.getElementById('integrityBar');
+  var barShown = bar && bar.style.display === 'flex';
+  if (barShown) { _endIntegrity(); } else { _startIntegrity(); }
+}
+
+function _startIntegrity() {
+  var today = _todayStr();
+  var state = _getIntegrity();
+  if (state.date !== today) state = { date: today, confirmed: [], barVisible: true };
+  else state.barVisible = true;
+  if (!state.confirmed) state.confirmed = [];
+  _saveIntegrity(state);
+  var bar = document.getElementById('integrityBar');
+  var btn = document.getElementById('integrityBtn');
+  if (bar) bar.style.display = 'flex';
+  if (btn) { btn.style.background = 'linear-gradient(135deg,#c53030,#9b1c1c)'; btn.textContent = '🛡️ Active'; }
+  renderIMEIVault();
+  _updateIntegrityBar();
+  showToast('🛡️ Integrity mode active — scan each item to confirm presence');
+}
+
+function _endIntegrity() {
+  var state = _getIntegrity();
+  state.barVisible = false;
+  _saveIntegrity(state);
+  var bar = document.getElementById('integrityBar');
+  var btn = document.getElementById('integrityBtn');
+  if (bar) bar.style.display = 'none';
+  if (btn) { btn.style.background = 'linear-gradient(135deg,#e53e3e,#c53030)'; btn.textContent = '🛡️ Integrity'; }
+  renderIMEIVault();
+}
+
+function _updateIntegrityBar() {
+  var state   = _getIntegrity();
+  var imeis   = _getIMEI();
+  var today   = _todayStr();
+  if (state.date !== today) return;
+  var inStock   = imeis.filter(function(r){ return r.status === 'in_stock'; });
+  var confirmed = state.confirmed || [];
+  var unconf    = inStock.filter(function(r){ return confirmed.indexOf(r.imei) === -1; });
+  var cEl = document.getElementById('integrityCount');
+  var mEl = document.getElementById('integrityMissing');
+  if (cEl) cEl.textContent = confirmed.length + ' of ' + inStock.length + ' confirmed';
+  if (mEl) {
+    mEl.textContent = unconf.length > 0 ? '⚠ ' + unconf.length + ' unconfirmed' : '✅ All confirmed!';
+    mEl.style.color = unconf.length > 0 ? '#e53e3e' : '#16a34a';
+  }
+}
+
+function _playConfirmSound() {
+  try {
+    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [523, 659, 784].forEach(function(freq, i) {
+      var osc = ctx.createOscillator();
+      var g   = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      var t = ctx.currentTime + i * 0.13;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.28, t + 0.01);
+      g.gain.linearRampToValueAtTime(0, t + 0.2);
+      osc.start(t);
+      osc.stop(t + 0.22);
+    });
+  } catch(_) {}
+}
+
+// ── Scan loop restart helper (for continuing scan modes) ─────────────────────
+function _restartScanRAF() {
+  var video = document.getElementById('imeiScanVideo');
+  if (!video || !_imeiScanStream || !('BarcodeDetector' in window)) return;
+  var det = new window.BarcodeDetector({ formats: ['code_128','ean_13','ean_8','qr_code','code_39','itf'] });
+  var scan = function() {
+    if (!_imeiScanStream) return;
+    det.detect(video).then(function(codes) {
+      for (var i = 0; i < codes.length; i++) {
+        var v = codes[i].rawValue.replace(/\D/g,'');
+        if (v.length >= 13) { _processIMEIValue(v, true); return; }
+      }
+      _imeiScanRAF = requestAnimationFrame(scan);
+    }).catch(function(){ _imeiScanRAF = requestAnimationFrame(scan); });
+  };
+  _imeiScanRAF = requestAnimationFrame(scan);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Multi-IMEI Batch Scanning
+// ══════════════════════════════════════════════════════════════════════════════
+var _batchScanSet = new Set();
+
+function _clearBatchScan() {
+  _batchScanSet.clear();
+  var bList  = document.getElementById('batchScanList');
+  var bCount = document.getElementById('batchCount');
+  if (bList)  bList.innerHTML = '<span style="color:var(--muted);font-size:.78rem">Waiting for scans...</span>';
+  if (bCount) bCount.textContent = '0';
+  showToast('Batch list cleared');
+}
+
+function _processBatchAll() {
+  if (!_batchScanSet.size) { showToast('No IMEIs scanned yet'); return; }
+  _closeIMEIScan();
+  var imeis    = _getIMEI();
+  var known    = 0, unknown = [];
+  _batchScanSet.forEach(function(imei) {
+    if (imeis.find(function(r){ return r.imei === imei; })) { known++; }
+    else unknown.push(imei);
+  });
+  _batchScanSet.clear();
+  navigateTo('products');
+  setTimeout(function(){
+    switchProdTab('imei');
+    renderIMEIVault();
+    showToast(known + ' known + ' + unknown.length + ' new IMEI(s) processed');
+    // Prompt to link unknowns one by one
+    if (unknown.length > 0) {
+      setTimeout(function(){ _openIMEILink(unknown[0]); }, 500);
+    }
+  }, 300);
+}
+
+// Open scanner in batch mode — show batch panel
+var _origOpenCameraScanner = _openCameraScanner;
+_openCameraScanner = function(mode) {
+  _origOpenCameraScanner(mode);
+  var bPanel = document.getElementById('batchScanPanel');
+  if (bPanel) bPanel.style.display = mode === 'batch' ? '' : 'none';
+  if (mode === 'batch') {
+    _batchScanSet.clear();
+    var bList  = document.getElementById('batchScanList');
+    var bCount = document.getElementById('batchCount');
+    if (bList)  bList.innerHTML = '<span style="color:var(--muted);font-size:.78rem">Waiting for scans...</span>';
+    if (bCount) bCount.textContent = '0';
+    var title = document.getElementById('imeiScanTitle');
+    if (title) title.textContent = '📷 Batch Scan — keep scanning';
+  }
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// QR Code Modal
+// ══════════════════════════════════════════════════════════════════════════════
+function _showProductQR(code, name) {
+  var modal = document.getElementById('qrModal');
+  var img   = document.getElementById('qrModalImg');
+  var info  = document.getElementById('qrModalInfo');
+  var title = document.getElementById('qrModalTitle');
+  if (!modal || !img) return;
+  var s     = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+  var store = s.storeName || 'iFlow Store';
+  // Find IMEI if any
+  var imeis = _getIMEI();
+  var imeiRecs = imeis.filter(function(r){ return r.productCode === code; });
+  var imeiStr  = imeiRecs.length ? '\nIMEIs: ' + imeiRecs.map(function(r){ return r.imei; }).join(', ') : '';
+  var data  = 'CODE:' + code + '\nNAME:' + name + '\nSTORE:' + store + imeiStr;
+  img.src   = 'https://api.qrserver.com/v1/create-qr-code/?data=' + encodeURIComponent(data) + '&size=200x200&margin=4';
+  if (info)  info.textContent  = code + ' — ' + name;
+  if (title) title.textContent = 'QR: ' + name;
+  modal.style.display = 'flex';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Business Onboarding Wizard
+// ══════════════════════════════════════════════════════════════════════════════
+var _onbConfigs = {
+  electronics: {
+    icon: '📱', label: 'Electronics & Phones',
+    features: ['IMEI tracking enabled', 'Code Integrity Mode ready', 'Serial number vault', 'Product variant grouping', 'Customer purchase history', 'Sales & profit analytics'],
+    done: 'Your Electronics store is configured with IMEI tracking and Code Integrity Mode. Start by adding your phones in Products & Stock.'
+  },
+  fashion: {
+    icon: '👗', label: 'Fashion Store',
+    features: ['Size & colour variant groups', 'Low-stock alerts', 'Sales tracking', 'Loyal customer discounts', 'Discount management', 'Revenue & profit analytics'],
+    done: 'Your Fashion store is set up with variant grouping and loyalty features.'
+  },
+  food: {
+    icon: '🍔', label: 'Food Business',
+    features: ['Quick sale recording', 'Daily revenue tracking', 'Inventory monitoring', 'Customer database', 'Order & payment management', 'Profit analytics'],
+    done: 'Your Food business is configured for fast sales and daily inventory tracking.'
+  },
+  pharmacy: {
+    icon: '💊', label: 'Pharmacy',
+    features: ['Product code system', 'Low-stock alerts', 'Customer records', 'Sales & revenue reports', 'Profit per customer', 'Nova AI sales assistant'],
+    done: 'Your Pharmacy store is ready with stock management and customer records.'
+  },
+  retail: {
+    icon: '🛒', label: 'General Retail',
+    features: ['Product catalogue', 'Stock management', 'Sales tracking', 'Customer database', 'AI sales assistant (Nova)', 'Revenue & profit reports'],
+    done: 'Your Retail store is fully configured and ready to use.'
+  },
+  other: {
+    icon: '⚡', label: 'Business',
+    features: ['Product catalogue', 'Inventory management', 'Sales recording', 'Customer tracking', 'Nova AI assistant', 'Business analytics'],
+    done: 'iFlow is configured with all core features enabled for your business.'
+  }
+};
+
+function _checkOnboarding() {
+  if (localStorage.getItem('iflow_setup_done')) return;
+  var wizard = document.getElementById('onboardingWizard');
+  if (wizard) wizard.style.display = 'flex';
+}
+
+function _selectBusinessType(type) {
+  var cfg    = _onbConfigs[type] || _onbConfigs.other;
+  var step1  = document.getElementById('onbStep1');
+  var step2  = document.getElementById('onbStep2');
+  if (step1) step1.style.display = 'none';
+  if (step2) step2.style.display = '';
+
+  var iconEl  = document.getElementById('onbSetupIcon');
+  var lblEl   = document.getElementById('onbBusinessLabel');
+  var fill    = document.getElementById('onbProgressFill');
+  var label   = document.getElementById('onbProgressLabel');
+  var fList   = document.getElementById('onbFeaturesList');
+  if (iconEl) iconEl.textContent = cfg.icon;
+  if (lblEl)  lblEl.textContent  = cfg.label;
+  if (fList)  fList.innerHTML    = '';
+
+  var features = cfg.features;
+  var step = 0;
+  function runStep() {
+    if (step >= features.length) {
+      if (fill) fill.style.width = '100%';
+      setTimeout(function() {
+        if (step2) step2.style.display = 'none';
+        var step3   = document.getElementById('onbStep3');
+        var doneEl  = document.getElementById('onbDoneText');
+        if (doneEl) doneEl.textContent = cfg.done;
+        if (step3)  step3.style.display = '';
+        var settings = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+        settings.businessType = type;
+        localStorage.setItem('iflow_settings', JSON.stringify(settings));
+      }, 450);
+      return;
+    }
+    var pct = Math.round(((step + 1) / features.length) * 100);
+    if (fill)  fill.style.width  = pct + '%';
+    if (label) label.textContent = features[step] + '...';
+    if (fList) {
+      var item = document.createElement('div');
+      item.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 12px;background:rgba(255,255,255,.07);border-radius:8px;color:#fff;font-size:.83rem';
+      item.innerHTML = '<span style="color:#22c55e;font-weight:700">✓</span> ' + features[step];
+      fList.appendChild(item);
+      fList.scrollTop = fList.scrollHeight;
+    }
+    step++;
+    setTimeout(runStep, 500);
+  }
+  setTimeout(runStep, 300);
+}
+
+function _finishOnboarding() {
+  localStorage.setItem('iflow_setup_done', '1');
+  var wizard = document.getElementById('onboardingWizard');
+  if (wizard) {
+    wizard.style.transition = 'opacity .4s';
+    wizard.style.opacity    = '0';
+    setTimeout(function(){ wizard.style.display = 'none'; wizard.style.opacity = ''; }, 420);
+  }
+  showToast('🎉 iFlow setup complete — welcome!');
 }
 </script>
 </body>

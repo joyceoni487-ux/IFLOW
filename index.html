@@ -1782,6 +1782,7 @@
   @keyframes sonar-rotate { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
   @keyframes sonar-ping { 0%{width:0;height:0;opacity:.8} 100%{width:260px;height:260px;opacity:0} }
   @keyframes sonar-hit { 0%{box-shadow:0 0 0 rgba(255,30,30,.8)} 50%{box-shadow:0 0 20px 6px rgba(255,30,30,.6)} 100%{box-shadow:0 0 0 rgba(255,30,30,0)} }
+  @keyframes sonar-scan-line { 0%{left:8%;opacity:0} 10%{opacity:1} 90%{opacity:1} 100%{left:92%;opacity:0} }
   /* Track-type radio pills */
   .track-radio-lbl { display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:.82rem;background:var(--surface2);transition:border-color .15s,background .15s }
   .track-radio-lbl:has(input:checked) { border-color:var(--accent);background:rgba(79,142,247,.09) }
@@ -3524,28 +3525,39 @@
   </div>
 
   <!-- Sonar screen + camera -->
-  <div id="sonarScanView" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:12px">
-    <div class="sonar-wrap" id="sonarScreen">
-      <!-- Concentric reference rings -->
-      <div class="sonar-ring" style="width:80px;height:80px"></div>
-      <div class="sonar-ring" style="width:140px;height:140px"></div>
-      <div class="sonar-ring" style="width:200px;height:200px"></div>
-      <!-- Rotating sweep -->
-      <div class="sonar-sweep-wrap"><div class="sonar-sweep"></div></div>
-      <!-- Pinging rings -->
-      <div class="sonar-ping" style="animation-delay:0s"></div>
-      <div class="sonar-ping" style="animation-delay:.85s"></div>
-      <!-- Camera feed overlay -->
-      <div class="sonar-video-overlay">
-        <video id="sonarVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover"></video>
+  <div id="sonarScanView" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:10px;width:100%">
+    <!-- Full-width camera view with sonar overlay on top -->
+    <div style="position:relative;width:100%;max-width:500px;border-radius:16px;overflow:hidden;background:#000;flex-shrink:0">
+      <video id="sonarVideo" autoplay playsinline muted style="width:100%;max-height:260px;object-fit:cover;display:block"></video>
+      <!-- Sonar overlay (decorative, doesn't clip the video) -->
+      <div style="position:absolute;inset:0;pointer-events:none">
+        <!-- Scan guide box -->
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:72%;height:52px;border:2px solid rgba(255,50,50,.85);border-radius:6px;box-shadow:0 0 0 2000px rgba(0,0,0,.22)"></div>
+        <!-- Animated sweep line -->
+        <div id="sonarSweepLine" style="position:absolute;top:0;left:0;width:2px;height:100%;background:linear-gradient(transparent,rgba(255,50,50,.8),transparent);animation:sonar-scan-line 2s ease-in-out infinite"></div>
+        <!-- Corner brackets -->
+        <div style="position:absolute;top:50%;left:14%;transform:translateY(-50%);width:14px;height:14px;border-left:3px solid #ff3333;border-top:3px solid #ff3333;border-radius:2px 0 0 0"></div>
+        <div style="position:absolute;top:50%;right:14%;transform:translateY(-50%) translateY(-14px);width:14px;height:14px;border-right:3px solid #ff3333;border-top:3px solid #ff3333;border-radius:0 2px 0 0"></div>
       </div>
-      <!-- Center dot -->
-      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:8px;height:8px;border-radius:50%;background:#ff3333;box-shadow:0 0 8px #ff3333;z-index:2"></div>
+      <!-- Detected flash overlay -->
+      <div id="sonarFlash" style="position:absolute;inset:0;background:rgba(50,255,50,.35);opacity:0;pointer-events:none;border-radius:16px;transition:opacity .1s"></div>
+      <!-- Status text on video -->
+      <div id="sonarVideoStatus" style="position:absolute;bottom:6px;left:0;right:0;text-align:center;color:#fff;font-size:.72rem;text-shadow:0 1px 4px rgba(0,0,0,.9)">Align barcode with the red guide</div>
     </div>
-    <p id="sonarHint" style="color:rgba(255,80,80,.7);font-size:.78rem;text-align:center;margin:0">Show each IMEI or serial code to the camera</p>
+    <p id="sonarHint" style="color:rgba(255,80,80,.7);font-size:.78rem;text-align:center;margin:0">Point camera at IMEI barcode — hold steady for 1-2 seconds</p>
+    <!-- Manual IMEI input (always visible as fallback) -->
+    <div style="width:100%;max-width:420px">
+      <div style="display:flex;gap:6px">
+        <input type="text" id="sonarManualInput" inputmode="numeric" placeholder="Type IMEI or serial manually…"
+          style="flex:1;padding:9px 12px;background:rgba(255,30,30,.08);border:1px solid rgba(255,50,50,.3);border-radius:10px;color:#fff;font-size:.85rem;outline:none"
+          onkeydown="if(event.key==='Enter')_sonarAddManual()" />
+        <button onclick="_sonarAddManual()" style="padding:9px 16px;background:rgba(255,50,50,.25);border:1px solid rgba(255,50,50,.4);border-radius:10px;color:#ff8888;font-size:.82rem;font-weight:600;cursor:pointer;white-space:nowrap">+ Add</button>
+      </div>
+      <div style="font-size:.7rem;color:rgba(255,80,80,.45);margin-top:4px;text-align:center">Camera not detecting? Type the IMEI above</div>
+    </div>
     <!-- Running scanned list -->
-    <div id="sonarScanList" style="width:100%;max-width:420px;max-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding:0 4px">
-      <div style="text-align:center;color:rgba(255,80,80,.4);font-size:.75rem;padding:8px 0">Waiting for scan...</div>
+    <div id="sonarScanList" style="width:100%;max-width:420px;max-height:100px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding:0 2px">
+      <div style="text-align:center;color:rgba(255,80,80,.4);font-size:.75rem;padding:6px 0">Waiting for scan...</div>
     </div>
   </div>
 
@@ -9365,7 +9377,8 @@ function _openCameraScanner(mode) {
       video.play();
 
       if ('BarcodeDetector' in window) {
-        var detector = new window.BarcodeDetector({ formats: ['code_128','ean_13','ean_8','qr_code','code_39','itf'] });
+        var _allFormats = ['code_128','code_39','ean_13','ean_8','qr_code','itf','pdf_417','aztec','data_matrix','codabar','upc_a','upc_e'];
+        var detector = new window.BarcodeDetector({ formats: _allFormats });
         var scan = function() {
           if (!_imeiScanStream) return;
           detector.detect(video).then(function(barcodes) {
@@ -9380,10 +9393,10 @@ function _openCameraScanner(mode) {
                 return;
               }
             }
-            _imeiScanRAF = requestAnimationFrame(scan);
-          }).catch(function(){ _imeiScanRAF = requestAnimationFrame(scan); });
+            _imeiScanRAF = setTimeout(scan, 200);
+          }).catch(function(){ _imeiScanRAF = setTimeout(scan, 250); });
         };
-        _imeiScanRAF = requestAnimationFrame(scan);
+        _imeiScanRAF = setTimeout(scan, 300);
       } else {
         if (noticeEl) noticeEl.style.display = 'block';
       }
@@ -9396,7 +9409,7 @@ function _openCameraScanner(mode) {
 }
 
 function _closeIMEIScan() {
-  if (_imeiScanRAF) { cancelAnimationFrame(_imeiScanRAF); _imeiScanRAF = null; }
+  if (_imeiScanRAF) { clearTimeout(_imeiScanRAF); cancelAnimationFrame(_imeiScanRAF); _imeiScanRAF = null; }
   if (_imeiScanStream) { _imeiScanStream.getTracks().forEach(function(t){ t.stop(); }); _imeiScanStream = null; }
   var video = document.getElementById('imeiScanVideo');
   if (video) { video.srcObject = null; }
@@ -9418,7 +9431,7 @@ function _processIMEIValue(val, fromCamera) {
   var _prods2 = typeof _getProds === 'function' ? _getProds() : [];
   var _prodCodeMatch = _prods2.find(function(p){ return p.code && (p.code === val || p.code.replace(/-/g,'') === val.replace(/-/g,'')); });
   if (_prodCodeMatch && _imeiScanMode === 'lookup') {
-    if (fromCamera) { if (_imeiScanRAF) { cancelAnimationFrame(_imeiScanRAF); _imeiScanRAF = null; } if (_imeiScanStream) { _imeiScanStream.getTracks().forEach(function(t){ t.stop(); }); _imeiScanStream = null; } }
+    if (fromCamera) { if (_imeiScanRAF) { clearTimeout(_imeiScanRAF); cancelAnimationFrame(_imeiScanRAF); _imeiScanRAF = null; } if (_imeiScanStream) { _imeiScanStream.getTracks().forEach(function(t){ t.stop(); }); _imeiScanStream = null; } }
     _closeIMEIScan();
     navigateTo('products');
     setTimeout(function(){
@@ -9437,11 +9450,11 @@ function _processIMEIValue(val, fromCamera) {
   var _continuingMode = (_imeiScanMode === 'integrity' || _imeiScanMode === 'batch' || _imeiScanMode === 'audit');
 
   if (fromCamera && !_continuingMode) {
-    if (_imeiScanRAF) { cancelAnimationFrame(_imeiScanRAF); _imeiScanRAF = null; }
+    if (_imeiScanRAF) { clearTimeout(_imeiScanRAF); cancelAnimationFrame(_imeiScanRAF); _imeiScanRAF = null; }
     if (_imeiScanStream) { _imeiScanStream.getTracks().forEach(function(t){ t.stop(); }); _imeiScanStream = null; }
   } else if (fromCamera) {
     // Just stop the current RAF frame so we restart it after processing
-    if (_imeiScanRAF) { cancelAnimationFrame(_imeiScanRAF); _imeiScanRAF = null; }
+    if (_imeiScanRAF) { clearTimeout(_imeiScanRAF); cancelAnimationFrame(_imeiScanRAF); _imeiScanRAF = null; }
   }
   if (!_continuingMode) {
     var inpEl = document.getElementById('imeiManualInput');
@@ -9731,18 +9744,19 @@ function _playConfirmSound() {
 function _restartScanRAF() {
   var video = document.getElementById('imeiScanVideo');
   if (!video || !_imeiScanStream || !('BarcodeDetector' in window)) return;
-  var det = new window.BarcodeDetector({ formats: ['code_128','ean_13','ean_8','qr_code','code_39','itf'] });
+  var det = new window.BarcodeDetector({ formats: ['code_128','code_39','ean_13','ean_8','qr_code','itf','pdf_417','aztec','data_matrix'] });
   var scan = function() {
     if (!_imeiScanStream) return;
     det.detect(video).then(function(codes) {
       for (var i = 0; i < codes.length; i++) {
-        var v = codes[i].rawValue.replace(/\D/g,'');
-        if (v.length >= 13) { _processIMEIValue(v, true); return; }
+        var raw     = codes[i].rawValue.trim();
+        var numOnly = raw.replace(/\D/g,'');
+        if (numOnly.length >= 13 || raw.length >= 6) { _processIMEIValue(raw, true); return; }
       }
-      _imeiScanRAF = requestAnimationFrame(scan);
-    }).catch(function(){ _imeiScanRAF = requestAnimationFrame(scan); });
+      _imeiScanRAF = setTimeout(scan, 200);
+    }).catch(function(){ _imeiScanRAF = setTimeout(scan, 250); });
   };
-  _imeiScanRAF = requestAnimationFrame(scan);
+  _imeiScanRAF = setTimeout(scan, 200);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -10054,45 +10068,121 @@ function _openSonar() {
 
   var video = document.getElementById('sonarVideo');
   if (!video) return;
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+  // Request high resolution rear camera for better barcode reading
+  var camConstraints = {
+    video: {
+      facingMode: { ideal: 'environment' },
+      width:  { ideal: 1920, min: 640 },
+      height: { ideal: 1080, min: 480 }
+    }
+  };
+  navigator.mediaDevices.getUserMedia(camConstraints)
+    .catch(function(){ return navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); })
     .then(function(stream) {
       _sonarStream = stream;
       video.srcObject = stream;
       video.play();
-      document.getElementById('sonarStatusTxt').textContent = 'SCANNING';
-      if ('BarcodeDetector' in window) {
-        var det = new window.BarcodeDetector({ formats: ['code_128','ean_13','ean_8','qr_code','code_39','itf'] });
+      var statusEl  = document.getElementById('sonarStatusTxt');
+      var videoStat = document.getElementById('sonarVideoStatus');
+      if (statusEl) statusEl.textContent = 'SCANNING';
+
+      if (!('BarcodeDetector' in window)) {
+        if (statusEl)  statusEl.textContent = 'MANUAL MODE';
+        if (videoStat) videoStat.textContent = 'Auto-scan not supported on this browser — use the text box below';
+        return;
+      }
+
+      // Full format list — includes all types used on phone boxes and screen
+      BarcodeDetector.getSupportedFormats().then(function(supported) {
+        var wantedFormats = ['code_128','code_39','ean_13','ean_8','qr_code','itf','pdf_417','aztec','data_matrix','codabar','upc_a','upc_e'];
+        var useFormats    = wantedFormats.filter(function(f){ return supported.indexOf(f) !== -1; });
+        if (!useFormats.length) useFormats = ['code_128','ean_13','qr_code'];
+
+        var det       = new window.BarcodeDetector({ formats: useFormats });
+        var _scanning = true;
+        var _lastDetected = '';
+        var _pauseUntil   = 0;
+
         var scan = function() {
-          if (!_sonarStream) return;
+          if (!_sonarStream || !_scanning) return;
+          var now = Date.now();
+          if (now < _pauseUntil) { _sonarRAF = setTimeout(scan, 150); return; }
+
           det.detect(video).then(function(codes) {
+            if (!_sonarStream) return;
+            var found = false;
             for (var i = 0; i < codes.length; i++) {
               var raw     = codes[i].rawValue.trim();
               var numOnly = raw.replace(/\D/g,'');
-              var isCode  = numOnly.length >= 13 || raw.length >= 6;
+              // Accept: IMEI (13+ digits), or any 6+ char alphanumeric serial
+              var isCode  = numOnly.length >= 13 || (raw.length >= 6 && /[0-9]/.test(raw));
+
+              // Always flash to show something was detected
+              if (raw && raw !== _lastDetected) {
+                _lastDetected = raw;
+                var fl = document.getElementById('sonarFlash');
+                if (fl) { fl.style.opacity = '1'; setTimeout(function(){ if(fl) fl.style.opacity = '0'; }, 160); }
+                if (videoStat) videoStat.textContent = '⚡ Detected: ' + (raw.length > 20 ? raw.slice(0,18)+'…' : raw);
+              }
+
               if (isCode && !_sonarScanned.has(raw)) {
                 _sonarScanned.add(raw);
                 _sonarBeep();
                 _sonarUpdateUI();
-                // In individual mode: pause 1.5s after each scan
+                if (videoStat) videoStat.textContent = '✅ Added: ' + raw.slice(0,12) + (raw.length > 12 ? '…' : '');
                 var mode = (document.getElementById('sonarMode') || {}).value || 'multi';
-                if (mode === 'individual') {
-                  setTimeout(function(){ if (_sonarStream) _sonarRAF = requestAnimationFrame(scan); }, 1500);
-                  return;
-                }
+                if (mode === 'individual') { _pauseUntil = Date.now() + 2000; }
+                found = true;
+                break;
               }
             }
-            _sonarRAF = requestAnimationFrame(scan);
-          }).catch(function(){ _sonarRAF = requestAnimationFrame(scan); });
+            if (!found && codes.length === 0 && _lastDetected) {
+              _lastDetected = '';
+              if (videoStat) videoStat.textContent = 'Align barcode with the red guide';
+            }
+            _sonarRAF = setTimeout(scan, 200); // 200ms polling — gives CPU time to decode
+          }).catch(function(){ _sonarRAF = setTimeout(scan, 300); });
         };
-        _sonarRAF = requestAnimationFrame(scan);
-      } else {
-        document.getElementById('sonarHint').textContent = 'Camera scan not supported — type codes manually below';
-      }
+        _sonarRAF = setTimeout(scan, 300); // small initial delay after camera starts
+      }).catch(function() {
+        // getSupportedFormats failed — try with basic list
+        var det = new window.BarcodeDetector({ formats: ['code_128','ean_13','qr_code','code_39'] });
+        var scan = function() {
+          if (!_sonarStream) return;
+          det.detect(video).then(function(codes) {
+            for (var i = 0; i < codes.length; i++) {
+              var raw = codes[i].rawValue.trim();
+              var numOnly = raw.replace(/\D/g,'');
+              if ((numOnly.length >= 13 || raw.length >= 6) && !_sonarScanned.has(raw)) {
+                _sonarScanned.add(raw); _sonarBeep(); _sonarUpdateUI();
+              }
+            }
+            _sonarRAF = setTimeout(scan, 200);
+          }).catch(function(){ _sonarRAF = setTimeout(scan, 300); });
+        };
+        _sonarRAF = setTimeout(scan, 300);
+      });
     })
     .catch(function() {
-      document.getElementById('sonarStatusTxt').textContent = 'NO CAMERA';
-      document.getElementById('sonarHint').textContent = 'Camera unavailable — type IMEI/codes manually';
+      var statusEl = document.getElementById('sonarStatusTxt');
+      var hintEl   = document.getElementById('sonarHint');
+      if (statusEl) statusEl.textContent = 'NO CAMERA';
+      if (hintEl)   hintEl.textContent   = 'Camera unavailable — type IMEI/codes in the box above';
     });
+}
+
+function _sonarAddManual() {
+  var inp = document.getElementById('sonarManualInput');
+  if (!inp) return;
+  var val = inp.value.replace(/[^0-9a-zA-Z\-]/g,'').trim();
+  if (!val || val.length < 4) { inp.focus(); return; }
+  var isNew = !_sonarScanned.has(val);
+  _sonarScanned.add(val);
+  if (isNew) _sonarBeep();
+  _sonarUpdateUI();
+  inp.value = '';
+  inp.focus();
+  showToast(isNew ? '✅ Added: ' + val.slice(0,10) : 'Already in list');
 }
 
 function _sonarUpdateUI() {
@@ -10131,7 +10221,7 @@ function _sonarBeep() {
 }
 
 function _closeSonar() {
-  if (_sonarRAF) { cancelAnimationFrame(_sonarRAF); _sonarRAF = null; }
+  if (_sonarRAF) { clearTimeout(_sonarRAF); cancelAnimationFrame(_sonarRAF); _sonarRAF = null; }
   if (_sonarStream) { _sonarStream.getTracks().forEach(function(t){ t.stop(); }); _sonarStream = null; }
   var video = document.getElementById('sonarVideo');
   if (video) video.srcObject = null;
@@ -10148,7 +10238,7 @@ function _sonarRescan() {
 
 function _sonarFinishScan() {
   // Stop camera
-  if (_sonarRAF) { cancelAnimationFrame(_sonarRAF); _sonarRAF = null; }
+  if (_sonarRAF) { clearTimeout(_sonarRAF); cancelAnimationFrame(_sonarRAF); _sonarRAF = null; }
   if (_sonarStream) { _sonarStream.getTracks().forEach(function(t){ t.stop(); }); _sonarStream = null; }
   var video = document.getElementById('sonarVideo');
   if (video) video.srcObject = null;

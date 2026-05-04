@@ -727,13 +727,13 @@
     transition: border-color .35s;
   }
   .settings-icon {
-    font-size: 1.3rem;
     width: 42px; height: 42px;
     background: var(--bg);
     border-radius: 10px;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
-    transition: background .35s;
+    color: var(--accent);
+    transition: background .35s, color .35s;
   }
   .settings-section-title h3 { font-size: 0.95rem; font-weight: 700; color: var(--text); margin-bottom: 2px; transition: color .35s; }
   .settings-section-title p  { font-size: 0.78rem; color: var(--muted); transition: color .35s; }
@@ -1971,7 +1971,7 @@
           <tr id="emptyRow">
             <td colspan="7">
               <div class="empty-state">
-                <div class="icon">🛒</div>
+                <div class="icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:.4"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></div>
                 No sales recorded yet. Add your first sale above.
               </div>
             </td>
@@ -2105,7 +2105,7 @@
 
     <!-- Sub-tabs -->
     <div class="dispatch-tabs">
-      <div class="dispatch-tab active" id="dtab-orders" onclick="switchDispatchTab('orders')">📦 Orders</div>
+      <div class="dispatch-tab active" id="dtab-orders" onclick="switchDispatchTab('orders')">Orders</div>
       <div class="dispatch-tab" id="dtab-riders" onclick="switchDispatchTab('riders')">🏍️ Riders</div>
     </div>
 
@@ -2260,8 +2260,8 @@
 
     <!-- Product sub-tab bar -->
     <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid var(--border)">
-      <button id="prodTabStock" class="sheets-tab active" onclick="switchProdTab('stock')" style="border-radius:8px 8px 0 0">📦 Stock</button>
-      <button id="prodTabIMEI"  class="sheets-tab"        onclick="switchProdTab('imei')"  style="border-radius:8px 8px 0 0">📱 IMEI Vault</button>
+      <button id="prodTabStock" class="sheets-tab active" onclick="switchProdTab('stock')" style="border-radius:8px 8px 0 0">Stock</button>
+      <button id="prodTabIMEI"  class="sheets-tab"        onclick="switchProdTab('imei')"  style="border-radius:8px 8px 0 0">IMEI Vault</button>
     </div>
 
     <div class="orders-table-wrap" id="prodViewStock">
@@ -2274,6 +2274,29 @@
         <div class="orders-filters">
           <input class="orders-search" id="productsSearch" type="text" placeholder="Search products…" oninput="renderProducts()" />
           <button class="btn-add" style="width:auto;padding:8px 20px;margin:0;font-size:0.82rem" onclick="toggleAddProductForm()">+ Add Product</button>
+        </div>
+        <div id="productsFilterBar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:8px 0 4px">
+          <select id="prodSortBy" onchange="renderProducts()" title="Sort" style="padding:5px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:.78rem;cursor:pointer">
+            <option value="">Sort: Default</option>
+            <option value="name-asc">Name A → Z</option>
+            <option value="name-desc">Name Z → A</option>
+            <option value="date-desc">Date: Newest first</option>
+            <option value="date-asc">Date: Oldest first</option>
+            <option value="price-desc">Price: High → Low</option>
+            <option value="price-asc">Price: Low → High</option>
+            <option value="stock-desc">Stock: High → Low</option>
+            <option value="stock-asc">Stock: Low → High</option>
+          </select>
+          <select id="prodFilterCat" onchange="renderProducts()" title="Filter by category" style="padding:5px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:.78rem;cursor:pointer">
+            <option value="">All categories</option>
+          </select>
+          <select id="prodFilterTrack" onchange="renderProducts()" title="Filter by tracking" style="padding:5px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:.78rem;cursor:pointer">
+            <option value="">All tracking types</option>
+            <option value="imei">IMEI tracked</option>
+            <option value="unique">Serial tracked</option>
+            <option value="none">Untracked</option>
+          </select>
+          <button onclick="_clearProductFilters()" title="Clear filters" style="padding:5px 12px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--muted);font-size:.78rem;cursor:pointer">Clear</button>
         </div>
 
       <div class="table-wrap">
@@ -2302,11 +2325,11 @@
       <div style="display:flex;gap:10px;padding:4px 0 16px;flex-wrap:wrap;align-items:center">
         <input id="imeiSearch" type="text" class="orders-search" placeholder="Search IMEI, serial or product…" style="flex:1;min-width:180px" oninput="renderIMEIVault()" />
         <button onclick="_openCameraScanner('add')" style="padding:8px 16px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:600;cursor:pointer">+ Add Code</button>
-        <button onclick="_openSonar()" id="integritySearchBtn" style="padding:8px 18px;background:linear-gradient(135deg,#e53e3e,#991b1b);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:700;cursor:pointer;box-shadow:0 2px 12px rgba(229,62,62,.35)">🔍 Integrity Search</button>
+        <button onclick="_openSonar()" id="integritySearchBtn" style="padding:8px 18px;background:linear-gradient(135deg,#e53e3e,#991b1b);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:700;cursor:pointer;box-shadow:0 2px 12px rgba(229,62,62,.35)">Integrity Search</button>
       </div>
       <!-- Integrity status bar (restored when active today) -->
       <div id="integrityBar" style="display:none;background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:10px 16px;margin-bottom:12px;align-items:center;gap:12px;flex-wrap:wrap">
-        <span style="font-size:.85rem;font-weight:700;color:#e53e3e">🛡️ Last Integrity Check</span>
+        <span style="font-size:.85rem;font-weight:700;color:#e53e3e">Last Integrity Check</span>
         <span id="integrityCount" style="font-size:.8rem;color:var(--muted)">0 confirmed</span>
         <span id="integrityMissing" style="font-size:.8rem;font-weight:600"></span>
         <button onclick="_openSonar()" style="padding:5px 14px;background:linear-gradient(135deg,#e53e3e,#991b1b);color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer">Re-Scan</button>
@@ -2381,10 +2404,16 @@
         <label>Unit Tracking</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
           <label class="track-radio-lbl"><input type="radio" name="npTrackType" value="none" onchange="_updateTrackFields()" checked style="accent-color:var(--accent)"> None</label>
-          <label class="track-radio-lbl"><input type="radio" name="npTrackType" value="imei" onchange="_updateTrackFields()" style="accent-color:var(--accent)"> 📱 IMEI Number</label>
-          <label class="track-radio-lbl"><input type="radio" name="npTrackType" value="unique" onchange="_updateTrackFields()" style="accent-color:var(--accent)"> 🏷️ Unique Code</label>
+          <label class="track-radio-lbl"><input type="radio" name="npTrackType" value="imei" onchange="_updateTrackFields()" style="accent-color:var(--accent)"> IMEI Number</label>
+          <label class="track-radio-lbl"><input type="radio" name="npTrackType" value="unique" onchange="_updateTrackFields()" style="accent-color:var(--accent)"> Serial / Unique</label>
         </div>
-        <div id="npImeiNote" style="display:none;font-size:.72rem;color:var(--muted);margin-top:5px">IMEI recorded per sale. Add individual IMEIs in the Vault after saving.</div>
+        <div id="npImeiField" style="display:none;margin-top:8px">
+          <div style="position:relative">
+            <input type="text" id="npImeiCode" maxlength="15" inputmode="numeric" placeholder="Enter 15-digit IMEI number" style="width:100%;padding:9px 52px 9px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);color:var(--text);font-size:.88rem;box-sizing:border-box;font-family:monospace;letter-spacing:.04em" oninput="_onImeiInput(this)" />
+            <span id="npImeiCounter" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:.7rem;color:var(--muted);pointer-events:none;font-weight:600">0/15</span>
+          </div>
+          <div id="npImeiStatus" style="font-size:.71rem;margin-top:4px;color:var(--muted)">Dial *#06# on the device to find the IMEI</div>
+        </div>
         <div id="npUniqueField" style="display:none;margin-top:8px">
           <input type="text" id="npUniqueCode" placeholder="e.g. SN-ABC123, REF-2024-001" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);color:var(--text);font-size:.88rem" />
           <div style="font-size:.72rem;color:var(--muted);margin-top:3px">Unique serial / reference code for this product</div>
@@ -2407,7 +2436,7 @@
   <div style="background:var(--surface);border-radius:16px;padding:28px 28px 24px;max-width:360px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,.45)">
     <h3 id="confirmTitle" style="margin:0 0 8px;color:var(--text);font-size:1rem">Confirm Delete</h3>
     <p id="confirmMsg" style="color:var(--muted);font-size:0.88rem;margin:0 0 10px">Are you sure you want to delete this item?</p>
-    <p style="color:var(--accent);font-size:0.78rem;margin:0 0 22px;background:rgba(79,142,247,.08);border-radius:8px;padding:8px 12px">🗑️ Tip: You can find and restore deleted items from the <strong>Trash</strong></p>
+    <p style="color:var(--accent);font-size:0.78rem;margin:0 0 22px;background:rgba(79,142,247,.08);border-radius:8px;padding:8px 12px">Tip: You can find and restore deleted items from <strong>Trash</strong></p>
     <div style="display:flex;gap:10px">
       <button class="btn-add" style="flex:1;margin:0;background:#e53e3e;border-color:#e53e3e" id="confirmYesBtn">Delete</button>
       <button class="settings-btn-outline" style="flex:1" id="confirmNoBtn">Cancel</button>
@@ -2417,15 +2446,15 @@
 
 <!-- Row Context Menu -->
 <div id="rowContextMenu">
-  <div class="ctx-item" id="ctxEdit">✏️ Edit row</div>
+  <div class="ctx-item" id="ctxEdit">Edit row</div>
   <div class="ctx-item" id="ctxSelect">☑️ Select &amp; multi-delete</div>
-  <div class="ctx-item danger" id="ctxDelete">🗑️ Delete</div>
+  <div class="ctx-item danger" id="ctxDelete">Delete</div>
 </div>
 
 <!-- Multi-select action bar -->
 <div id="selectionBar">
   <span id="selectionCount" style="font-weight:700;color:var(--text);min-width:90px">0 selected</span>
-  <button class="btn-add" style="margin:0;padding:8px 18px;font-size:0.82rem;background:#ef4444;border-color:#ef4444" onclick="deleteSelectedRows()">🗑 Delete Selected</button>
+  <button class="btn-add" style="margin:0;padding:8px 18px;font-size:0.82rem;background:#ef4444;border-color:#ef4444" onclick="deleteSelectedRows()">Delete Selected</button>
   <button class="settings-btn-outline" style="padding:8px 18px;font-size:0.82rem" onclick="cancelSelection()">✕ Cancel</button>
 </div>
 
@@ -2439,13 +2468,13 @@
         <p class="orders-date" id="sheetsDate"></p>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-        <button class="settings-btn-outline" onclick="exportCSV()">📊 Export CSV</button>
+        <button class="settings-btn-outline" onclick="exportCSV()">Export CSV</button>
         <button class="settings-btn-solid" onclick="saveToDrive()">☁️ Save to Drive</button>
       </div>
     </div>
     <div class="sheets-tabs" style="display:flex;align-items:center;justify-content:space-between">
       <div style="display:flex;gap:0">
-        <button class="sheets-tab active" id="sheetsTabSales"     onclick="switchSheetsTab('sales')">📋 Sales</button>
+        <button class="sheets-tab active" id="sheetsTabSales"     onclick="switchSheetsTab('sales')">Sales</button>
         <button class="sheets-tab"        id="sheetsTabProducts" onclick="switchSheetsTab('products')">🗃️ Products</button>
         <button class="sheets-tab"        id="sheetsTabCustomers" onclick="switchSheetsTab('customers')">👥 Customers</button>
       </div>
@@ -2490,7 +2519,7 @@
         <h1 class="orders-title">Trash</h1>
         <p class="orders-date" id="trashDate"></p>
       </div>
-      <button class="settings-btn-outline" style="align-self:flex-start" onclick="emptyTrash()">🗑️ Empty Trash</button>
+      <button class="settings-btn-outline" style="align-self:flex-start" onclick="emptyTrash()">Empty Trash</button>
     </div>
     <div id="trashList"></div>
   </div>
@@ -2525,7 +2554,7 @@
       <!-- 1. Store Profile -->
       <div class="settings-section">
         <div class="settings-section-title">
-          <span class="settings-icon">🏪</span>
+          <span class="settings-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
           <div>
             <h3>Store Profile</h3>
             <p>Your public store identity used on reports and messages</p>
@@ -2572,7 +2601,7 @@
       <!-- 2. Regional & Display -->
       <div class="settings-section">
         <div class="settings-section-title">
-          <span class="settings-icon">🌍</span>
+          <span class="settings-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>
           <div>
             <h3>Regional &amp; Display</h3>
             <p>Currency, timezone, date format and appearance</p>
@@ -2635,7 +2664,7 @@
       <!-- 3. Connected Platforms -->
       <div class="settings-section">
         <div class="settings-section-title">
-          <span class="settings-icon">🔌</span>
+          <span class="settings-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 2 13 9 18 9"/><path d="M13 2L3 13h9l-1 9 10-11h-9l1-9z"/></svg></span>
           <div>
             <h3>Connected Platforms</h3>
             <p>Manage messaging channel integrations</p>
@@ -2749,7 +2778,7 @@
                 </ol>
                 <p style="font-size:0.7rem;color:var(--muted);margin:8px 0 0">Add your <code style="font-size:0.68rem">GROQ_API_KEY</code> to Vercel environment variables to enable AI auto-replies.</p>
                 <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-                  <button onclick="_copyProductsForWhatsApp()" style="background:rgba(37,211,102,.12);border:1px solid rgba(37,211,102,.35);color:#25d366;border-radius:7px;padding:6px 14px;font-size:0.75rem;font-weight:600;cursor:pointer">📋 Copy Products for WhatsApp</button>
+                  <button onclick="_copyProductsForWhatsApp()" style="background:rgba(37,211,102,.12);border:1px solid rgba(37,211,102,.35);color:#25d366;border-radius:7px;padding:6px 14px;font-size:0.75rem;font-weight:600;cursor:pointer">Copy Products for WhatsApp</button>
                   <span style="font-size:0.7rem;color:var(--muted);align-self:center">Paste this as <code style="font-size:0.68rem">PRODUCTS_JSON</code> in Vercel. Re-copy &amp; update when products change.</span>
                 </div>
               </div>
@@ -2822,7 +2851,7 @@
       <!-- 4. Notifications -->
       <div class="settings-section">
         <div class="settings-section-title">
-          <span class="settings-icon">🔔</span>
+          <span class="settings-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
           <div>
             <h3>Notifications</h3>
             <p>Choose what you get alerted about</p>
@@ -2867,7 +2896,7 @@
       <!-- 6. Data & Security -->
       <div class="settings-section">
         <div class="settings-section-title">
-          <span class="settings-icon">🔐</span>
+          <span class="settings-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
           <div>
             <h3>Data &amp; Security</h3>
             <p>Export data, manage password and active sessions</p>
@@ -2888,10 +2917,10 @@
             <div class="settings-field">
               <label>Sales Report PDF</label>
               <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <button class="settings-btn-solid" onclick="downloadReport('today')">📊 Today</button>
-                <button class="settings-btn-solid" onclick="downloadReport('week')">📊 This Week</button>
-                <button class="settings-btn-solid" onclick="downloadReport('month')">📊 This Month</button>
-                <button class="settings-btn-solid" onclick="downloadReport('all')">📊 All Time</button>
+                <button class="settings-btn-solid" onclick="downloadReport('today')">Today</button>
+                <button class="settings-btn-solid" onclick="downloadReport('week')">This Week</button>
+                <button class="settings-btn-solid" onclick="downloadReport('month')">This Month</button>
+                <button class="settings-btn-solid" onclick="downloadReport('all')">All Time</button>
               </div>
             </div>
           </div>
@@ -2925,7 +2954,7 @@
           <div class="settings-row">
             <div class="settings-field full">
               <label>Danger Zone</label>
-              <button class="settings-btn-outline danger" style="width:auto">🗑 Clear Today's Sales Data</button>
+              <button class="settings-btn-outline danger" style="width:auto">Clear Today's Sales Data</button>
             </div>
           </div>
         </div>
@@ -2934,12 +2963,12 @@
       <!-- Cloud Backup -->
       <div class="settings-section">
         <div class="settings-section-title">
-          <span class="settings-icon">☁️</span>
+          <span class="settings-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg></span>
           <div><h3>Cloud Backup</h3><p>Export your data to Google Drive or download as CSV / JSON anytime</p></div>
         </div>
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px">
           <button class="settings-btn-solid" onclick="saveToDrive()">☁️ Save to Google Drive</button>
-          <button class="settings-btn-outline" onclick="exportCSV()">📊 Export CSV</button>
+          <button class="settings-btn-outline" onclick="exportCSV()">Export CSV</button>
           <button class="settings-btn-outline" onclick="exportDataJSON()">💾 Export JSON</button>
         </div>
         <p style="font-size:0.72rem;color:var(--muted);margin:8px 0 0">Google Drive: opens a sign-in popup, uploads a JSON snapshot of all your data to your Drive folder. CSV / JSON: instantly downloads files to your computer — great for opening in Excel or Sheets. All data lives locally; nothing syncs in the background.</p>
@@ -2948,7 +2977,7 @@
       <!-- Email Alerts -->
       <div class="settings-section">
         <div class="settings-section-title">
-          <span class="settings-icon">📧</span>
+          <span class="settings-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>
           <div>
             <h3>Email Alerts</h3>
             <p>Receive email notifications for low stock, new stock additions, and sales events</p>
@@ -3010,7 +3039,7 @@
       <!-- Nova AI Assistant -->
       <div class="settings-section">
         <div class="settings-section-title">
-          <span class="settings-icon">✨</span>
+          <span class="settings-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span>
           <div>
             <h3>Nova — AI Assistant</h3>
             <p>Your store's voice AI. Ask questions, control the app, get insights</p>
@@ -3067,7 +3096,7 @@
       <!-- Payment & Delivery Settings -->
       <div class="settings-section">
         <div class="settings-section-title">
-          <span class="settings-icon">💳</span>
+          <span class="settings-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span>
           <div>
             <h3>Payment &amp; Delivery</h3>
             <p>Bank details Nova shares with customers + rider emails for dispatch.</p>
@@ -3106,7 +3135,7 @@
       <!-- Nova Selling Rules -->
       <div class="settings-section">
         <div class="settings-section-title">
-          <span class="settings-icon">🤝</span>
+          <span class="settings-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
           <div>
             <h3>Nova Selling Rules</h3>
             <p>How Nova handles pricing, discounts and loyal customers on WhatsApp.</p>
@@ -3358,7 +3387,7 @@
       <div id="imeiScanFeedback" style="position:absolute;bottom:8px;left:0;right:0;text-align:center;color:#fff;font-size:.78rem;text-shadow:0 1px 4px rgba(0,0,0,.9);padding:0 12px">Point camera at barcode</div>
     </div>
     <div id="noBarcodeNotice" style="display:none;padding:9px 12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:8px;font-size:.75rem;color:#d97706;margin-bottom:12px">
-      📱 Auto-scan works on <strong>Android Chrome</strong>. On iOS / Safari — type IMEI below.
+      Auto-scan works on <strong>Android Chrome</strong>. On iOS / Safari — type IMEI below.
     </div>
     <div style="margin-bottom:12px">
       <label style="font-size:.8rem;font-weight:600;color:var(--text);display:block;margin-bottom:6px">Or type IMEI / Serial manually</label>
@@ -6909,8 +6938,10 @@
     var trackTypeEl   = document.querySelector('input[name="npTrackType"]:checked');
     var trackType     = trackTypeEl ? trackTypeEl.value : 'none';
     var isIMEITracked = trackType === 'imei';
+    var imeiCode      = trackType === 'imei'   ? ((document.getElementById('npImeiCode')   || {}).value || '').trim() : '';
     var uniqueCode    = trackType === 'unique' ? ((document.getElementById('npUniqueCode') || {}).value || '').trim() : '';
     if (!name) { showToast('Product name is required'); return; }
+    if (imeiCode && imeiCode.length !== 15) { showToast('IMEI must be exactly 15 digits'); document.getElementById('npImeiCode').focus(); return; }
 
     var _arr = _getProds();  // always fresh from localStorage
     var existingIdx = _arr.findIndex(function(p) { return p.name === name; });
@@ -6944,11 +6975,12 @@
     _saveProds(_arr);           // write first
     renderProducts(); try { refreshProductsList(); } catch(_) {}
     SheetsAPI.withToken(function() { SheetsAPI.appendProduct(p); });
-    // Auto-add unique code to vault if provided
-    if (uniqueCode) {
+    // Auto-add IMEI/unique code to vault if provided
+    var _vaultCode = imeiCode || uniqueCode;
+    if (_vaultCode) {
       var vault = _getIMEI();
-      if (!vault.find(function(r){ return r.imei === uniqueCode; })) {
-        vault.push({ imei: uniqueCode, productCode: code, productName: name, status: 'in_stock', addedAt: new Date().toISOString(), isUnique: true });
+      if (!vault.find(function(r){ return r.imei === _vaultCode; })) {
+        vault.push({ imei: _vaultCode, productCode: code, productName: name, status: 'in_stock', addedAt: new Date().toISOString(), isUnique: !imeiCode });
         _saveIMEI(vault);
       }
     }
@@ -6957,6 +6989,7 @@
     ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode','npCondition'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
     var pv2 = document.getElementById('npConditionPreview'); if (pv2) pv2.style.display = 'none';
     var ucEl = document.getElementById('npUniqueCode'); if (ucEl) ucEl.value = '';
+    var icEl = document.getElementById('npImeiCode');   if (icEl) icEl.value = '';
     var tDef = document.querySelector('input[name="npTrackType"][value="none"]'); if (tDef) tDef.checked = true;
     _updateTrackFields();
     try { checkLowStock(); } catch(_) {}
@@ -7051,13 +7084,59 @@
     var _query = '';
     try { var _sq = document.getElementById('productsSearch'); if (_sq) _query = (_sq.value || '').toLowerCase().trim(); } catch(_) {}
 
-    // Filter
+    // Populate category dropdown from current product data
+    try {
+      var _catSel = document.getElementById('prodFilterCat');
+      if (_catSel) {
+        var _allCats = [];
+        _prods.forEach(function(p) { var c = p.category || p.name || ''; if (c && _allCats.indexOf(c) === -1) _allCats.push(c); });
+        _allCats.sort();
+        var _curCat = _catSel.value;
+        _catSel.innerHTML = '<option value="">All categories</option>'
+          + _allCats.map(function(c){ return '<option value="' + c.replace(/"/g,'&quot;') + '"' + (c === _curCat ? ' selected' : '') + '>' + c + '</option>'; }).join('');
+      }
+    } catch(_) {}
+
+    // Text search filter
     var _tokens = _query ? _query.split(/\s+/).filter(Boolean) : [];
     var _filtered = _prods.filter(function(p) {
       if (!_tokens.length) return true;
       var hay = ((p.name||'') + ' ' + (p.code||'') + ' ' + (p.type||'') + ' ' + (p.category||'') + ' ' + (p.variant||'')).toLowerCase();
       return _tokens.every(function(t) { return hay.indexOf(t) !== -1; });
     });
+
+    // Category filter
+    try {
+      var _catFilter = ((document.getElementById('prodFilterCat') || {}).value || '').trim();
+      if (_catFilter) _filtered = _filtered.filter(function(p){ return (p.category || p.name || '') === _catFilter; });
+    } catch(_) {}
+
+    // Tracking type filter
+    try {
+      var _trackFilter = ((document.getElementById('prodFilterTrack') || {}).value || '').trim();
+      if (_trackFilter) _filtered = _filtered.filter(function(p){
+        var tt = p.trackType || (p.isIMEITracked ? 'imei' : 'none');
+        return tt === _trackFilter;
+      });
+    } catch(_) {}
+
+    // Sort
+    try {
+      var _sortBy = ((document.getElementById('prodSortBy') || {}).value || '').trim();
+      if (_sortBy) _filtered = _filtered.slice().sort(function(a, b) {
+        switch (_sortBy) {
+          case 'name-asc':   return (a.name||'').localeCompare(b.name||'');
+          case 'name-desc':  return (b.name||'').localeCompare(a.name||'');
+          case 'date-desc':  return (new Date(b.dateAdded||0)) - (new Date(a.dateAdded||0));
+          case 'date-asc':   return (new Date(a.dateAdded||0)) - (new Date(b.dateAdded||0));
+          case 'price-desc': return (Number(b.unitPrice)||0) - (Number(a.unitPrice)||0);
+          case 'price-asc':  return (Number(a.unitPrice)||0) - (Number(b.unitPrice)||0);
+          case 'stock-desc': return (Number(b.stockQty)||0) - (Number(a.stockQty)||0);
+          case 'stock-asc':  return (Number(a.stockQty)||0) - (Number(b.stockQty)||0);
+          default: return 0;
+        }
+      });
+    } catch(_) {}
 
     // Stat cards
     try {
@@ -7141,15 +7220,19 @@
               + '<td class="cell-action"><button onclick="event.stopPropagation();_showProductQR(\'' + _esc(p.code) + '\',\'' + _esc(p.variant||p.name) + '\')" style="padding:3px 8px;font-size:.7rem;background:rgba(99,102,241,.1);color:#6366f1;border:1px solid rgba(99,102,241,.25);border-radius:6px;cursor:pointer;margin-right:4px" title="Show QR Code">QR</button><button class="btn-terminate" onclick="confirmDeleteProduct(' + ri + ')" title="Remove">&#9632;</button></td>'
               + '</tr>';
           });
-          _html += '<tr class="category-header-row" onclick="toggleVariantGroup(\'' + cid + '\')">'
+          _html += '<tr class="category-header-row" onclick="toggleVariantGroup(\'' + cid + '\')" title="Click to expand variants">'
             + '<td class="row-num">' + (_rn++) + '</td>'
-            + '<td style="padding:8px 12px" colspan="2"><span style="font-weight:700;color:var(--text)">' + _esc(cat) + '</span>'
-            + '<span style="font-size:.74rem;color:var(--muted);margin-left:8px">' + items.length + ' variant' + (items.length>1?'s':'') + '</span></td>'
+            + '<td style="padding:8px 12px" colspan="2">'
+            + '<span style="display:inline-flex;align-items:center;gap:6px">'
+            + '<svg id="arr-' + cid + '" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .2s;flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>'
+            + '<span style="font-weight:700;color:var(--text)">' + _esc(cat) + '</span>'
+            + '<span style="font-size:.73rem;color:var(--muted)">' + items.length + ' variant' + (items.length>1?'s':'') + '</span>'
+            + '</span></td>'
             + '<td style="padding:10px 14px;color:var(--muted)">—</td>'
             + '<td class="cell-datetime" style="text-align:center;color:' + (al?'#e53e3e':'inherit') + ';font-weight:' + (al?700:400) + '">' + ts + (al?' ⚠':'') + '</td>'
             + '<td class="cell-datetime">—</td><td class="cell-subtotal">—</td><td class="cell-datetime">—</td>'
-            + '<td class="cell-datetime" title="Last updated"><span style="font-size:.7rem;opacity:.6">🕒</span> ' + _esc(lu) + '</td>'
-            + '<td class="cell-action"><button class="btn-variants" onclick="event.stopPropagation();toggleVariantGroup(\'' + cid + '\')">▼ variants</button></td>'
+            + '<td class="cell-datetime" title="Last updated" style="font-size:.72rem;color:var(--muted)">' + _esc(lu) + '</td>'
+            + '<td class="cell-action"><button class="btn-variants" onclick="event.stopPropagation();toggleVariantGroup(\'' + cid + '\')">expand</button></td>'
             + '</tr>'
             + '<tr id="' + cid + '" style="display:none">'
             + '<td colspan="10" style="padding:8px 0 4px;border-top:none;background:var(--surface2)">'
@@ -7181,9 +7264,14 @@
     if (!row) return;
     const isOpen = row.style.display !== 'none';
     row.style.display = isOpen ? 'none' : '';
-    // Flip chevron text on the button
-    const btn = row.previousElementSibling?.querySelector('.btn-variants');
-    if (btn) btn.textContent = isOpen ? '▼ variants' : '▲ variants';
+    // Rotate arrow SVG and update button text
+    const prev = row.previousElementSibling;
+    if (prev) {
+      const arr = prev.querySelector('#arr-' + catId);
+      if (arr) arr.style.transform = isOpen ? '' : 'rotate(90deg)';
+      const btn = prev.querySelector('.btn-variants');
+      if (btn) btn.textContent = isOpen ? 'expand' : 'collapse';
+    }
   }
 
   // ── Orders & Sales sidebar badge (sales in last 5 mins) ──
@@ -10010,13 +10098,38 @@ function _finishOnboarding() {
 // ══════════════════════════════════════════════════════════════════════════════
 // Tracking type toggle (product form)
 // ══════════════════════════════════════════════════════════════════════════════
+function _clearProductFilters() {
+  ['prodSortBy','prodFilterCat','prodFilterTrack'].forEach(function(id){
+    var el = document.getElementById(id); if (el) el.value = '';
+  });
+  renderProducts();
+}
+
 function _updateTrackFields() {
-  var typeEl   = document.querySelector('input[name="npTrackType"]:checked');
-  var type     = typeEl ? typeEl.value : 'none';
-  var imeiNote = document.getElementById('npImeiNote');
-  var uniqFld  = document.getElementById('npUniqueField');
-  if (imeiNote) imeiNote.style.display = type === 'imei'   ? '' : 'none';
-  if (uniqFld)  uniqFld.style.display  = type === 'unique' ? '' : 'none';
+  var type    = ((document.querySelector('input[name="npTrackType"]:checked') || {}).value) || 'none';
+  var imeiFld = document.getElementById('npImeiField');
+  var uniqFld = document.getElementById('npUniqueField');
+  if (imeiFld) imeiFld.style.display = type === 'imei'   ? '' : 'none';
+  if (uniqFld) uniqFld.style.display = type === 'unique' ? '' : 'none';
+  // Reset status when switching away
+  if (type !== 'imei') {
+    var ic = document.getElementById('npImeiCode'); if (ic) ic.value = '';
+    var ct = document.getElementById('npImeiCounter'); if (ct) ct.textContent = '0/15';
+    var st = document.getElementById('npImeiStatus'); if (st) { st.textContent = 'Dial *#06# on the device to find the IMEI'; st.style.color = 'var(--muted)'; }
+  }
+}
+
+function _onImeiInput(el) {
+  el.value = el.value.replace(/\D/g, '').slice(0, 15);
+  var n = el.value.length;
+  var counter = document.getElementById('npImeiCounter');
+  var status  = document.getElementById('npImeiStatus');
+  if (counter) counter.textContent = n + '/15';
+  if (status) {
+    if (n === 0)       { status.textContent = 'Dial *#06# on the device to find the IMEI';      status.style.color = 'var(--muted)'; }
+    else if (n < 15)   { status.textContent = (15 - n) + ' more digit' + (15-n > 1 ? 's' : '') + ' needed'; status.style.color = '#f59e0b'; }
+    else               { status.textContent = 'Valid IMEI';                                     status.style.color = '#22c55e'; }
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

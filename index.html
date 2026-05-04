@@ -1788,6 +1788,7 @@
   .track-radio-lbl:has(input:checked) { border-color:var(--accent);background:rgba(79,142,247,.09) }
   </style>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -9345,6 +9346,79 @@ function _flashRow(row, color) {
   setTimeout(function(){ row.style.background = orig; }, 1800);
 }
 
+// ── OCR Fallback — reads plain-text IMEI/serial from phone screens ────────────
+var _ocrWorker  = null;
+var _ocrBusy    = false;
+var _ocrLastRun = 0;
+var _ocrCanvas  = null;
+
+function _initOcrWorker() {
+  if (_ocrWorker || !window.Tesseract) return;
+  Tesseract.createWorker('eng').then(function(w) {
+    _ocrWorker = w;
+  }).catch(function(){});
+}
+
+function _ocrGetCanvas(video) {
+  if (!_ocrCanvas) _ocrCanvas = document.createElement('canvas');
+  _ocrCanvas.width  = Math.min(video.videoWidth  || 640, 1280);
+  _ocrCanvas.height = Math.min(video.videoHeight || 480,  720);
+  var ctx = _ocrCanvas.getContext('2d');
+  ctx.filter = 'contrast(1.6) brightness(1.1) grayscale(1)';
+  ctx.drawImage(video, 0, 0, _ocrCanvas.width, _ocrCanvas.height);
+  ctx.filter = 'none';
+  return _ocrCanvas;
+}
+
+function _extractCodesFromOCR(text) {
+  if (!text) return [];
+  // Fix common OCR digit-substitution errors
+  var t = text
+    .replace(/[Oo]/g, '0').replace(/[Il|!]/g, '1')
+    .replace(/[Ss]/g, '5').replace(/[Bb]/g, '8')
+    .replace(/[Gg]/g, '6').replace(/[Zz]/g, '2');
+  var results = [];
+  // 13-15 digit IMEI-like sequences (spaces/hyphens allowed between digits)
+  var seqs = t.match(/\d[\d \-\.]{11,17}\d/g) || [];
+  seqs.forEach(function(seq) {
+    var digits = seq.replace(/\D/g, '');
+    if (digits.length >= 13 && digits.length <= 15 && results.indexOf(digits) === -1) {
+      results.push(digits);
+    }
+  });
+  // Also match known vault codes that appear verbatim in OCR text
+  try {
+    var vault   = _getIMEI();
+    var compact = text.replace(/[\s\-]/g, '').toLowerCase();
+    vault.forEach(function(r) {
+      var c = (r.imei || '').replace(/[\s\-]/g, '').toLowerCase();
+      if (c.length >= 6 && compact.indexOf(c) !== -1 && results.indexOf(r.imei) === -1) {
+        results.push(r.imei);
+      }
+    });
+  } catch(e) {}
+  return results;
+}
+
+function _runOcrOnFrame(video, onFound, statusEl) {
+  if (_ocrBusy || !_ocrWorker) return;
+  var now = Date.now();
+  if (now - _ocrLastRun < 2500) return; // max once per 2.5 s to avoid CPU overload
+  _ocrLastRun = now;
+  _ocrBusy    = true;
+  if (statusEl) statusEl.textContent = '🔍 Reading text…';
+  var cnv = _ocrGetCanvas(video);
+  _ocrWorker.recognize(cnv).then(function(result) {
+    _ocrBusy = false;
+    var codes = _extractCodesFromOCR(result.data.text);
+    if (codes.length) {
+      onFound(codes);
+    } else {
+      if (statusEl) statusEl.textContent = 'Point camera at barcode or IMEI text';
+    }
+  }).catch(function() { _ocrBusy = false; });
+}
+
 // ── Camera Scanner ────────────────────────────────────────────────────────────
 var _imeiScanStream = null;
 var _imeiScanMode   = 'lookup';
@@ -9370,11 +9444,14 @@ function _openCameraScanner(mode) {
   var noticeEl = document.getElementById('noBarcodeNotice');
   if (!video) return;
 
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+  _initOcrWorker();
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } })
+    .catch(function() { return navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); })
     .then(function(stream) {
       _imeiScanStream = stream;
       video.srcObject = stream;
       video.play();
+      var _scanFb = document.getElementById('imeiScanFeedback');
 
       if ('BarcodeDetector' in window) {
         var _allFormats = ['code_128','code_39','ean_13','ean_8','qr_code','itf','pdf_417','aztec','data_matrix','codabar','upc_a','upc_e'];
@@ -9385,7 +9462,6 @@ function _openCameraScanner(mode) {
             for (var b = 0; b < barcodes.length; b++) {
               var raw     = barcodes[b].rawValue.trim();
               var numOnly = raw.replace(/\D/g,'');
-              // Accept IMEI (13+ digits) OR a known product code
               var prods   = typeof _getProds === 'function' ? _getProds() : [];
               var isProd  = prods.some(function(p){ return p.code && (p.code === raw || p.code.replace(/-/g,'') === raw.replace(/-/g,'')); });
               if (numOnly.length >= 13 || isProd) {
@@ -9393,12 +9469,27 @@ function _openCameraScanner(mode) {
                 return;
               }
             }
+            // No barcode detected — fall back to OCR for plain-text IMEI on screen
+            _runOcrOnFrame(video, function(codes) {
+              if (!_imeiScanStream) return;
+              codes.forEach(function(c) { _processIMEIValue(c, true); });
+            }, _scanFb);
             _imeiScanRAF = setTimeout(scan, 200);
           }).catch(function(){ _imeiScanRAF = setTimeout(scan, 250); });
         };
         _imeiScanRAF = setTimeout(scan, 300);
       } else {
-        if (noticeEl) noticeEl.style.display = 'block';
+        // No BarcodeDetector — OCR-only mode
+        if (noticeEl) { noticeEl.textContent = 'Auto-detecting IMEI via text recognition…'; noticeEl.style.display = 'block'; }
+        var scan = function() {
+          if (!_imeiScanStream) return;
+          _runOcrOnFrame(video, function(codes) {
+            if (!_imeiScanStream) return;
+            codes.forEach(function(c) { _processIMEIValue(c, true); });
+          }, _scanFb);
+          _imeiScanRAF = setTimeout(scan, 2500);
+        };
+        _imeiScanRAF = setTimeout(scan, 1200);
       }
     })
     .catch(function() {
@@ -10066,6 +10157,8 @@ function _openSonar() {
   document.getElementById('sonarScanView').style.display = 'flex';
   document.getElementById('sonarResults').style.display  = 'none';
 
+  _initOcrWorker(); // warm up OCR engine in background
+
   var video = document.getElementById('sonarVideo');
   if (!video) return;
   // Request high resolution rear camera for better barcode reading
@@ -10087,8 +10180,22 @@ function _openSonar() {
       if (statusEl) statusEl.textContent = 'SCANNING';
 
       if (!('BarcodeDetector' in window)) {
-        if (statusEl)  statusEl.textContent = 'MANUAL MODE';
-        if (videoStat) videoStat.textContent = 'Auto-scan not supported on this browser — use the text box below';
+        if (statusEl)  statusEl.textContent = 'OCR MODE';
+        if (videoStat) videoStat.textContent = 'Reading IMEI via text recognition…';
+        // OCR-only loop — runs on browsers without BarcodeDetector
+        var ocrLoop = function() {
+          if (!_sonarStream) return;
+          _runOcrOnFrame(video, function(ocrCodes) {
+            if (!_sonarStream) return;
+            ocrCodes.forEach(function(code) {
+              if (_sonarScanned.has(code)) return;
+              _sonarScanned.add(code); _sonarBeep(); _sonarUpdateUI();
+              if (videoStat) videoStat.textContent = '✅ Text: ' + code.slice(0,12);
+            });
+          }, videoStat);
+          _sonarRAF = setTimeout(ocrLoop, 2500);
+        };
+        _sonarRAF = setTimeout(ocrLoop, 1200);
         return;
       }
 
@@ -10136,29 +10243,39 @@ function _openSonar() {
                 break;
               }
             }
-            if (!found && codes.length === 0 && _lastDetected) {
-              _lastDetected = '';
-              if (videoStat) videoStat.textContent = 'Align barcode with the red guide';
+            if (!found && codes.length === 0) {
+              if (_lastDetected) { _lastDetected = ''; }
+              // No barcode — try OCR to read plain-text IMEI displayed on screen
+              _runOcrOnFrame(video, function(ocrCodes) {
+                if (!_sonarStream) return;
+                ocrCodes.forEach(function(code) {
+                  if (_sonarScanned.has(code)) return;
+                  _sonarScanned.add(code);
+                  _sonarBeep();
+                  _sonarUpdateUI();
+                  var fl = document.getElementById('sonarFlash');
+                  if (fl) { fl.style.opacity = '1'; setTimeout(function(){ if(fl) fl.style.opacity = '0'; }, 180); }
+                  if (videoStat) videoStat.textContent = '✅ Text read: ' + code.slice(0, 12) + (code.length > 12 ? '…' : '');
+                });
+              }, videoStat);
             }
             _sonarRAF = setTimeout(scan, 200); // 200ms polling — gives CPU time to decode
           }).catch(function(){ _sonarRAF = setTimeout(scan, 300); });
         };
         _sonarRAF = setTimeout(scan, 300); // small initial delay after camera starts
       }).catch(function() {
-        // getSupportedFormats failed — try with basic list
-        var det = new window.BarcodeDetector({ formats: ['code_128','ean_13','qr_code','code_39'] });
+        // getSupportedFormats failed — OCR-only fallback
         var scan = function() {
           if (!_sonarStream) return;
-          det.detect(video).then(function(codes) {
-            for (var i = 0; i < codes.length; i++) {
-              var raw = codes[i].rawValue.trim();
-              var numOnly = raw.replace(/\D/g,'');
-              if ((numOnly.length >= 13 || raw.length >= 6) && !_sonarScanned.has(raw)) {
-                _sonarScanned.add(raw); _sonarBeep(); _sonarUpdateUI();
-              }
-            }
-            _sonarRAF = setTimeout(scan, 200);
-          }).catch(function(){ _sonarRAF = setTimeout(scan, 300); });
+          _runOcrOnFrame(video, function(ocrCodes) {
+            if (!_sonarStream) return;
+            ocrCodes.forEach(function(code) {
+              if (_sonarScanned.has(code)) return;
+              _sonarScanned.add(code); _sonarBeep(); _sonarUpdateUI();
+              if (videoStat) videoStat.textContent = '✅ Text: ' + code.slice(0,12);
+            });
+          }, videoStat);
+          _sonarRAF = setTimeout(scan, 2500);
         };
         _sonarRAF = setTimeout(scan, 300);
       });

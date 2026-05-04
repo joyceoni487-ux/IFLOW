@@ -2401,23 +2401,15 @@
         <div id="npConditionPreview" style="font-size:.75rem;color:#f59e0b;margin-top:4px;display:none"></div>
       </div>
       <div class="field" style="grid-column:1/-1">
-        <label>Unit Tracking</label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-          <label class="track-radio-lbl"><input type="radio" name="npTrackType" value="none" onchange="_updateTrackFields()" checked style="accent-color:var(--accent)"> None</label>
-          <label class="track-radio-lbl"><input type="radio" name="npTrackType" value="imei" onchange="_updateTrackFields()" style="accent-color:var(--accent)"> IMEI Number</label>
-          <label class="track-radio-lbl"><input type="radio" name="npTrackType" value="unique" onchange="_updateTrackFields()" style="accent-color:var(--accent)"> Serial / Unique</label>
+        <label>IMEI / Serial No. <span style="color:#94a3b8;font-weight:400;font-size:.78rem">(enter for phones, electronics, or any tracked item)</span></label>
+        <div style="position:relative;margin-top:4px">
+          <input type="text" id="npSerialCode" maxlength="20" inputmode="text"
+            placeholder="e.g. 358754093457012 or SN-ABC123"
+            style="width:100%;padding:9px 68px 9px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);color:var(--text);font-size:.88rem;box-sizing:border-box;font-family:monospace;letter-spacing:.04em"
+            oninput="_onSerialInput(this)" />
+          <span id="npSerialBadge" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:5px;pointer-events:none;display:none"></span>
         </div>
-        <div id="npImeiField" style="display:none;margin-top:8px">
-          <div style="position:relative">
-            <input type="text" id="npImeiCode" maxlength="15" inputmode="numeric" placeholder="Enter 15-digit IMEI number" style="width:100%;padding:9px 52px 9px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);color:var(--text);font-size:.88rem;box-sizing:border-box;font-family:monospace;letter-spacing:.04em" oninput="_onImeiInput(this)" />
-            <span id="npImeiCounter" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:.7rem;color:var(--muted);pointer-events:none;font-weight:600">0/15</span>
-          </div>
-          <div id="npImeiStatus" style="font-size:.71rem;margin-top:4px;color:var(--muted)">Dial *#06# on the device to find the IMEI</div>
-        </div>
-        <div id="npUniqueField" style="display:none;margin-top:8px">
-          <input type="text" id="npUniqueCode" placeholder="e.g. SN-ABC123, REF-2024-001" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);color:var(--text);font-size:.88rem" />
-          <div style="font-size:.72rem;color:var(--muted);margin-top:3px">Unique serial / reference code for this product</div>
-        </div>
+        <div id="npSerialStatus" style="font-size:.71rem;margin-top:4px;color:var(--muted)">Phones: dial *#06# for IMEI &middot; Other items: any serial or reference code</div>
       </div>
       <div class="field">
         <label>Product Code (auto-generated)</label>
@@ -6935,13 +6927,13 @@
     var discount       = discountEl ? (parseFloat(discountEl.value) || 0) : 0;
     var discountType   = discountTypeEl ? discountTypeEl.value : 'pct';
     // Tracking type (replaces old npIsIMEI checkbox)
-    var trackTypeEl   = document.querySelector('input[name="npTrackType"]:checked');
-    var trackType     = trackTypeEl ? trackTypeEl.value : 'none';
-    var isIMEITracked = trackType === 'imei';
-    var imeiCode      = trackType === 'imei'   ? ((document.getElementById('npImeiCode')   || {}).value || '').trim() : '';
-    var uniqueCode    = trackType === 'unique' ? ((document.getElementById('npUniqueCode') || {}).value || '').trim() : '';
+    var serialCode    = ((document.getElementById('npSerialCode') || {}).value || '').trim();
+    var _isIMEI       = /^\d{15}$/.test(serialCode);
+    var _isNumericBad = /^\d+$/.test(serialCode) && serialCode.length > 0 && !_isIMEI;
+    if (_isNumericBad) { showToast('IMEI must be exactly 15 digits (you entered ' + serialCode.length + ')'); var sc = document.getElementById('npSerialCode'); if (sc) sc.focus(); return; }
+    var trackType     = _isIMEI ? 'imei' : (serialCode.length >= 3 ? 'unique' : 'none');
+    var isIMEITracked = _isIMEI;
     if (!name) { showToast('Product name is required'); return; }
-    if (imeiCode && imeiCode.length !== 15) { showToast('IMEI must be exactly 15 digits'); document.getElementById('npImeiCode').focus(); return; }
 
     var _arr = _getProds();  // always fresh from localStorage
     var existingIdx = _arr.findIndex(function(p) { return p.name === name; });
@@ -6960,10 +6952,9 @@
       toggleAddProductForm();
       showToast('"' + name + '" stock updated (+' + stockQty + ')');
       try { checkLowStock(); } catch(_) {}
-      ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode','npCondition','npDiscount','npUniqueCode'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+      ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode','npCondition','npDiscount','npSerialCode'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
       var dtEl = document.getElementById('npDiscountType'); if (dtEl) dtEl.value = 'pct';
-      var tDef2 = document.querySelector('input[name="npTrackType"][value="none"]'); if (tDef2) tDef2.checked = true;
-      _updateTrackFields();
+      var badge1 = document.getElementById('npSerialBadge'); if (badge1) badge1.style.display = 'none';
       var pv = document.getElementById('npConditionPreview'); if (pv) pv.style.display = 'none';
       return;
     }
@@ -6975,22 +6966,20 @@
     _saveProds(_arr);           // write first
     renderProducts(); try { refreshProductsList(); } catch(_) {}
     SheetsAPI.withToken(function() { SheetsAPI.appendProduct(p); });
-    // Auto-add IMEI/unique code to vault if provided
-    var _vaultCode = imeiCode || uniqueCode;
-    if (_vaultCode) {
+    // Auto-add to vault if a serial/IMEI was provided
+    if (serialCode) {
       var vault = _getIMEI();
-      if (!vault.find(function(r){ return r.imei === _vaultCode; })) {
-        vault.push({ imei: _vaultCode, productCode: code, productName: name, status: 'in_stock', addedAt: new Date().toISOString(), isUnique: !imeiCode });
+      if (!vault.find(function(r){ return r.imei === serialCode; })) {
+        vault.push({ imei: serialCode, productCode: code, productName: name, status: 'in_stock', addedAt: new Date().toISOString(), isUnique: !_isIMEI });
         _saveIMEI(vault);
       }
     }
     toggleAddProductForm();
     showToast('"' + name + '" added to stock');
-    ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode','npCondition'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+    ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode','npCondition','npSerialCode'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
     var pv2 = document.getElementById('npConditionPreview'); if (pv2) pv2.style.display = 'none';
-    var ucEl = document.getElementById('npUniqueCode'); if (ucEl) ucEl.value = '';
-    var icEl = document.getElementById('npImeiCode');   if (icEl) icEl.value = '';
-    var tDef = document.querySelector('input[name="npTrackType"][value="none"]'); if (tDef) tDef.checked = true;
+    var badge2 = document.getElementById('npSerialBadge'); if (badge2) badge2.style.display = 'none';
+    var stat2  = document.getElementById('npSerialStatus'); if (stat2) { stat2.textContent = 'Phones: dial *#06# for IMEI · Other items: any serial or reference code'; stat2.style.color = 'var(--muted)'; }
     _updateTrackFields();
     try { checkLowStock(); } catch(_) {}
   }
@@ -10105,30 +10094,34 @@ function _clearProductFilters() {
   renderProducts();
 }
 
-function _updateTrackFields() {
-  var type    = ((document.querySelector('input[name="npTrackType"]:checked') || {}).value) || 'none';
-  var imeiFld = document.getElementById('npImeiField');
-  var uniqFld = document.getElementById('npUniqueField');
-  if (imeiFld) imeiFld.style.display = type === 'imei'   ? '' : 'none';
-  if (uniqFld) uniqFld.style.display = type === 'unique' ? '' : 'none';
-  // Reset status when switching away
-  if (type !== 'imei') {
-    var ic = document.getElementById('npImeiCode'); if (ic) ic.value = '';
-    var ct = document.getElementById('npImeiCounter'); if (ct) ct.textContent = '0/15';
-    var st = document.getElementById('npImeiStatus'); if (st) { st.textContent = 'Dial *#06# on the device to find the IMEI'; st.style.color = 'var(--muted)'; }
-  }
-}
+function _updateTrackFields() {} // kept for any legacy calls — no-op now
 
-function _onImeiInput(el) {
-  el.value = el.value.replace(/\D/g, '').slice(0, 15);
-  var n = el.value.length;
-  var counter = document.getElementById('npImeiCounter');
-  var status  = document.getElementById('npImeiStatus');
-  if (counter) counter.textContent = n + '/15';
-  if (status) {
-    if (n === 0)       { status.textContent = 'Dial *#06# on the device to find the IMEI';      status.style.color = 'var(--muted)'; }
-    else if (n < 15)   { status.textContent = (15 - n) + ' more digit' + (15-n > 1 ? 's' : '') + ' needed'; status.style.color = '#f59e0b'; }
-    else               { status.textContent = 'Valid IMEI';                                     status.style.color = '#22c55e'; }
+function _onSerialInput(el) {
+  var val    = el.value.trim();
+  var badge  = document.getElementById('npSerialBadge');
+  var status = document.getElementById('npSerialStatus');
+  if (!val) {
+    if (badge)  badge.style.display = 'none';
+    if (status) { status.textContent = 'Phones: dial *#06# for IMEI · Other items: any serial or reference code'; status.style.color = 'var(--muted)'; }
+    return;
+  }
+  if (badge) badge.style.display = '';
+  var allDigits = /^\d+$/.test(val);
+  if (allDigits) {
+    var n = val.length;
+    if (n < 15) {
+      badge.textContent = n + '/15';  badge.style.cssText += ';background:rgba(245,158,11,.15);color:#f59e0b';
+      if (status) { status.textContent = (15 - n) + ' more digit' + (15-n>1?'s':'') + ' to complete IMEI'; status.style.color = '#f59e0b'; }
+    } else if (n === 15) {
+      badge.textContent = 'IMEI ✓';  badge.style.cssText += ';background:rgba(34,197,94,.15);color:#22c55e';
+      if (status) { status.textContent = 'Valid 15-digit IMEI — will be saved to vault'; status.style.color = '#22c55e'; }
+    } else {
+      badge.textContent = n + ' digits';  badge.style.cssText += ';background:rgba(239,68,68,.15);color:#ef4444';
+      if (status) { status.textContent = 'IMEI is exactly 15 digits — remove ' + (n-15) + ' digit' + (n-15>1?'s':''); status.style.color = '#ef4444'; }
+    }
+  } else {
+    badge.textContent = 'Serial';  badge.style.cssText += ';background:rgba(99,102,241,.15);color:#6366f1';
+    if (status) { status.textContent = 'Serial / reference code — will be saved to vault'; status.style.color = '#6366f1'; }
   }
 }
 

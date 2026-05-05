@@ -10252,7 +10252,18 @@ var _intFound  = new Set();
 function _intBuildGroups() {
   var prods = _getProds();
   var vault = _getIMEI().filter(function(v){ return v.status !== 'sold'; });
-  var pMap  = {};
+
+  // Ensure every product with a serialCode has a matching vault entry
+  var vaultImeis = {};
+  vault.forEach(function(v){ vaultImeis[v.imei] = true; });
+  prods.forEach(function(p) {
+    if (p.serialCode && !vaultImeis[p.serialCode]) {
+      vault.push({ imei: p.serialCode, productCode: p.code, productName: p.name, status: 'in_stock', addedAt: p.dateAdded || new Date().toISOString(), isUnique: !/^\d{15}$/.test(p.serialCode) });
+      vaultImeis[p.serialCode] = true;
+    }
+  });
+
+  var pMap = {};
   prods.forEach(function(p){ if (p.code) pMap[p.code] = p; });
   var cats = Object.create(null);
   vault.forEach(function(v) {
@@ -10273,7 +10284,7 @@ function _intRenderTree(filter) {
   var f       = (filter||'').toLowerCase().trim();
   var html    = '';
   var cats    = Object.keys(groups).sort();
-  if (!cats.length) return '<div style="text-align:center;padding:32px 16px;color:rgba(255,80,80,.5);font-size:.82rem">No tracked items in vault.<br><small>Add products with IMEI or serial numbers first.</small></div>';
+  if (!cats.length) return '<div style="text-align:center;padding:32px 16px;color:rgba(255,80,80,.5);font-size:.82rem">No tracked items found.<br><small style="opacity:.7">Register products with an IMEI or serial number to use integrity search.</small></div>';
   cats.forEach(function(cat) {
     var pm    = groups[cat];
     var pkeys = Object.keys(pm).sort();

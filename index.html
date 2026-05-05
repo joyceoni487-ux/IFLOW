@@ -1782,34 +1782,15 @@
   @keyframes sonar-rotate { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
   @keyframes sonar-ping { 0%{width:0;height:0;opacity:.8} 100%{width:260px;height:260px;opacity:0} }
   @keyframes sonar-hit { 0%{box-shadow:0 0 0 rgba(255,30,30,.8)} 50%{box-shadow:0 0 20px 6px rgba(255,30,30,.6)} 100%{box-shadow:0 0 0 rgba(255,30,30,0)} }
-  @keyframes sonar-scan-line { 0%{left:8%;opacity:0} 10%{opacity:1} 90%{opacity:1} 100%{left:92%;opacity:0} }
+  @keyframes int-sweep { 0%{left:8%;opacity:0} 10%{opacity:1} 90%{opacity:1} 100%{left:92%;opacity:0} }
   /* Track-type radio pills */
   .track-radio-lbl { display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:.82rem;background:var(--surface2);transition:border-color .15s,background .15s }
   .track-radio-lbl:has(input:checked) { border-color:var(--accent);background:rgba(79,142,247,.09) }
-  .intg-cat-row {
-    display: flex; align-items: center; gap: 8px;
-    padding: 8px 12px; border-radius: 9px;
-    background: rgba(255,30,30,.08); border: 1px solid rgba(255,30,30,.18);
-    cursor: pointer; color: #fff; font-size: .82rem; user-select: none;
-    transition: background .15s;
-  }
-  .intg-cat-row:hover { background: rgba(255,30,30,.14); }
-  .intg-prod-row {
-    display: flex; align-items: center; gap: 8px;
-    padding: 6px 10px; border-radius: 8px;
-    background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1);
-    cursor: pointer; color: rgba(255,255,255,.85); font-size: .79rem; user-select: none;
-  }
-  .intg-item-row {
-    display: flex; align-items: center; gap: 8px;
-    padding: 5px 10px; border-radius: 7px;
-    color: rgba(255,255,255,.7); font-size: .77rem;
-  }
-  .intg-cat-row input[type=checkbox],
-  .intg-prod-row input[type=checkbox],
-  .intg-item-row input[type=checkbox] {
-    accent-color: #ff3333; width: 15px; height: 15px; flex-shrink: 0; cursor: pointer;
-  }
+  .int-cat { display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:9px;background:rgba(255,30,30,.09);border:1px solid rgba(255,30,30,.2);cursor:pointer;color:#fff;font-size:.82rem;user-select:none;transition:background .15s }
+  .int-cat:hover { background:rgba(255,30,30,.16) }
+  .int-prod { display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);cursor:pointer;color:rgba(255,255,255,.85);font-size:.79rem;user-select:none }
+  .int-item { display:flex;align-items:center;gap:8px;padding:5px 10px;border-radius:7px;color:rgba(255,255,255,.7);font-size:.77rem }
+  .int-cat input[type=checkbox],.int-prod input[type=checkbox],.int-item input[type=checkbox] { accent-color:#ff3333;width:15px;height:15px;flex-shrink:0;cursor:pointer }
   </style>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -2350,14 +2331,14 @@
       <div style="display:flex;gap:10px;padding:4px 0 16px;flex-wrap:wrap;align-items:center">
         <input id="imeiSearch" type="text" class="orders-search" placeholder="Search IMEI, serial or product…" style="flex:1;min-width:180px" oninput="renderIMEIVault()" />
         <button onclick="_openCameraScanner('add')" style="padding:8px 16px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:600;cursor:pointer">+ IMEI Add</button>
-        <button onclick="_openSonar()" id="integritySearchBtn" style="padding:8px 18px;background:linear-gradient(135deg,#e53e3e,#991b1b);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:700;cursor:pointer;box-shadow:0 2px 12px rgba(229,62,62,.35)">Integrity Search</button>
+        <button onclick="_intOpen()" id="integritySearchBtn" style="padding:8px 18px;background:linear-gradient(135deg,#e53e3e,#991b1b);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:700;cursor:pointer;box-shadow:0 2px 12px rgba(229,62,62,.35)">Integrity Search</button>
       </div>
       <!-- Integrity status bar (restored when active today) -->
       <div id="integrityBar" style="display:none;background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:10px 16px;margin-bottom:12px;align-items:center;gap:12px;flex-wrap:wrap">
         <span style="font-size:.85rem;font-weight:700;color:#e53e3e">Last Integrity Check</span>
         <span id="integrityCount" style="font-size:.8rem;color:var(--muted)">0 confirmed</span>
         <span id="integrityMissing" style="font-size:.8rem;font-weight:600"></span>
-        <button onclick="_openSonar()" style="padding:5px 14px;background:linear-gradient(135deg,#e53e3e,#991b1b);color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer">Re-Scan</button>
+        <button onclick="_intOpen()" style="padding:5px 14px;background:linear-gradient(135deg,#e53e3e,#991b1b);color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer">Re-Scan</button>
         <button onclick="document.getElementById('integrityBar').style.display='none'" style="padding:5px 12px;background:none;border:1px solid var(--border);border-radius:8px;font-size:.78rem;cursor:pointer;color:var(--muted);margin-left:auto">✕</button>
       </div>
       <div class="table-wrap">
@@ -3552,68 +3533,64 @@
   </div>
 </div>
 
-<!-- ── Integrity Sonar Search Modal ───────────────────────────────────────────── -->
-<div id="sonarModal" style="display:none;position:fixed;inset:0;background:rgba(0,4,6,.97);z-index:9850;flex-direction:column;overflow:hidden">
-  <!-- Header bar -->
-  <div style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:rgba(0,0,0,.45);flex-shrink:0;gap:10px">
-    <div style="display:flex;align-items:center;gap:10px">
-      <div id="sonarStatusDot" style="width:9px;height:9px;border-radius:50%;background:#ff3333;box-shadow:0 0 8px #ff3333;animation:nova-ring 1.2s ease-out infinite;flex-shrink:0"></div>
-      <span id="sonarPhaseTxt" style="color:#ff5555;font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:1.5px">SELECT PRODUCTS</span>
+<!-- ── Integrity Search Modal ───────────────────────────────────────────── -->
+<div id="intModal" style="display:none;position:fixed;inset:0;background:rgba(0,4,6,.97);z-index:9850;flex-direction:column;overflow:hidden">
+  <!-- Header -->
+  <div style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:rgba(0,0,0,.5);flex-shrink:0;gap:10px">
+    <div style="display:flex;align-items:center;gap:9px">
+      <div style="width:9px;height:9px;border-radius:50%;background:#ff3333;box-shadow:0 0 8px #ff3333;animation:nova-ring 1.2s ease-out infinite;flex-shrink:0"></div>
+      <span id="intPhase" style="color:#ff5555;font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:1.5px">SELECT ITEMS</span>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
-      <span id="sonarSelCount" style="color:rgba(255,80,80,.9);font-size:.8rem;font-weight:600"></span>
-      <button id="sonarActionBtn" onclick="_sonarStartScan()" disabled style="padding:7px 16px;background:linear-gradient(135deg,#ff3333,#990000);color:#fff;border:none;border-radius:9px;font-size:.8rem;font-weight:700;cursor:pointer;opacity:.45;transition:opacity .2s">Start Scan →</button>
-      <button onclick="_closeSonar()" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:50%;width:30px;height:30px;cursor:pointer;color:rgba(255,255,255,.7);font-size:.9rem;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
+      <span id="intSelCount" style="color:rgba(255,80,80,.9);font-size:.8rem;font-weight:600"></span>
+      <button id="intActionBtn" onclick="_intStartScan()" disabled style="padding:7px 16px;background:linear-gradient(135deg,#ff3333,#990000);color:#fff;border:none;border-radius:9px;font-size:.8rem;font-weight:700;cursor:pointer;opacity:.45;transition:opacity .2s">Start Scan →</button>
+      <button onclick="_intClose()" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:50%;width:30px;height:30px;cursor:pointer;color:rgba(255,255,255,.7);font-size:.9rem;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
     </div>
   </div>
 
-  <!-- Phase 1: Product selection tree -->
-  <div id="sonarPhase1" style="flex:1;overflow-y:auto;width:100%;padding:14px;display:flex;flex-direction:column;gap:10px">
+  <!-- Phase 1: Select items -->
+  <div id="intP1" style="flex:1;overflow-y:auto;width:100%;padding:14px;display:flex;flex-direction:column;gap:10px">
     <div style="display:flex;gap:7px;align-items:center">
-      <input id="intgSearch" type="text" placeholder="Search products in vault…" oninput="_filterIntgTree()"
+      <input id="intSearch" type="text" placeholder="Search items in vault…" oninput="_intFilterTree()"
         style="flex:1;padding:7px 12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:9px;color:#fff;font-size:.82rem;outline:none;min-width:0" />
-      <button onclick="_intgSelectAll(true)"  style="padding:6px 11px;background:rgba(255,50,50,.2);border:1px solid rgba(255,50,50,.4);color:#ff9999;border-radius:8px;font-size:.76rem;cursor:pointer;white-space:nowrap">All</button>
-      <button onclick="_intgSelectAll(false)" style="padding:6px 11px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.5);border-radius:8px;font-size:.76rem;cursor:pointer;white-space:nowrap">Clear</button>
+      <button onclick="_intSelAll(true)"  style="padding:6px 11px;background:rgba(255,50,50,.2);border:1px solid rgba(255,50,50,.4);color:#ff9999;border-radius:8px;font-size:.76rem;cursor:pointer;white-space:nowrap">All</button>
+      <button onclick="_intSelAll(false)" style="padding:6px 11px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.5);border-radius:8px;font-size:.76rem;cursor:pointer;white-space:nowrap">None</button>
     </div>
-    <div id="integrityTree" style="display:flex;flex-direction:column;gap:3px"></div>
+    <div id="intTree" style="display:flex;flex-direction:column;gap:4px"></div>
   </div>
 
-  <!-- Phase 2: Scanning + live checklist -->
-  <div id="sonarPhase2" style="display:none;flex:1;flex-direction:column;width:100%;overflow:hidden">
-    <!-- Camera -->
+  <!-- Phase 2: Camera scan -->
+  <div id="intP2" style="display:none;flex:1;flex-direction:column;width:100%;overflow:hidden">
     <div style="position:relative;width:100%;background:#000;flex-shrink:0">
-      <video id="sonarVideo" autoplay playsinline muted style="width:100%;max-height:220px;object-fit:cover;display:block"></video>
+      <video id="intVideo" autoplay playsinline muted style="width:100%;max-height:220px;object-fit:cover;display:block"></video>
       <div style="position:absolute;inset:0;pointer-events:none">
         <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:72%;height:46px;border:2px solid rgba(255,50,50,.85);border-radius:6px"></div>
-        <div id="sonarSweepLine" style="position:absolute;top:0;left:0;width:2px;height:100%;background:linear-gradient(transparent,rgba(255,50,50,.8),transparent);animation:sonar-scan-line 2s ease-in-out infinite"></div>
+        <div style="position:absolute;top:0;left:8%;width:2px;height:100%;background:linear-gradient(transparent,rgba(255,50,50,.8),transparent);animation:int-sweep 2s ease-in-out infinite"></div>
       </div>
-      <div id="sonarFlash" style="position:absolute;inset:0;background:rgba(50,255,50,.35);opacity:0;pointer-events:none;transition:opacity .1s"></div>
-      <div id="sonarVideoStatus" style="position:absolute;bottom:5px;left:0;right:0;text-align:center;color:#fff;font-size:.7rem;text-shadow:0 1px 4px rgba(0,0,0,.9)">Align IMEI barcode or text with the guide</div>
+      <div id="intFlash" style="position:absolute;inset:0;background:rgba(50,255,50,.35);opacity:0;pointer-events:none;transition:opacity .12s"></div>
+      <div id="intCamStatus" style="position:absolute;bottom:5px;left:0;right:0;text-align:center;color:#fff;font-size:.7rem;text-shadow:0 1px 4px rgba(0,0,0,.9)">Align barcode or IMEI with the guide</div>
     </div>
-    <!-- Manual input -->
     <div style="padding:7px 12px;flex-shrink:0;display:flex;gap:6px">
-      <input type="text" id="sonarManualInput" inputmode="numeric" placeholder="Type IMEI / serial manually…"
+      <input type="text" id="intManual" inputmode="numeric" placeholder="Type IMEI / serial manually…"
         style="flex:1;padding:7px 11px;background:rgba(255,30,30,.08);border:1px solid rgba(255,50,50,.3);border-radius:9px;color:#fff;font-size:.8rem;outline:none;min-width:0"
-        onkeydown="if(event.key==='Enter')_sonarAddManual()" />
-      <button onclick="_sonarAddManual()" style="padding:7px 13px;background:rgba(255,50,50,.25);border:1px solid rgba(255,50,50,.4);border-radius:9px;color:#ff8888;font-size:.79rem;font-weight:600;cursor:pointer;white-space:nowrap">+ Add</button>
+        onkeydown="if(event.key==='Enter')_intManualAdd()" />
+      <button onclick="_intManualAdd()" style="padding:7px 13px;background:rgba(255,50,50,.25);border:1px solid rgba(255,50,50,.4);border-radius:9px;color:#ff8888;font-size:.79rem;font-weight:600;cursor:pointer;white-space:nowrap">Add</button>
     </div>
-    <!-- Live checklist of selected items -->
-    <div id="sonarChecklist" style="flex:1;overflow-y:auto;padding:6px 12px;display:flex;flex-direction:column;gap:4px"></div>
-    <!-- Bottom action bar -->
+    <div id="intList" style="flex:1;overflow-y:auto;padding:6px 12px;display:flex;flex-direction:column;gap:4px"></div>
     <div style="padding:9px 14px;background:rgba(0,0,0,.45);flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:10px">
-      <span id="sonarScanProgress" style="font-size:.8rem;color:#ff9999;font-weight:600">0 / 0 found</span>
-      <button onclick="_sonarCompleteSearch()" style="padding:8px 20px;background:linear-gradient(135deg,#ff3333,#990000);color:#fff;border:none;border-radius:10px;font-size:.8rem;font-weight:700;cursor:pointer">Complete Search</button>
+      <span id="intProgress" style="font-size:.8rem;color:#ff9999;font-weight:600">0 / 0 found</span>
+      <button onclick="_intComplete()" style="padding:8px 20px;background:linear-gradient(135deg,#ff3333,#990000);color:#fff;border:none;border-radius:10px;font-size:.8rem;font-weight:700;cursor:pointer">Complete Search</button>
     </div>
   </div>
 
   <!-- Phase 3: Results -->
-  <div id="sonarPhase3" style="display:none;flex:1;flex-direction:column;width:100%;overflow:hidden">
+  <div id="intP3" style="display:none;flex:1;flex-direction:column;width:100%;overflow:hidden">
     <div style="flex:1;overflow-y:auto;padding:16px">
-      <div id="sonarMissingList"></div>
+      <div id="intResults"></div>
     </div>
     <div style="padding:10px 14px;background:rgba(0,0,0,.45);flex-shrink:0;display:flex;gap:8px;justify-content:flex-end">
-      <button onclick="_openSonar()" style="padding:8px 18px;background:rgba(255,50,50,.18);border:1px solid rgba(255,50,50,.35);color:#ff9999;border-radius:9px;font-size:.8rem;font-weight:600;cursor:pointer">New Search</button>
-      <button onclick="_closeSonar()" style="padding:8px 20px;background:linear-gradient(135deg,#ff3333,#990000);color:#fff;border:none;border-radius:10px;font-size:.8rem;font-weight:700;cursor:pointer">Done</button>
+      <button onclick="_intOpen()" style="padding:8px 18px;background:rgba(255,50,50,.18);border:1px solid rgba(255,50,50,.35);color:#ff9999;border-radius:9px;font-size:.8rem;font-weight:600;cursor:pointer">New Search</button>
+      <button onclick="_intClose()" style="padding:8px 20px;background:linear-gradient(135deg,#ff3333,#990000);color:#fff;border:none;border-radius:10px;font-size:.8rem;font-weight:700;cursor:pointer">Done</button>
     </div>
   </div>
 </div>
@@ -10265,80 +10242,75 @@ function _doPrintBarcodes(items, store) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Integrity Sonar Search
+// Integrity Search
 // ══════════════════════════════════════════════════════════════════════════════
-// ── Integrity Search (3-phase) ─────────────────────────────────────────────────
-var _sonarStream  = null;
-var _sonarRAF     = null;
-var _intgSelected = new Set(); // vault IMEIs selected for this check
-var _intgFound    = new Set(); // vault IMEIs confirmed by scanning this session
+var _intStream = null;
+var _intRAF    = null;
+var _intSel    = new Set();
+var _intFound  = new Set();
 
-function _buildIntegrityGroups() {
+function _intBuildGroups() {
   var prods = _getProds();
   var vault = _getIMEI().filter(function(v){ return v.status !== 'sold'; });
-  var prodMap = {};
-  prods.forEach(function(p){ if (p.code) prodMap[p.code] = p; });
+  var pMap  = {};
+  prods.forEach(function(p){ if (p.code) pMap[p.code] = p; });
   var cats = Object.create(null);
   vault.forEach(function(v) {
-    var prod = prodMap[v.productCode] || prods.find(function(p){ return p.name === v.productName; });
-    var cat  = (prod && prod.category) || v.productName || 'Unknown';
-    var pname= (prod && prod.name)     || v.productName  || 'Unknown';
-    var pkey = (prod && prod.code)     || pname;
+    var prod  = pMap[v.productCode] || prods.find(function(p){ return p.name === v.productName; });
+    var cat   = (prod && prod.category) || v.productName || 'Unknown';
+    var pname = (prod && prod.name)     || v.productName || 'Unknown';
+    var pkey  = (prod && prod.code)     || pname;
     if (!cats[cat]) cats[cat] = Object.create(null);
-    if (!cats[cat][pkey]) cats[cat][pkey] = { name: pname, entries: [] };
-    cats[cat][pkey].entries.push(v);
+    if (!cats[cat][pkey]) cats[cat][pkey] = { name: pname, items: [] };
+    cats[cat][pkey].items.push(v);
   });
   return cats;
 }
 
-function _renderIntegrityTree(groups, filterStr) {
-  var esc = function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
-  var filter = (filterStr || '').toLowerCase().trim();
-  var html = '';
-  var catKeys = Object.keys(groups).sort();
-  if (!catKeys.length) {
-    return '<div style="text-align:center;padding:40px 16px;color:rgba(255,80,80,.5);font-size:.82rem">No tracked items in vault.<br><small style="opacity:.7">Add products with IMEI or serial numbers first.</small></div>';
-  }
-  catKeys.forEach(function(cat) {
-    var prodMap = groups[cat];
-    var prodKeys = Object.keys(prodMap).sort();
-    // Filter: if filter active, only show categories/products matching
-    if (filter) {
-      prodKeys = prodKeys.filter(function(pk){ return prodMap[pk].name.toLowerCase().indexOf(filter) !== -1 || cat.toLowerCase().indexOf(filter) !== -1; });
-      if (!prodKeys.length) return;
-    }
-    var totalItems = prodKeys.reduce(function(s,pk){ return s + prodMap[pk].entries.length; }, 0);
-    var cgId = 'ig-' + cat.replace(/[^a-zA-Z0-9]/g,'_');
-    html += '<div class="intg-cat-row" onclick="_toggleIntgCat(\'' + cgId + '\')" id="row-' + cgId + '">'
-      + '<svg id="arr-' + cgId + '" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .2s;flex-shrink:0;color:#ff7777"><polyline points="9 18 15 12 9 6"/></svg>'
-      + '<input type="checkbox" class="intg-cat-chk" data-cat="' + esc(cat) + '" onclick="event.stopPropagation()" onchange="_intgCatCheck(this,\'' + esc(cat) + '\')" />'
+function _intRenderTree(filter) {
+  var groups  = _intBuildGroups();
+  var esc     = function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+  var f       = (filter||'').toLowerCase().trim();
+  var html    = '';
+  var cats    = Object.keys(groups).sort();
+  if (!cats.length) return '<div style="text-align:center;padding:32px 16px;color:rgba(255,80,80,.5);font-size:.82rem">No tracked items in vault.<br><small>Add products with IMEI or serial numbers first.</small></div>';
+  cats.forEach(function(cat) {
+    var pm    = groups[cat];
+    var pkeys = Object.keys(pm).sort();
+    if (f) pkeys = pkeys.filter(function(pk){ return pm[pk].name.toLowerCase().indexOf(f) !== -1 || cat.toLowerCase().indexOf(f) !== -1; });
+    if (!pkeys.length) return;
+    var total = pkeys.reduce(function(s,pk){ return s + pm[pk].items.length; }, 0);
+    var cid   = 'ic-' + cat.replace(/[^a-zA-Z0-9]/g,'_');
+    html += '<div class="int-cat" onclick="_intToggle(\'' + cid + '\')">'
+      + '<svg id="ica-' + cid + '" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .2s;flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>'
+      + '<input type="checkbox" onclick="event.stopPropagation()" onchange="_intCatChk(this,\'' + esc(cat) + '\')" />'
       + '<span style="font-weight:700;flex:1">' + esc(cat) + '</span>'
-      + '<span style="font-size:.73rem;color:rgba(255,100,100,.6)">' + totalItems + ' item' + (totalItems!==1?'s':'') + '</span>'
+      + '<span style="font-size:.72rem;color:rgba(255,100,100,.6)">' + total + ' item' + (total !== 1 ? 's' : '') + '</span>'
       + '</div>';
-    html += '<div id="' + cgId + '" style="display:none;padding-left:14px;margin-top:2px;display:none;flex-direction:column;gap:2px">';
-    prodKeys.forEach(function(pk) {
-      var pg = prodMap[pk];
-      var pgId = 'igp-' + pk.replace(/[^a-zA-Z0-9]/g,'_');
-      if (pg.entries.length > 1) {
-        html += '<div class="intg-prod-row" onclick="_toggleIntgProd(\'' + pgId + '\')" id="row-' + pgId + '">'
-          + '<svg id="arrp-' + pgId + '" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .2s;flex-shrink:0;color:rgba(255,120,120,.6)"><polyline points="9 18 15 12 9 6"/></svg>'
-          + '<input type="checkbox" class="intg-prod-chk" data-pkey="' + esc(pk) + '" data-cat="' + esc(cat) + '" onclick="event.stopPropagation()" onchange="_intgProdCheck(this,\'' + esc(pk) + '\',\'' + esc(cat) + '\')" />'
+    html += '<div id="' + cid + '" style="display:none;padding-left:14px;flex-direction:column;gap:3px">';
+    pkeys.forEach(function(pk) {
+      var pg = pm[pk];
+      if (pg.items.length > 1) {
+        var pid = 'ip-' + pk.replace(/[^a-zA-Z0-9]/g,'_');
+        html += '<div class="int-prod" onclick="_intToggle(\'' + pid + '\')">'
+          + '<svg id="ipa-' + pid + '" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .2s;flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>'
+          + '<input type="checkbox" onclick="event.stopPropagation()" onchange="_intProdChk(this,\'' + esc(pk) + '\',\'' + esc(cat) + '\')" />'
           + '<span style="flex:1">' + esc(pg.name) + '</span>'
-          + '<span style="font-size:.72rem;color:rgba(255,255,255,.35)">' + pg.entries.length + '</span>'
+          + '<span style="font-size:.72rem;color:rgba(255,255,255,.3)">' + pg.items.length + '</span>'
           + '</div>';
-        html += '<div id="' + pgId + '" style="display:none;padding-left:14px;flex-direction:column;gap:2px">';
-        pg.entries.forEach(function(v) {
-          html += '<div class="intg-item-row">'
-            + '<input type="checkbox" class="intg-item-chk" value="' + esc(v.imei) + '" data-cat="' + esc(cat) + '" data-pkey="' + esc(pk) + '" onchange="_intgItemCheck(this)" />'
-            + '<span style="font-family:monospace;font-size:.77rem;color:rgba(255,200,200,.8)">…' + esc(v.imei.slice(-6)) + '</span>'
-            + '<span style="font-size:.72rem;color:rgba(255,255,255,.35);margin-left:auto">' + (v.addedAt ? new Date(v.addedAt).toLocaleDateString() : '') + '</span>'
+        html += '<div id="' + pid + '" style="display:none;padding-left:14px;flex-direction:column;gap:2px">';
+        pg.items.forEach(function(v) {
+          html += '<div class="int-item">'
+            + '<input type="checkbox" value="' + esc(v.imei) + '" onchange="_intItemChk(this)" />'
+            + '<span style="font-family:monospace;font-size:.76rem;color:rgba(255,200,200,.85)">…' + esc(v.imei.slice(-6)) + '</span>'
+            + '<span style="font-size:.71rem;color:rgba(255,255,255,.3);margin-left:auto">' + (v.addedAt ? new Date(v.addedAt).toLocaleDateString() : '') + '</span>'
             + '</div>';
         });
         html += '</div>';
       } else {
-        var v = pg.entries[0];
-        html += '<div class="intg-item-row" style="padding-left:22px">'
-          + '<input type="checkbox" class="intg-item-chk" value="' + esc(v.imei) + '" data-cat="' + esc(cat) + '" data-pkey="' + esc(pk) + '" onchange="_intgItemCheck(this)" />'
+        var v = pg.items[0];
+        html += '<div class="int-item" style="padding-left:22px">'
+          + '<input type="checkbox" value="' + esc(v.imei) + '" onchange="_intItemChk(this)" />'
           + '<span style="flex:1">' + esc(pg.name) + '</span>'
           + '<span style="font-family:monospace;font-size:.75rem;color:rgba(255,200,200,.7)">…' + esc(v.imei.slice(-6)) + '</span>'
           + '</div>';
@@ -10349,252 +10321,219 @@ function _renderIntegrityTree(groups, filterStr) {
   return html;
 }
 
-function _toggleIntgCat(id) {
+function _intToggle(id) {
   var el  = document.getElementById(id);
-  var arr = document.getElementById('arr-' + id);
+  var ar1 = document.getElementById('ica-' + id);
+  var ar2 = document.getElementById('ipa-' + id);
   if (!el) return;
-  var open = el.style.display !== 'none' && el.style.display !== '';
-  el.style.display  = open ? 'none' : 'flex';
-  if (arr) arr.style.transform = open ? '' : 'rotate(90deg)';
-}
-
-function _toggleIntgProd(id) {
-  var el  = document.getElementById(id);
-  var arr = document.getElementById('arrp-' + id);
-  if (!el) return;
-  var open = el.style.display !== 'none' && el.style.display !== '';
+  var open = el.style.display === 'flex';
   el.style.display = open ? 'none' : 'flex';
+  var arr = ar1 || ar2;
   if (arr) arr.style.transform = open ? '' : 'rotate(90deg)';
 }
 
-function _intgCatCheck(chk, cat) {
-  var groups = _buildIntegrityGroups();
-  var catGroup = groups[cat];
-  if (!catGroup) return;
+function _intCatChk(chk, cat) {
   var checked = chk.checked;
-  // Tick/untick all items in this category
-  Object.keys(catGroup).forEach(function(pk) {
-    catGroup[pk].entries.forEach(function(v) {
-      checked ? _intgSelected.add(v.imei) : _intgSelected.delete(v.imei);
-    });
-  });
-  // Sync visible checkboxes
-  document.querySelectorAll('.intg-item-chk[data-cat="' + cat + '"]').forEach(function(el){ el.checked = checked; });
-  document.querySelectorAll('.intg-prod-chk[data-cat="' + cat + '"]').forEach(function(el){ el.checked = checked; });
-  _updateIntgCounts();
+  var groups  = _intBuildGroups();
+  var cg      = groups[cat];
+  if (!cg) return;
+  Object.keys(cg).forEach(function(pk){ cg[pk].items.forEach(function(v){ checked ? _intSel.add(v.imei) : _intSel.delete(v.imei); }); });
+  document.querySelectorAll('#intTree input[type=checkbox]').forEach(function(el){ if (el.value) el.checked = _intSel.has(el.value); });
+  _intSyncCount();
 }
 
-function _intgProdCheck(chk, pkey, cat) {
-  var groups = _buildIntegrityGroups();
-  var pg = groups[cat] && groups[cat][pkey];
+function _intProdChk(chk, pk, cat) {
+  var checked = chk.checked;
+  var groups  = _intBuildGroups();
+  var pg      = groups[cat] && groups[cat][pk];
   if (!pg) return;
-  var checked = chk.checked;
-  pg.entries.forEach(function(v) {
-    checked ? _intgSelected.add(v.imei) : _intgSelected.delete(v.imei);
-  });
-  document.querySelectorAll('.intg-item-chk[data-pkey="' + pkey + '"][data-cat="' + cat + '"]').forEach(function(el){ el.checked = checked; });
-  _updateIntgCounts();
+  pg.items.forEach(function(v){ checked ? _intSel.add(v.imei) : _intSel.delete(v.imei); });
+  document.querySelectorAll('#intTree input[type=checkbox]').forEach(function(el){ if (el.value) el.checked = _intSel.has(el.value); });
+  _intSyncCount();
 }
 
-function _intgItemCheck(chk) {
-  chk.checked ? _intgSelected.add(chk.value) : _intgSelected.delete(chk.value);
-  _updateIntgCounts();
+function _intItemChk(chk) {
+  chk.checked ? _intSel.add(chk.value) : _intSel.delete(chk.value);
+  _intSyncCount();
 }
 
-function _intgSelectAll(selectAll) {
-  var groups = _buildIntegrityGroups();
-  _intgSelected.clear();
-  if (selectAll) {
-    Object.keys(groups).forEach(function(cat) {
-      Object.keys(groups[cat]).forEach(function(pk) {
-        groups[cat][pk].entries.forEach(function(v){ _intgSelected.add(v.imei); });
-      });
-    });
+function _intSelAll(val) {
+  _intSel.clear();
+  if (val) {
+    var groups = _intBuildGroups();
+    Object.keys(groups).forEach(function(cat){ Object.keys(groups[cat]).forEach(function(pk){ groups[cat][pk].items.forEach(function(v){ _intSel.add(v.imei); }); }); });
   }
-  document.querySelectorAll('.intg-item-chk,.intg-prod-chk,.intg-cat-chk').forEach(function(el){ el.checked = selectAll; });
-  _updateIntgCounts();
+  document.querySelectorAll('#intTree input[type=checkbox]').forEach(function(el){ el.checked = val; });
+  _intSyncCount();
 }
 
-function _filterIntgTree() {
-  var groups = _buildIntegrityGroups();
-  var filter = (document.getElementById('intgSearch') || {}).value || '';
-  var tree = document.getElementById('integrityTree');
-  if (tree) tree.innerHTML = _renderIntegrityTree(groups, filter);
+function _intFilterTree() {
+  var tree = document.getElementById('intTree');
+  var f    = (document.getElementById('intSearch') || {}).value || '';
+  if (tree) tree.innerHTML = _intRenderTree(f);
 }
 
-function _updateIntgCounts() {
-  var n = _intgSelected.size;
-  var countEl = document.getElementById('sonarSelCount');
-  var btn     = document.getElementById('sonarActionBtn');
-  if (countEl) countEl.textContent = n ? n + ' item' + (n!==1?'s':'') + ' selected' : '';
-  if (btn) { btn.disabled = n === 0; btn.style.opacity = n ? '1' : '.45'; btn.style.cursor = n ? 'pointer' : 'default'; }
+function _intSyncCount() {
+  var n   = _intSel.size;
+  var cnt = document.getElementById('intSelCount');
+  var btn = document.getElementById('intActionBtn');
+  if (cnt) cnt.textContent = n ? n + ' selected' : '';
+  if (btn) { btn.disabled = !n; btn.style.opacity = n ? '1' : '.45'; }
 }
 
-function _openSonar() {
-  if (_sonarRAF) { clearTimeout(_sonarRAF); _sonarRAF = null; }
-  if (_sonarStream) { _sonarStream.getTracks().forEach(function(t){ t.stop(); }); _sonarStream = null; }
-  _intgSelected.clear();
-  _intgFound.clear();
-  var modal = document.getElementById('sonarModal');
+function _intOpen() {
+  if (_intRAF)    { clearTimeout(_intRAF); _intRAF = null; }
+  if (_intStream) { _intStream.getTracks().forEach(function(t){ t.stop(); }); _intStream = null; }
+  _intSel.clear();
+  _intFound.clear();
+  var modal = document.getElementById('intModal');
   if (!modal) return;
   modal.style.display = 'flex';
-  var p1 = document.getElementById('sonarPhase1');
-  var p2 = document.getElementById('sonarPhase2');
-  var p3 = document.getElementById('sonarPhase3');
-  if (p1) p1.style.display = 'flex';
-  if (p2) p2.style.display = 'none';
-  if (p3) p3.style.display = 'none';
-  var phaseTxt = document.getElementById('sonarPhaseTxt');
-  if (phaseTxt) phaseTxt.textContent = 'SELECT PRODUCTS';
-  var actionBtn = document.getElementById('sonarActionBtn');
-  if (actionBtn) { actionBtn.textContent = 'Start Scan →'; actionBtn.onclick = _sonarStartScan; }
-  var groups = _buildIntegrityGroups();
-  var tree   = document.getElementById('integrityTree');
-  if (tree)   tree.innerHTML   = _renderIntegrityTree(groups, '');
-  var srchEl = document.getElementById('intgSearch');
-  if (srchEl) srchEl.value = '';
-  _updateIntgCounts();
+  document.getElementById('intP1').style.display = 'flex';
+  document.getElementById('intP2').style.display = 'none';
+  document.getElementById('intP3').style.display = 'none';
+  document.getElementById('intPhase').textContent = 'SELECT ITEMS';
+  var btn = document.getElementById('intActionBtn');
+  if (btn) { btn.textContent = 'Start Scan →'; btn.onclick = _intStartScan; btn.disabled = true; btn.style.opacity = '.45'; btn.style.display = ''; }
+  var tree = document.getElementById('intTree');
+  if (tree) tree.innerHTML = _intRenderTree('');
+  var srch = document.getElementById('intSearch');
+  if (srch) srch.value = '';
+  _intSyncCount();
   _initOcrWorker();
 }
 
-function _sonarStartScan() {
-  if (!_intgSelected.size) { showToast('Select at least one item to scan'); return; }
-  _intgFound.clear();
-  var p1 = document.getElementById('sonarPhase1');
-  var p2 = document.getElementById('sonarPhase2');
-  if (p1) p1.style.display = 'none';
-  if (p2) p2.style.display = 'flex';
-  var phaseTxt = document.getElementById('sonarPhaseTxt');
-  if (phaseTxt) phaseTxt.textContent = 'SCANNING';
-  _renderChecklist();
-  _updateScanProgress();
-  // Start camera
-  var video = document.getElementById('sonarVideo');
+function _intStartScan() {
+  if (!_intSel.size) { showToast('Select at least one item first'); return; }
+  _intFound.clear();
+  document.getElementById('intP1').style.display = 'none';
+  document.getElementById('intP2').style.display = 'flex';
+  document.getElementById('intPhase').textContent = 'SCANNING';
+  var btn = document.getElementById('intActionBtn');
+  if (btn) { btn.textContent = 'Complete →'; btn.onclick = _intComplete; btn.disabled = false; btn.style.opacity = '1'; }
+  _intRenderList();
+  _intUpdateProgress();
+  var video = document.getElementById('intVideo');
   if (!video) return;
-  var camConstraints = { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920, min: 640 }, height: { ideal: 1080, min: 480 } } };
-  navigator.mediaDevices.getUserMedia(camConstraints)
-    .catch(function(){ return navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); })
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920, min: 640 }, height: { ideal: 1080, min: 480 } } })
+    .catch(function(){ return navigator.mediaDevices.getUserMedia({ video: true }); })
     .then(function(stream) {
-      _sonarStream = stream;
+      _intStream = stream;
       video.srcObject = stream;
       video.play();
-      var videoStat = document.getElementById('sonarVideoStatus');
-      _startSonarScanLoop(video, videoStat);
+      _intStartLoop(video, document.getElementById('intCamStatus'));
     })
     .catch(function() {
-      var vs = document.getElementById('sonarVideoStatus');
-      if (vs) vs.textContent = 'Camera unavailable — type IMEI/serial in the box below';
+      var s = document.getElementById('intCamStatus');
+      if (s) s.textContent = 'Camera unavailable — type IMEI manually below';
     });
 }
 
-function _startSonarScanLoop(video, videoStat) {
-  var _lastRaw = '';
-  var fl = document.getElementById('sonarFlash');
+function _intStartLoop(video, statusEl) {
+  var fl      = document.getElementById('intFlash');
+  var lastRaw = '';
 
-  function _detectedFlash(raw) {
-    if (raw === _lastRaw) return;
-    _lastRaw = raw;
-    if (fl) { fl.style.background = 'rgba(50,255,50,.35)'; fl.style.opacity = '1'; setTimeout(function(){ if(fl) fl.style.opacity='0'; }, 160); }
-    if (videoStat && !_intgSelected.has(raw)) videoStat.textContent = '⚡ Detected: ' + (raw.length > 20 ? raw.slice(0,18)+'…' : raw);
+  function flash() {
+    if (!fl) return;
+    fl.style.opacity = '1';
+    setTimeout(function(){ if (fl) fl.style.opacity = '0'; }, 160);
   }
 
-  if (!('BarcodeDetector' in window)) {
-    var ocrLoop = function() {
-      if (!_sonarStream) return;
-      _runOcrOnFrame(video, function(codes) {
-        codes.forEach(function(code) { _detectedFlash(code); _onIntgScanned(code, videoStat); });
-      }, videoStat);
-      _sonarRAF = setTimeout(ocrLoop, 2500);
+  function onCode(raw) {
+    if (!raw) return;
+    if (raw !== lastRaw) {
+      lastRaw = raw;
+      flash();
+      if (!_intSel.has(raw) && statusEl) statusEl.textContent = '⚡ ' + (raw.length > 22 ? raw.slice(0,20)+'…' : raw);
+    }
+    if (_intSel.has(raw) && !_intFound.has(raw)) {
+      _intFound.add(raw);
+      _intBeep();
+      _intRenderList();
+      _intUpdateProgress();
+      if (statusEl) statusEl.textContent = '✓ Found: …' + raw.slice(-6);
+    }
+  }
+
+  if ('BarcodeDetector' in window) {
+    var det  = new window.BarcodeDetector({ formats: ['code_128','code_39','ean_13','ean_8','qr_code','itf','pdf_417','aztec','data_matrix','codabar','upc_a','upc_e'] });
+    var scan = function() {
+      if (!_intStream) return;
+      det.detect(video).then(function(barcodes) {
+        if (!_intStream) return;
+        var hit = false;
+        for (var i = 0; i < barcodes.length; i++) {
+          var raw = (barcodes[i].rawValue || '').trim();
+          if (raw) { onCode(raw); hit = true; }
+        }
+        if (!hit) { lastRaw = ''; _runOcrOnFrame(video, function(codes){ codes.forEach(onCode); }, statusEl); }
+        _intRAF = setTimeout(scan, 200);
+      }).catch(function(){ _intRAF = setTimeout(scan, 300); });
     };
-    _sonarRAF = setTimeout(ocrLoop, 1200);
-    return;
+    _intRAF = setTimeout(scan, 300);
+  } else {
+    var ocrLoop = function() {
+      if (!_intStream) return;
+      _runOcrOnFrame(video, function(codes){ codes.forEach(onCode); }, statusEl);
+      _intRAF = setTimeout(ocrLoop, 2500);
+    };
+    _intRAF = setTimeout(ocrLoop, 1200);
   }
-
-  var allFormats = ['code_128','code_39','ean_13','ean_8','qr_code','itf','pdf_417','aztec','data_matrix','codabar','upc_a','upc_e'];
-  var det = new window.BarcodeDetector({ formats: allFormats });
-
-  var scan = function() {
-    if (!_sonarStream) return;
-    det.detect(video).then(function(codes) {
-      if (!_sonarStream) return;
-      var anyHit = false;
-      for (var i = 0; i < codes.length; i++) {
-        var raw = codes[i].rawValue.trim();
-        if (!raw) continue;
-        anyHit = true;
-        _detectedFlash(raw);
-        _onIntgScanned(raw, videoStat);
-      }
-      if (!anyHit) {
-        _lastRaw = '';
-        _runOcrOnFrame(video, function(ocrCodes) {
-          ocrCodes.forEach(function(code){ _detectedFlash(code); _onIntgScanned(code, videoStat); });
-        }, videoStat);
-      }
-      _sonarRAF = setTimeout(scan, 200);
-    }).catch(function(){ _sonarRAF = setTimeout(scan, 300); });
-  };
-  _sonarRAF = setTimeout(scan, 300);
 }
 
-function _onIntgScanned(code, videoStat) {
-  if (!code || !_intgSelected.has(code)) return;
-  if (_intgFound.has(code)) return;
-  _intgFound.add(code);
-  _sonarBeep();
-  _renderChecklist();
-  _updateScanProgress();
-  var fl = document.getElementById('sonarFlash');
-  if (fl) { fl.style.background = 'rgba(50,255,50,.35)'; fl.style.opacity = '1'; setTimeout(function(){ if(fl) fl.style.opacity = '0'; }, 200); }
-  if (videoStat) videoStat.textContent = 'Found: …' + code.slice(-6) + ' ✓';
-}
-
-function _renderChecklist() {
-  var el = document.getElementById('sonarChecklist');
-  if (!el) return;
+function _intRenderList() {
+  var el    = document.getElementById('intList');
+  if (!el)  return;
   var vault = _getIMEI();
-  var items = Array.from(_intgSelected);
-  if (!items.length) { el.innerHTML = '<div style="text-align:center;padding:16px;color:rgba(255,80,80,.4);font-size:.78rem">No items selected</div>'; return; }
-  var html = items.map(function(imei) {
-    var found = _intgFound.has(imei);
+  var items = Array.from(_intSel);
+  if (!items.length) { el.innerHTML = ''; return; }
+  el.innerHTML = items.map(function(imei) {
+    var found = _intFound.has(imei);
     var rec   = vault.find(function(v){ return v.imei === imei; });
     var name  = rec ? (rec.productName || 'Unknown') : 'Unknown';
     var bg    = found ? 'rgba(59,130,246,.14)' : 'rgba(239,68,68,.1)';
     var bord  = found ? 'rgba(59,130,246,.3)'  : 'rgba(239,68,68,.22)';
     var dot   = found
       ? '<span style="width:9px;height:9px;border-radius:50%;background:#3b82f6;box-shadow:0 0 7px #3b82f6;flex-shrink:0;display:inline-block"></span>'
-      : '<span style="width:9px;height:9px;border-radius:50%;background:#ef4444;box-shadow:0 0 6px rgba(239,68,68,.7);flex-shrink:0;display:inline-block"></span>';
+      : '<span style="width:9px;height:9px;border-radius:50%;background:#ef4444;box-shadow:0 0 6px rgba(239,68,68,.6);flex-shrink:0;display:inline-block"></span>';
     return '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:' + bg + ';border:1px solid ' + bord + ';border-radius:8px">'
       + dot
-      + '<span style="color:' + (found?'#93c5fd':'#fca5a5') + ';font-size:.78rem;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">' + name + '</span>'
-      + '<span style="font-family:monospace;font-size:.7rem;color:rgba(255,255,255,.3);flex-shrink:0">…' + imei.slice(-4) + '</span>'
+      + '<span style="color:' + (found ? '#93c5fd' : '#fca5a5') + ';font-size:.78rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + _esc(name) + '</span>'
+      + '<span style="font-family:monospace;font-size:.7rem;color:rgba(255,255,255,.3)">…' + imei.slice(-4) + '</span>'
       + '</div>';
   }).join('');
-  el.innerHTML = html;
 }
 
-function _updateScanProgress() {
-  var prog = document.getElementById('sonarScanProgress');
-  if (!prog) return;
-  if (_intgSelected.size > 0 && _intgFound.size >= _intgSelected.size) {
-    prog.textContent = 'All ' + _intgSelected.size + ' found! Press Complete ↓';
-    prog.style.color = '#4ade80';
+function _intUpdateProgress() {
+  var el = document.getElementById('intProgress');
+  if (!el) return;
+  if (_intSel.size > 0 && _intFound.size >= _intSel.size) {
+    el.textContent = 'All ' + _intSel.size + ' found — press Complete';
+    el.style.color = '#4ade80';
   } else {
-    prog.textContent = _intgFound.size + ' / ' + _intgSelected.size + ' found';
-    prog.style.color = '';
+    el.textContent = _intFound.size + ' / ' + _intSel.size + ' found';
+    el.style.color = '';
   }
 }
 
-function _sonarAddManual() {
-  var inp = document.getElementById('sonarManualInput');
+function _intManualAdd() {
+  var inp = document.getElementById('intManual');
   if (!inp) return;
   var val = inp.value.replace(/[^0-9a-zA-Z\-]/g,'').trim();
   if (!val || val.length < 4) { inp.focus(); return; }
-  _onIntgScanned(val, document.getElementById('sonarVideoStatus'));
-  inp.value = ''; inp.focus();
+  if (_intSel.has(val) && !_intFound.has(val)) {
+    _intFound.add(val);
+    _intBeep();
+    _intRenderList();
+    _intUpdateProgress();
+  } else if (!_intSel.has(val)) {
+    showToast('Code not in your selection');
+  }
+  inp.value = '';
+  inp.focus();
 }
 
-function _sonarBeep() {
+function _intBeep() {
   try {
     var ctx = new (window.AudioContext || window.webkitAudioContext)();
     var osc = ctx.createOscillator(); var g = ctx.createGain();
@@ -10606,49 +10545,47 @@ function _sonarBeep() {
   } catch(_){}
 }
 
-function _sonarCompleteSearch() {
-  if (_sonarRAF) { clearTimeout(_sonarRAF); _sonarRAF = null; }
-  if (_sonarStream) { _sonarStream.getTracks().forEach(function(t){ t.stop(); }); _sonarStream = null; }
-  var video = document.getElementById('sonarVideo');
+function _intComplete() {
+  if (_intRAF)    { clearTimeout(_intRAF); _intRAF = null; }
+  if (_intStream) { _intStream.getTracks().forEach(function(t){ t.stop(); }); _intStream = null; }
+  var video = document.getElementById('intVideo');
   if (video) video.srcObject = null;
-  var p2 = document.getElementById('sonarPhase2');
-  var p3 = document.getElementById('sonarPhase3');
-  if (p2) p2.style.display = 'none';
-  if (p3) p3.style.display = 'flex';
-  var phaseTxt = document.getElementById('sonarPhaseTxt');
-  if (phaseTxt) phaseTxt.textContent = 'SEARCH COMPLETE';
-  var vault   = _getIMEI();
-  var missing = Array.from(_intgSelected).filter(function(imei){ return !_intgFound.has(imei); });
-  var found   = Array.from(_intgFound);
-  var esc = function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
-  // Save integrity state
+  document.getElementById('intP2').style.display = 'none';
+  document.getElementById('intP3').style.display = 'flex';
+  document.getElementById('intPhase').textContent = 'RESULTS';
+  var btn = document.getElementById('intActionBtn');
+  if (btn) btn.style.display = 'none';
+  // Save state
   var today = _todayStr();
   var state = _getIntegrity();
   if (state.date !== today) state = { date: today, confirmed: [], barVisible: true };
-  found.forEach(function(imei){ if (state.confirmed.indexOf(imei) === -1) state.confirmed.push(imei); });
+  Array.from(_intFound).forEach(function(imei){ if (state.confirmed.indexOf(imei) === -1) state.confirmed.push(imei); });
   state.barVisible = true;
   _saveIntegrity(state);
-  // Build results HTML
+  // Build results
+  var vault   = _getIMEI();
+  var missing = Array.from(_intSel).filter(function(imei){ return !_intFound.has(imei); });
+  var found   = Array.from(_intFound);
+  var esc     = function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
   var html = '<div style="text-align:center;margin-bottom:18px;padding:14px;background:rgba(255,255,255,.04);border-radius:12px">'
-    + '<div style="font-size:1.2rem;font-weight:800;color:#fff;margin-bottom:4px">'
-    + found.length + ' found &nbsp;·&nbsp; <span style="color:#ef4444">' + missing.length + ' missing</span></div>'
-    + '<div style="font-size:.75rem;color:rgba(255,255,255,.4)">' + _intgSelected.size + ' items checked</div>'
+    + '<div style="font-size:1.2rem;font-weight:800;color:#fff;margin-bottom:4px">' + found.length + ' found &nbsp;·&nbsp; <span style="color:#ef4444">' + missing.length + ' missing</span></div>'
+    + '<div style="font-size:.75rem;color:rgba(255,255,255,.4)">' + _intSel.size + ' items checked</div>'
     + '</div>';
   if (missing.length) {
-    html += '<div style="font-size:.75rem;font-weight:700;color:#ef4444;margin-bottom:8px;text-transform:uppercase;letter-spacing:.6px">Missing Items</div>';
+    html += '<div style="font-size:.74rem;font-weight:700;color:#ef4444;margin-bottom:8px;text-transform:uppercase;letter-spacing:.6px">Missing Items</div>';
     missing.forEach(function(imei) {
-      var rec = vault.find(function(v){ return v.imei === imei; });
+      var rec   = vault.find(function(v){ return v.imei === imei; });
       var name  = rec ? (rec.productName || 'Unknown') : 'Unknown';
       var added = rec && rec.addedAt ? new Date(rec.addedAt).toLocaleDateString() : '—';
       html += '<div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.28);border-radius:10px;padding:12px 14px;margin-bottom:8px">'
         + '<div style="font-weight:700;color:#fff;font-size:.85rem">' + esc(name) + '</div>'
-        + '<div style="font-family:monospace;font-size:.82rem;color:#f87171;margin:5px 0;letter-spacing:.03em">IMEI: ' + esc(imei) + '</div>'
-        + '<div style="font-size:.72rem;color:rgba(255,255,255,.4)">Recorded: ' + esc(added) + ' &nbsp;·&nbsp; Last seen: today (not found)</div>'
+        + '<div style="font-family:monospace;font-size:.82rem;color:#f87171;margin:5px 0">IMEI: ' + esc(imei) + '</div>'
+        + '<div style="font-size:.72rem;color:rgba(255,255,255,.4)">Recorded: ' + esc(added) + '</div>'
         + '</div>';
     });
   }
   if (found.length) {
-    html += '<div style="font-size:.75rem;font-weight:700;color:#3b82f6;margin:14px 0 8px;text-transform:uppercase;letter-spacing:.6px">Confirmed Present</div>';
+    html += '<div style="font-size:.74rem;font-weight:700;color:#3b82f6;margin:14px 0 8px;text-transform:uppercase;letter-spacing:.6px">Confirmed Present</div>';
     found.forEach(function(imei) {
       var rec  = vault.find(function(v){ return v.imei === imei; });
       var name = rec ? (rec.productName || 'Unknown') : 'Unknown';
@@ -10659,18 +10596,18 @@ function _sonarCompleteSearch() {
         + '</div>';
     });
   }
-  document.getElementById('sonarMissingList').innerHTML = html;
+  document.getElementById('intResults').innerHTML = html;
   _updateIntegrityBar();
-  var intBar = document.getElementById('integrityBar');
-  if (intBar) intBar.style.display = 'flex';
+  var bar = document.getElementById('integrityBar');
+  if (bar) bar.style.display = 'flex';
 }
 
-function _closeSonar() {
-  if (_sonarRAF) { clearTimeout(_sonarRAF); cancelAnimationFrame(_sonarRAF); _sonarRAF = null; }
-  if (_sonarStream) { _sonarStream.getTracks().forEach(function(t){ t.stop(); }); _sonarStream = null; }
-  var video = document.getElementById('sonarVideo');
+function _intClose() {
+  if (_intRAF)    { clearTimeout(_intRAF); cancelAnimationFrame(_intRAF); _intRAF = null; }
+  if (_intStream) { _intStream.getTracks().forEach(function(t){ t.stop(); }); _intStream = null; }
+  var video = document.getElementById('intVideo');
   if (video) video.srcObject = null;
-  var modal = document.getElementById('sonarModal');
+  var modal = document.getElementById('intModal');
   if (modal) modal.style.display = 'none';
 }
 

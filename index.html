@@ -6974,7 +6974,7 @@
     }
 
     pushUndo('products');
-    var p = { code: code, name: name, category: parsed.category, variant: parsed.variant, type: type, stockQty: stockQty, unitPrice: unitPrice, costPrice: costPrice, lowStockThreshold: threshold, dateAdded: new Date().toLocaleDateString(), condition: condition || undefined, conditionCode: condCode || undefined, discount: discount || undefined, discountType: discount ? discountType : undefined, isIMEITracked: isIMEITracked || undefined, trackType: trackType !== 'none' ? trackType : undefined };
+    var p = { code: code, name: name, category: parsed.category, variant: parsed.variant, type: type, stockQty: stockQty, unitPrice: unitPrice, costPrice: costPrice, lowStockThreshold: threshold, dateAdded: new Date().toLocaleDateString(), condition: condition || undefined, conditionCode: condCode || undefined, discount: discount || undefined, discountType: discount ? discountType : undefined, isIMEITracked: isIMEITracked || undefined, trackType: trackType !== 'none' ? trackType : undefined, serialCode: serialCode || undefined };
     _arr.push(p);
     sendEmailAlert('New Stock Added: ' + name, '"' + name + '" added to stock. Qty: ' + stockQty + '. Time: ' + new Date().toLocaleString());
     _saveProds(_arr);           // write first
@@ -7199,7 +7199,7 @@
             + '<td class="cell-subtotal" data-val="' + ((Number(p.stockQty)||0)*(Number(p.unitPrice)||0)) + '">' + _cur + fmtComma((Number(p.stockQty)||0)*(Number(p.unitPrice)||0)) + '</td>'
             + '<td class="cell-datetime">' + (p.lowStockThreshold || _defThresh) + '</td>'
             + '<td class="cell-datetime">' + _esc(p.dateAdded) + '</td>'
-            + (function(){ var ev = _vaultAll.filter(function(v){ return v.productCode===p.code||v.productName===p.name; }); if(!ev.length) return '<td class="cell-datetime" style="color:var(--muted);font-size:.75rem">—</td>'; var d=ev.slice(0,2).map(function(v){ return '<span style="font-family:monospace;font-size:.7rem">'+_esc(v.imei)+'</span>'; }).join('<br>'); if(ev.length>2) d+='<br><span style="font-size:.68rem;color:var(--muted)">+'+(ev.length-2)+' more</span>'; return '<td class="cell-datetime" style="max-width:140px">'+d+'</td>'; })()
+            + (function(){ var direct=p.serialCode?[p.serialCode]:null; var ev=direct?null:_vaultAll.filter(function(v){ return v.productCode===p.code||v.productName===p.name; }); var imeis=direct||( ev&&ev.map(function(v){ return v.imei; }) )||[]; if(!imeis.length) return '<td class="cell-datetime" style="color:var(--muted);font-size:.75rem">—</td>'; var d=imeis.slice(0,2).map(function(imei){ return '<span style="font-family:monospace;font-size:.7rem">'+_esc(imei)+'</span>'; }).join('<br>'); if(imeis.length>2) d+='<br><span style="font-size:.68rem;color:var(--muted)">+'+(imeis.length-2)+' more</span>'; return '<td class="cell-datetime" style="max-width:140px">'+d+'</td>'; })()
             + '<td class="cell-action"><button onclick="event.stopPropagation();_showProductQR(\'' + _esc(p.code) + '\',\'' + _esc(p.name) + '\')" style="padding:3px 8px;font-size:.7rem;background:rgba(99,102,241,.1);color:#6366f1;border:1px solid rgba(99,102,241,.25);border-radius:6px;cursor:pointer;margin-right:4px" title="Show QR Code">QR</button><button class="btn-terminate" onclick="confirmDeleteProduct(' + ri + ')" title="Remove">&#9632;</button></td>'
             + '</tr>';
         } else {
@@ -7222,6 +7222,7 @@
               + '<td>' + _cur + fmtComma(p.unitPrice) + '</td>'
               + '<td>' + (p.lowStockThreshold||_defThresh) + '</td>'
               + '<td>' + _esc(p.dateAdded) + '</td>'
+              + (function(){ var direct=p.serialCode?[p.serialCode]:null; var ev=direct?null:_vaultAll.filter(function(v){ return v.productCode===p.code||v.productName===p.name; }); var imeis=direct||(ev&&ev.map(function(v){ return v.imei; }))||[]; if(!imeis.length) return '<td style="color:var(--muted);font-size:.75rem">—</td>'; var d=imeis.slice(0,2).map(function(imei){ return '<span style="font-family:monospace;font-size:.7rem">'+_esc(imei)+'</span>'; }).join('<br>'); if(imeis.length>2) d+='<br><span style="font-size:.68rem;color:var(--muted)">+'+(imeis.length-2)+' more</span>'; return '<td style="max-width:130px">'+d+'</td>'; })()
               + '<td class="cell-action"><button onclick="event.stopPropagation();_showProductQR(\'' + _esc(p.code) + '\',\'' + _esc(p.variant||p.name) + '\')" style="padding:3px 8px;font-size:.7rem;background:rgba(99,102,241,.1);color:#6366f1;border:1px solid rgba(99,102,241,.25);border-radius:6px;cursor:pointer;margin-right:4px" title="Show QR Code">QR</button><button class="btn-terminate" onclick="confirmDeleteProduct(' + ri + ')" title="Remove">&#9632;</button></td>'
               + '</tr>';
           });
@@ -7243,7 +7244,7 @@
             + '<tr id="' + cid + '" style="display:none">'
             + '<td colspan="11" style="padding:8px 0 4px;border-top:none;background:var(--surface2)">'
             + '<table class="variant-sub-table"><thead><tr>'
-            + '<th>Code</th><th>Variant</th><th>Stock</th><th>Price</th><th>Low Stock At</th><th>Date Added</th><th></th>'
+            + '<th>Code</th><th>Variant</th><th>Stock</th><th>Price</th><th>Low Stock At</th><th>Date Added</th><th>IMEI / Serial</th><th></th>'
             + '</tr></thead><tbody>' + vr + '</tbody></table></td></tr>';
         }
       });
@@ -10534,14 +10535,24 @@ function _startSonarScanLoop(video, videoStat) {
 }
 
 function _onIntgScanned(code, videoStat) {
-  if (!code || !_intgSelected.has(code)) return;
+  if (!code) return;
+  var fl = document.getElementById('sonarFlash');
+  if (!_intgSelected.has(code)) {
+    // Detected but not in this search — amber pulse, no checklist change
+    if (fl) {
+      fl.style.background = 'rgba(251,191,36,.35)';
+      fl.style.opacity = '1';
+      setTimeout(function(){ if(fl){ fl.style.opacity='0'; fl.style.background='rgba(50,255,50,.35)'; } }, 180);
+    }
+    if (videoStat) videoStat.textContent = 'Detected (not in selection): …' + code.slice(-6);
+    return;
+  }
   if (_intgFound.has(code)) return; // already confirmed
   _intgFound.add(code);
   _sonarBeep();
   _renderChecklist();
   _updateScanProgress();
-  var fl = document.getElementById('sonarFlash');
-  if (fl) { fl.style.opacity = '1'; setTimeout(function(){ if(fl) fl.style.opacity = '0'; }, 200); }
+  if (fl) { fl.style.background = 'rgba(50,255,50,.35)'; fl.style.opacity = '1'; setTimeout(function(){ if(fl) fl.style.opacity = '0'; }, 200); }
   if (videoStat) videoStat.textContent = 'Found: …' + code.slice(-6) + ' ✓';
 }
 
@@ -10571,7 +10582,14 @@ function _renderChecklist() {
 
 function _updateScanProgress() {
   var prog = document.getElementById('sonarScanProgress');
-  if (prog) prog.textContent = _intgFound.size + ' / ' + _intgSelected.size + ' found';
+  if (!prog) return;
+  if (_intgSelected.size > 0 && _intgFound.size >= _intgSelected.size) {
+    prog.textContent = 'All ' + _intgSelected.size + ' found! Press Complete ↓';
+    prog.style.color = '#4ade80';
+  } else {
+    prog.textContent = _intgFound.size + ' / ' + _intgSelected.size + ' found';
+    prog.style.color = '';
+  }
 }
 
 function _sonarAddManual() {

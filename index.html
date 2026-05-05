@@ -1782,15 +1782,10 @@
   @keyframes sonar-rotate { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
   @keyframes sonar-ping { 0%{width:0;height:0;opacity:.8} 100%{width:260px;height:260px;opacity:0} }
   @keyframes sonar-hit { 0%{box-shadow:0 0 0 rgba(255,30,30,.8)} 50%{box-shadow:0 0 20px 6px rgba(255,30,30,.6)} 100%{box-shadow:0 0 0 rgba(255,30,30,0)} }
-  @keyframes int-sweep { 0%{left:8%;opacity:0} 10%{opacity:1} 90%{opacity:1} 100%{left:92%;opacity:0} }
+  @keyframes sonar-scan-line { 0%{left:8%;opacity:0} 10%{opacity:1} 90%{opacity:1} 100%{left:92%;opacity:0} }
   /* Track-type radio pills */
   .track-radio-lbl { display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:.82rem;background:var(--surface2);transition:border-color .15s,background .15s }
   .track-radio-lbl:has(input:checked) { border-color:var(--accent);background:rgba(79,142,247,.09) }
-  .int-cat { display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:9px;background:rgba(255,30,30,.09);border:1px solid rgba(255,30,30,.2);cursor:pointer;color:#fff;font-size:.82rem;user-select:none;transition:background .15s }
-  .int-cat:hover { background:rgba(255,30,30,.16) }
-  .int-prod { display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);cursor:pointer;color:rgba(255,255,255,.85);font-size:.79rem;user-select:none }
-  .int-item { display:flex;align-items:center;gap:8px;padding:5px 10px;border-radius:7px;color:rgba(255,255,255,.7);font-size:.77rem }
-  .int-cat input[type=checkbox],.int-prod input[type=checkbox],.int-item input[type=checkbox] { accent-color:#ff3333;width:15px;height:15px;flex-shrink:0;cursor:pointer }
   </style>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -2331,14 +2326,14 @@
       <div style="display:flex;gap:10px;padding:4px 0 16px;flex-wrap:wrap;align-items:center">
         <input id="imeiSearch" type="text" class="orders-search" placeholder="Search IMEI, serial or product…" style="flex:1;min-width:180px" oninput="renderIMEIVault()" />
         <button onclick="_openCameraScanner('add')" style="padding:8px 16px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:600;cursor:pointer">+ IMEI Add</button>
-        <button onclick="_intOpen()" id="integritySearchBtn" style="padding:8px 18px;background:linear-gradient(135deg,#e53e3e,#991b1b);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:700;cursor:pointer;box-shadow:0 2px 12px rgba(229,62,62,.35)">Integrity Search</button>
+        <button onclick="_openSonar()" id="integritySearchBtn" style="padding:8px 18px;background:linear-gradient(135deg,#e53e3e,#991b1b);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:700;cursor:pointer;box-shadow:0 2px 12px rgba(229,62,62,.35)">Integrity Search</button>
       </div>
       <!-- Integrity status bar (restored when active today) -->
       <div id="integrityBar" style="display:none;background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:10px 16px;margin-bottom:12px;align-items:center;gap:12px;flex-wrap:wrap">
         <span style="font-size:.85rem;font-weight:700;color:#e53e3e">Last Integrity Check</span>
         <span id="integrityCount" style="font-size:.8rem;color:var(--muted)">0 confirmed</span>
         <span id="integrityMissing" style="font-size:.8rem;font-weight:600"></span>
-        <button onclick="_intOpen()" style="padding:5px 14px;background:linear-gradient(135deg,#e53e3e,#991b1b);color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer">Re-Scan</button>
+        <button onclick="_openSonar()" style="padding:5px 14px;background:linear-gradient(135deg,#e53e3e,#991b1b);color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer">Re-Scan</button>
         <button onclick="document.getElementById('integrityBar').style.display='none'" style="padding:5px 12px;background:none;border:1px solid var(--border);border-radius:8px;font-size:.78rem;cursor:pointer;color:var(--muted);margin-left:auto">✕</button>
       </div>
       <div class="table-wrap">
@@ -3533,65 +3528,71 @@
   </div>
 </div>
 
-<!-- ── Integrity Search Modal ───────────────────────────────────────────── -->
-<div id="intModal" style="display:none;position:fixed;inset:0;background:rgba(0,4,6,.97);z-index:9850;flex-direction:column;overflow:hidden">
-  <!-- Header -->
-  <div style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:rgba(0,0,0,.5);flex-shrink:0;gap:10px">
-    <div style="display:flex;align-items:center;gap:9px">
-      <div style="width:9px;height:9px;border-radius:50%;background:#ff3333;box-shadow:0 0 8px #ff3333;animation:nova-ring 1.2s ease-out infinite;flex-shrink:0"></div>
-      <span id="intPhase" style="color:#ff5555;font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:1.5px">SELECT ITEMS</span>
+<!-- ── Integrity Sonar Search Modal ───────────────────────────────────────────── -->
+<div id="sonarModal" style="display:none;position:fixed;inset:0;background:rgba(0,4,6,.96);z-index:9850;flex-direction:column;align-items:center;overflow:hidden">
+  <!-- Header bar -->
+  <div style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:14px 18px;z-index:1;background:rgba(0,0,0,.4);flex-shrink:0">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="width:10px;height:10px;border-radius:50%;background:#ff3333;box-shadow:0 0 8px #ff3333;animation:nova-ring 1s ease-out infinite;flex-shrink:0"></div>
+      <span id="sonarStatusTxt" style="color:#ff5555;font-size:.82rem;font-weight:700;text-transform:uppercase;letter-spacing:1.5px">READY</span>
+      <select id="sonarMode" style="background:rgba(255,30,30,.12);border:1px solid rgba(255,30,30,.4);color:#ffaaaa;border-radius:8px;padding:5px 10px;font-size:.78rem;cursor:pointer;outline:none">
+        <option value="multi">Multi-Scan</option>
+        <option value="individual">Individual</option>
+      </select>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
-      <span id="intSelCount" style="color:rgba(255,80,80,.9);font-size:.8rem;font-weight:600"></span>
-      <button id="intActionBtn" onclick="_intStartScan()" disabled style="padding:7px 16px;background:linear-gradient(135deg,#ff3333,#990000);color:#fff;border:none;border-radius:9px;font-size:.8rem;font-weight:700;cursor:pointer;opacity:.45;transition:opacity .2s">Start Scan →</button>
-      <button onclick="_intClose()" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:50%;width:30px;height:30px;cursor:pointer;color:rgba(255,255,255,.7);font-size:.9rem;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
+      <span id="sonarScanCount" style="color:rgba(255,80,80,.9);font-size:.85rem;font-weight:700">0 scanned</span>
+      <button onclick="_sonarFinishScan()" style="padding:8px 18px;background:linear-gradient(135deg,#ff3333,#990000);color:#fff;border:none;border-radius:10px;font-size:.82rem;font-weight:700;cursor:pointer">Search →</button>
+      <button onclick="_closeSonar()" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:50%;width:32px;height:32px;cursor:pointer;color:rgba(255,255,255,.6);font-size:1rem;display:flex;align-items:center;justify-content:center">✕</button>
     </div>
   </div>
 
-  <!-- Phase 1: Select items -->
-  <div id="intP1" style="flex:1;overflow-y:auto;width:100%;padding:14px;display:flex;flex-direction:column;gap:10px">
-    <div style="display:flex;gap:7px;align-items:center">
-      <input id="intSearch" type="text" placeholder="Search items in vault…" oninput="_intFilterTree()"
-        style="flex:1;padding:7px 12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:9px;color:#fff;font-size:.82rem;outline:none;min-width:0" />
-      <button onclick="_intSelAll(true)"  style="padding:6px 11px;background:rgba(255,50,50,.2);border:1px solid rgba(255,50,50,.4);color:#ff9999;border-radius:8px;font-size:.76rem;cursor:pointer;white-space:nowrap">All</button>
-      <button onclick="_intSelAll(false)" style="padding:6px 11px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.5);border-radius:8px;font-size:.76rem;cursor:pointer;white-space:nowrap">None</button>
-    </div>
-    <div id="intTree" style="display:flex;flex-direction:column;gap:4px"></div>
-  </div>
-
-  <!-- Phase 2: Camera scan -->
-  <div id="intP2" style="display:none;flex:1;flex-direction:column;width:100%;overflow:hidden">
-    <div style="position:relative;width:100%;background:#000;flex-shrink:0">
-      <video id="intVideo" autoplay playsinline muted style="width:100%;max-height:220px;object-fit:cover;display:block"></video>
+  <!-- Camera scan view -->
+  <div id="sonarScanView" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:10px;width:100%">
+    <div style="position:relative;width:100%;max-width:500px;border-radius:16px;overflow:hidden;background:#000;flex-shrink:0">
+      <video id="sonarVideo" autoplay playsinline muted style="width:100%;max-height:260px;object-fit:cover;display:block"></video>
       <div style="position:absolute;inset:0;pointer-events:none">
-        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:72%;height:46px;border:2px solid rgba(255,50,50,.85);border-radius:6px"></div>
-        <div style="position:absolute;top:0;left:8%;width:2px;height:100%;background:linear-gradient(transparent,rgba(255,50,50,.8),transparent);animation:int-sweep 2s ease-in-out infinite"></div>
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:72%;height:52px;border:2px solid rgba(255,50,50,.85);border-radius:6px;box-shadow:0 0 0 2000px rgba(0,0,0,.22)"></div>
+        <div style="position:absolute;top:0;left:0;width:2px;height:100%;background:linear-gradient(transparent,rgba(255,50,50,.8),transparent);animation:sonar-scan-line 2s ease-in-out infinite"></div>
+        <div style="position:absolute;top:50%;left:14%;transform:translateY(-50%);width:14px;height:14px;border-left:3px solid #ff3333;border-top:3px solid #ff3333;border-radius:2px 0 0 0"></div>
+        <div style="position:absolute;top:50%;right:14%;transform:translateY(-50%) translateY(-14px);width:14px;height:14px;border-right:3px solid #ff3333;border-top:3px solid #ff3333;border-radius:0 2px 0 0"></div>
       </div>
-      <div id="intFlash" style="position:absolute;inset:0;background:rgba(50,255,50,.35);opacity:0;pointer-events:none;transition:opacity .12s"></div>
-      <div id="intCamStatus" style="position:absolute;bottom:5px;left:0;right:0;text-align:center;color:#fff;font-size:.7rem;text-shadow:0 1px 4px rgba(0,0,0,.9)">Align barcode or IMEI with the guide</div>
+      <div id="sonarFlash" style="position:absolute;inset:0;background:rgba(50,255,50,.35);opacity:0;pointer-events:none;border-radius:16px;transition:opacity .1s"></div>
+      <div id="sonarVideoStatus" style="position:absolute;bottom:6px;left:0;right:0;text-align:center;color:#fff;font-size:.72rem;text-shadow:0 1px 4px rgba(0,0,0,.9)">Align barcode with the red guide</div>
     </div>
-    <div style="padding:7px 12px;flex-shrink:0;display:flex;gap:6px">
-      <input type="text" id="intManual" inputmode="numeric" placeholder="Type IMEI / serial manually…"
-        style="flex:1;padding:7px 11px;background:rgba(255,30,30,.08);border:1px solid rgba(255,50,50,.3);border-radius:9px;color:#fff;font-size:.8rem;outline:none;min-width:0"
-        onkeydown="if(event.key==='Enter')_intManualAdd()" />
-      <button onclick="_intManualAdd()" style="padding:7px 13px;background:rgba(255,50,50,.25);border:1px solid rgba(255,50,50,.4);border-radius:9px;color:#ff8888;font-size:.79rem;font-weight:600;cursor:pointer;white-space:nowrap">Add</button>
+    <p id="sonarHint" style="color:rgba(255,80,80,.7);font-size:.78rem;text-align:center;margin:0">Point camera at IMEI barcode — hold steady for 1-2 seconds</p>
+    <div style="width:100%;max-width:420px">
+      <div style="display:flex;gap:6px">
+        <input type="text" id="sonarManualInput" inputmode="numeric" placeholder="Type IMEI or serial manually…"
+          style="flex:1;padding:9px 12px;background:rgba(255,30,30,.08);border:1px solid rgba(255,50,50,.3);border-radius:10px;color:#fff;font-size:.85rem;outline:none"
+          onkeydown="if(event.key==='Enter')_sonarAddManual()" />
+        <button onclick="_sonarAddManual()" style="padding:9px 16px;background:rgba(255,50,50,.25);border:1px solid rgba(255,50,50,.4);border-radius:10px;color:#ff8888;font-size:.82rem;font-weight:600;cursor:pointer;white-space:nowrap">+ Add</button>
+      </div>
+      <div style="font-size:.7rem;color:rgba(255,80,80,.45);margin-top:4px;text-align:center">Camera not detecting? Type the IMEI above</div>
     </div>
-    <div id="intList" style="flex:1;overflow-y:auto;padding:6px 12px;display:flex;flex-direction:column;gap:4px"></div>
-    <div style="padding:9px 14px;background:rgba(0,0,0,.45);flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:10px">
-      <span id="intProgress" style="font-size:.8rem;color:#ff9999;font-weight:600">0 / 0 found</span>
-      <button onclick="_intComplete()" style="padding:8px 20px;background:linear-gradient(135deg,#ff3333,#990000);color:#fff;border:none;border-radius:10px;font-size:.8rem;font-weight:700;cursor:pointer">Complete Search</button>
+    <div id="sonarScanList" style="width:100%;max-width:420px;max-height:100px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding:0 2px">
+      <div style="text-align:center;color:rgba(255,80,80,.4);font-size:.75rem;padding:6px 0">Waiting for scan...</div>
     </div>
   </div>
 
-  <!-- Phase 3: Results -->
-  <div id="intP3" style="display:none;flex:1;flex-direction:column;width:100%;overflow:hidden">
-    <div style="flex:1;overflow-y:auto;padding:16px">
-      <div id="intResults"></div>
+  <!-- Results panel -->
+  <div id="sonarResults" style="display:none;flex:1;overflow-y:auto;width:100%;background:var(--surface);padding:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <h3 style="margin:0;font-size:1rem;font-weight:700;color:var(--text)">Scan Results</h3>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <select id="sonarFilter" onchange="_applySonarFilter()" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-size:.78rem;cursor:pointer">
+          <option value="all">All results</option>
+          <option value="missing">Missing from inventory</option>
+          <option value="unscanned">In inventory, not scanned</option>
+          <option value="found">Found &amp; confirmed</option>
+          <option value="group">Most common product group</option>
+          <option value="sold">Recently sold matches</option>
+        </select>
+        <button onclick="_sonarRescan()" style="padding:6px 14px;background:linear-gradient(135deg,#e53e3e,#991b1b);color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer">↺ Re-scan</button>
+        <button onclick="_closeSonar()" style="padding:6px 12px;background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:8px;font-size:.78rem;cursor:pointer">Close</button>
+      </div>
     </div>
-    <div style="padding:10px 14px;background:rgba(0,0,0,.45);flex-shrink:0;display:flex;gap:8px;justify-content:flex-end">
-      <button onclick="_intOpen()" style="padding:8px 18px;background:rgba(255,50,50,.18);border:1px solid rgba(255,50,50,.35);color:#ff9999;border-radius:9px;font-size:.8rem;font-weight:600;cursor:pointer">New Search</button>
-      <button onclick="_intClose()" style="padding:8px 20px;background:linear-gradient(135deg,#ff3333,#990000);color:#fff;border:none;border-radius:10px;font-size:.8rem;font-weight:700;cursor:pointer">Done</button>
-    </div>
+    <div id="sonarResultsBody"></div>
   </div>
 </div>
 
@@ -10242,309 +10243,138 @@ function _doPrintBarcodes(items, store) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Integrity Search
+// Integrity Sonar Search
 // ══════════════════════════════════════════════════════════════════════════════
-var _intStream = null;
-var _intRAF    = null;
-var _intSel    = new Set();
-var _intFound  = new Set();
+var _sonarStream  = null;
+var _sonarRAF     = null;
+var _sonarScanned = new Set();
 
-function _intBuildGroups() {
-  var prods = _getProds();
-  var vault = _getIMEI().filter(function(v){ return v.status !== 'sold'; });
-
-  // Ensure every product with a serialCode has a matching vault entry
-  var vaultImeis = {};
-  vault.forEach(function(v){ vaultImeis[v.imei] = true; });
-  prods.forEach(function(p) {
-    if (p.serialCode && !vaultImeis[p.serialCode]) {
-      vault.push({ imei: p.serialCode, productCode: p.code, productName: p.name, status: 'in_stock', addedAt: p.dateAdded || new Date().toISOString(), isUnique: !/^\d{15}$/.test(p.serialCode) });
-      vaultImeis[p.serialCode] = true;
-    }
-  });
-
-  var pMap = {};
-  prods.forEach(function(p){ if (p.code) pMap[p.code] = p; });
-  var cats = Object.create(null);
-  vault.forEach(function(v) {
-    var prod  = pMap[v.productCode] || prods.find(function(p){ return p.name === v.productName; });
-    var cat   = (prod && prod.category) || v.productName || 'Unknown';
-    var pname = (prod && prod.name)     || v.productName || 'Unknown';
-    var pkey  = (prod && prod.code)     || pname;
-    if (!cats[cat]) cats[cat] = Object.create(null);
-    if (!cats[cat][pkey]) cats[cat][pkey] = { name: pname, items: [] };
-    cats[cat][pkey].items.push(v);
-  });
-  return cats;
-}
-
-function _intRenderTree(filter) {
-  var groups  = _intBuildGroups();
-  var esc     = function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
-  var f       = (filter||'').toLowerCase().trim();
-  var html    = '';
-  var cats    = Object.keys(groups).sort();
-  if (!cats.length) return '<div style="text-align:center;padding:32px 16px;color:rgba(255,80,80,.5);font-size:.82rem">No tracked items found.<br><small style="opacity:.7">Register products with an IMEI or serial number to use integrity search.</small></div>';
-  cats.forEach(function(cat) {
-    var pm    = groups[cat];
-    var pkeys = Object.keys(pm).sort();
-    if (f) pkeys = pkeys.filter(function(pk){ return pm[pk].name.toLowerCase().indexOf(f) !== -1 || cat.toLowerCase().indexOf(f) !== -1; });
-    if (!pkeys.length) return;
-    var total = pkeys.reduce(function(s,pk){ return s + pm[pk].items.length; }, 0);
-    var cid   = 'ic-' + cat.replace(/[^a-zA-Z0-9]/g,'_');
-    html += '<div class="int-cat" onclick="_intToggle(\'' + cid + '\')">'
-      + '<svg id="ica-' + cid + '" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .2s;flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>'
-      + '<input type="checkbox" onclick="event.stopPropagation()" onchange="_intCatChk(this,\'' + esc(cat) + '\')" />'
-      + '<span style="font-weight:700;flex:1">' + esc(cat) + '</span>'
-      + '<span style="font-size:.72rem;color:rgba(255,100,100,.6)">' + total + ' item' + (total !== 1 ? 's' : '') + '</span>'
-      + '</div>';
-    html += '<div id="' + cid + '" style="display:none;padding-left:14px;flex-direction:column;gap:3px">';
-    pkeys.forEach(function(pk) {
-      var pg = pm[pk];
-      if (pg.items.length > 1) {
-        var pid = 'ip-' + pk.replace(/[^a-zA-Z0-9]/g,'_');
-        html += '<div class="int-prod" onclick="_intToggle(\'' + pid + '\')">'
-          + '<svg id="ipa-' + pid + '" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .2s;flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>'
-          + '<input type="checkbox" onclick="event.stopPropagation()" onchange="_intProdChk(this,\'' + esc(pk) + '\',\'' + esc(cat) + '\')" />'
-          + '<span style="flex:1">' + esc(pg.name) + '</span>'
-          + '<span style="font-size:.72rem;color:rgba(255,255,255,.3)">' + pg.items.length + '</span>'
-          + '</div>';
-        html += '<div id="' + pid + '" style="display:none;padding-left:14px;flex-direction:column;gap:2px">';
-        pg.items.forEach(function(v) {
-          html += '<div class="int-item">'
-            + '<input type="checkbox" value="' + esc(v.imei) + '" onchange="_intItemChk(this)" />'
-            + '<span style="font-family:monospace;font-size:.76rem;color:rgba(255,200,200,.85)">…' + esc(v.imei.slice(-6)) + '</span>'
-            + '<span style="font-size:.71rem;color:rgba(255,255,255,.3);margin-left:auto">' + (v.addedAt ? new Date(v.addedAt).toLocaleDateString() : '') + '</span>'
-            + '</div>';
-        });
-        html += '</div>';
-      } else {
-        var v = pg.items[0];
-        html += '<div class="int-item" style="padding-left:22px">'
-          + '<input type="checkbox" value="' + esc(v.imei) + '" onchange="_intItemChk(this)" />'
-          + '<span style="flex:1">' + esc(pg.name) + '</span>'
-          + '<span style="font-family:monospace;font-size:.75rem;color:rgba(255,200,200,.7)">…' + esc(v.imei.slice(-6)) + '</span>'
-          + '</div>';
-      }
-    });
-    html += '</div>';
-  });
-  return html;
-}
-
-function _intToggle(id) {
-  var el  = document.getElementById(id);
-  var ar1 = document.getElementById('ica-' + id);
-  var ar2 = document.getElementById('ipa-' + id);
-  if (!el) return;
-  var open = el.style.display === 'flex';
-  el.style.display = open ? 'none' : 'flex';
-  var arr = ar1 || ar2;
-  if (arr) arr.style.transform = open ? '' : 'rotate(90deg)';
-}
-
-function _intCatChk(chk, cat) {
-  var checked = chk.checked;
-  var groups  = _intBuildGroups();
-  var cg      = groups[cat];
-  if (!cg) return;
-  Object.keys(cg).forEach(function(pk){ cg[pk].items.forEach(function(v){ checked ? _intSel.add(v.imei) : _intSel.delete(v.imei); }); });
-  document.querySelectorAll('#intTree input[type=checkbox]').forEach(function(el){ if (el.value) el.checked = _intSel.has(el.value); });
-  _intSyncCount();
-}
-
-function _intProdChk(chk, pk, cat) {
-  var checked = chk.checked;
-  var groups  = _intBuildGroups();
-  var pg      = groups[cat] && groups[cat][pk];
-  if (!pg) return;
-  pg.items.forEach(function(v){ checked ? _intSel.add(v.imei) : _intSel.delete(v.imei); });
-  document.querySelectorAll('#intTree input[type=checkbox]').forEach(function(el){ if (el.value) el.checked = _intSel.has(el.value); });
-  _intSyncCount();
-}
-
-function _intItemChk(chk) {
-  chk.checked ? _intSel.add(chk.value) : _intSel.delete(chk.value);
-  _intSyncCount();
-}
-
-function _intSelAll(val) {
-  _intSel.clear();
-  if (val) {
-    var groups = _intBuildGroups();
-    Object.keys(groups).forEach(function(cat){ Object.keys(groups[cat]).forEach(function(pk){ groups[cat][pk].items.forEach(function(v){ _intSel.add(v.imei); }); }); });
-  }
-  document.querySelectorAll('#intTree input[type=checkbox]').forEach(function(el){ el.checked = val; });
-  _intSyncCount();
-}
-
-function _intFilterTree() {
-  var tree = document.getElementById('intTree');
-  var f    = (document.getElementById('intSearch') || {}).value || '';
-  if (tree) tree.innerHTML = _intRenderTree(f);
-}
-
-function _intSyncCount() {
-  var n   = _intSel.size;
-  var cnt = document.getElementById('intSelCount');
-  var btn = document.getElementById('intActionBtn');
-  if (cnt) cnt.textContent = n ? n + ' selected' : '';
-  if (btn) { btn.disabled = !n; btn.style.opacity = n ? '1' : '.45'; }
-}
-
-function _intOpen() {
-  if (_intRAF)    { clearTimeout(_intRAF); _intRAF = null; }
-  if (_intStream) { _intStream.getTracks().forEach(function(t){ t.stop(); }); _intStream = null; }
-  _intSel.clear();
-  _intFound.clear();
-  var modal = document.getElementById('intModal');
+function _openSonar() {
+  _sonarScanned.clear();
+  var modal = document.getElementById('sonarModal');
   if (!modal) return;
   modal.style.display = 'flex';
-  document.getElementById('intP1').style.display = 'flex';
-  document.getElementById('intP2').style.display = 'none';
-  document.getElementById('intP3').style.display = 'none';
-  document.getElementById('intPhase').textContent = 'SELECT ITEMS';
-  var btn = document.getElementById('intActionBtn');
-  if (btn) { btn.textContent = 'Start Scan →'; btn.onclick = _intStartScan; btn.disabled = true; btn.style.opacity = '.45'; btn.style.display = ''; }
-  var tree = document.getElementById('intTree');
-  if (tree) tree.innerHTML = _intRenderTree('');
-  var srch = document.getElementById('intSearch');
-  if (srch) srch.value = '';
-  _intSyncCount();
+  _sonarUpdateUI();
+  document.getElementById('sonarScanView').style.display = 'flex';
+  document.getElementById('sonarResults').style.display  = 'none';
   _initOcrWorker();
-}
-
-function _intStartScan() {
-  if (!_intSel.size) { showToast('Select at least one item first'); return; }
-  _intFound.clear();
-  document.getElementById('intP1').style.display = 'none';
-  document.getElementById('intP2').style.display = 'flex';
-  document.getElementById('intPhase').textContent = 'SCANNING';
-  var btn = document.getElementById('intActionBtn');
-  if (btn) { btn.textContent = 'Complete →'; btn.onclick = _intComplete; btn.disabled = false; btn.style.opacity = '1'; }
-  _intRenderList();
-  _intUpdateProgress();
-  var video = document.getElementById('intVideo');
+  var video = document.getElementById('sonarVideo');
   if (!video) return;
   navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920, min: 640 }, height: { ideal: 1080, min: 480 } } })
-    .catch(function(){ return navigator.mediaDevices.getUserMedia({ video: true }); })
+    .catch(function(){ return navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); })
     .then(function(stream) {
-      _intStream = stream;
+      _sonarStream = stream;
       video.srcObject = stream;
       video.play();
-      _intStartLoop(video, document.getElementById('intCamStatus'));
+      var statusEl  = document.getElementById('sonarStatusTxt');
+      var videoStat = document.getElementById('sonarVideoStatus');
+      if (statusEl) statusEl.textContent = 'SCANNING';
+      if (!('BarcodeDetector' in window)) {
+        if (statusEl)  statusEl.textContent = 'OCR MODE';
+        if (videoStat) videoStat.textContent = 'Reading IMEI via text recognition…';
+        var ocrLoop = function() {
+          if (!_sonarStream) return;
+          _runOcrOnFrame(video, function(ocrCodes) {
+            if (!_sonarStream) return;
+            ocrCodes.forEach(function(code) {
+              if (_sonarScanned.has(code)) return;
+              _sonarScanned.add(code); _sonarBeep(); _sonarUpdateUI();
+              if (videoStat) videoStat.textContent = '✅ Text: ' + code.slice(0,12);
+            });
+          }, videoStat);
+          _sonarRAF = setTimeout(ocrLoop, 2500);
+        };
+        _sonarRAF = setTimeout(ocrLoop, 1200);
+        return;
+      }
+      var det = new window.BarcodeDetector({ formats: ['code_128','code_39','ean_13','ean_8','qr_code','itf','pdf_417','aztec','data_matrix','codabar','upc_a','upc_e'] });
+      var _lastDetected = '', _pauseUntil = 0;
+      var scan = function() {
+        if (!_sonarStream) return;
+        var now = Date.now();
+        if (now < _pauseUntil) { _sonarRAF = setTimeout(scan, 150); return; }
+        det.detect(video).then(function(codes) {
+          if (!_sonarStream) return;
+          var found = false;
+          for (var i = 0; i < codes.length; i++) {
+            var raw     = codes[i].rawValue.trim();
+            var numOnly = raw.replace(/\D/g,'');
+            var isCode  = numOnly.length >= 13 || (raw.length >= 6 && /[0-9]/.test(raw));
+            if (raw && raw !== _lastDetected) {
+              _lastDetected = raw;
+              var fl = document.getElementById('sonarFlash');
+              if (fl) { fl.style.opacity = '1'; setTimeout(function(){ if(fl) fl.style.opacity='0'; }, 160); }
+              if (videoStat) videoStat.textContent = '⚡ Detected: ' + (raw.length > 20 ? raw.slice(0,18)+'…' : raw);
+            }
+            if (isCode && !_sonarScanned.has(raw)) {
+              _sonarScanned.add(raw); _sonarBeep(); _sonarUpdateUI();
+              if (videoStat) videoStat.textContent = '✅ Added: ' + raw.slice(0,12) + (raw.length > 12 ? '…' : '');
+              var mode = (document.getElementById('sonarMode') || {}).value || 'multi';
+              if (mode === 'individual') { _pauseUntil = Date.now() + 2000; }
+              found = true; break;
+            }
+          }
+          if (!found && codes.length === 0) {
+            _lastDetected = '';
+            _runOcrOnFrame(video, function(ocrCodes) {
+              if (!_sonarStream) return;
+              ocrCodes.forEach(function(code) {
+                if (_sonarScanned.has(code)) return;
+                _sonarScanned.add(code); _sonarBeep(); _sonarUpdateUI();
+                var fl = document.getElementById('sonarFlash');
+                if (fl) { fl.style.opacity='1'; setTimeout(function(){ if(fl) fl.style.opacity='0'; },180); }
+                if (videoStat) videoStat.textContent = '✅ Text: ' + code.slice(0,12) + (code.length > 12 ? '…' : '');
+              });
+            }, videoStat);
+          }
+          _sonarRAF = setTimeout(scan, 200);
+        }).catch(function(){ _sonarRAF = setTimeout(scan, 300); });
+      };
+      _sonarRAF = setTimeout(scan, 300);
     })
     .catch(function() {
-      var s = document.getElementById('intCamStatus');
-      if (s) s.textContent = 'Camera unavailable — type IMEI manually below';
+      var statusEl = document.getElementById('sonarStatusTxt');
+      var hintEl   = document.getElementById('sonarHint');
+      if (statusEl) statusEl.textContent = 'NO CAMERA';
+      if (hintEl)   hintEl.textContent   = 'Camera unavailable — type IMEI/codes in the box above';
     });
 }
 
-function _intStartLoop(video, statusEl) {
-  var fl      = document.getElementById('intFlash');
-  var lastRaw = '';
-
-  function flash() {
-    if (!fl) return;
-    fl.style.opacity = '1';
-    setTimeout(function(){ if (fl) fl.style.opacity = '0'; }, 160);
-  }
-
-  function onCode(raw) {
-    if (!raw) return;
-    if (raw !== lastRaw) {
-      lastRaw = raw;
-      flash();
-      if (!_intSel.has(raw) && statusEl) statusEl.textContent = '⚡ ' + (raw.length > 22 ? raw.slice(0,20)+'…' : raw);
-    }
-    if (_intSel.has(raw) && !_intFound.has(raw)) {
-      _intFound.add(raw);
-      _intBeep();
-      _intRenderList();
-      _intUpdateProgress();
-      if (statusEl) statusEl.textContent = '✓ Found: …' + raw.slice(-6);
-    }
-  }
-
-  if ('BarcodeDetector' in window) {
-    var det  = new window.BarcodeDetector({ formats: ['code_128','code_39','ean_13','ean_8','qr_code','itf','pdf_417','aztec','data_matrix','codabar','upc_a','upc_e'] });
-    var scan = function() {
-      if (!_intStream) return;
-      det.detect(video).then(function(barcodes) {
-        if (!_intStream) return;
-        var hit = false;
-        for (var i = 0; i < barcodes.length; i++) {
-          var raw = (barcodes[i].rawValue || '').trim();
-          if (raw) { onCode(raw); hit = true; }
-        }
-        if (!hit) { lastRaw = ''; _runOcrOnFrame(video, function(codes){ codes.forEach(onCode); }, statusEl); }
-        _intRAF = setTimeout(scan, 200);
-      }).catch(function(){ _intRAF = setTimeout(scan, 300); });
-    };
-    _intRAF = setTimeout(scan, 300);
-  } else {
-    var ocrLoop = function() {
-      if (!_intStream) return;
-      _runOcrOnFrame(video, function(codes){ codes.forEach(onCode); }, statusEl);
-      _intRAF = setTimeout(ocrLoop, 2500);
-    };
-    _intRAF = setTimeout(ocrLoop, 1200);
-  }
-}
-
-function _intRenderList() {
-  var el    = document.getElementById('intList');
-  if (!el)  return;
-  var vault = _getIMEI();
-  var items = Array.from(_intSel);
-  if (!items.length) { el.innerHTML = ''; return; }
-  el.innerHTML = items.map(function(imei) {
-    var found = _intFound.has(imei);
-    var rec   = vault.find(function(v){ return v.imei === imei; });
-    var name  = rec ? (rec.productName || 'Unknown') : 'Unknown';
-    var bg    = found ? 'rgba(59,130,246,.14)' : 'rgba(239,68,68,.1)';
-    var bord  = found ? 'rgba(59,130,246,.3)'  : 'rgba(239,68,68,.22)';
-    var dot   = found
-      ? '<span style="width:9px;height:9px;border-radius:50%;background:#3b82f6;box-shadow:0 0 7px #3b82f6;flex-shrink:0;display:inline-block"></span>'
-      : '<span style="width:9px;height:9px;border-radius:50%;background:#ef4444;box-shadow:0 0 6px rgba(239,68,68,.6);flex-shrink:0;display:inline-block"></span>';
-    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:' + bg + ';border:1px solid ' + bord + ';border-radius:8px">'
-      + dot
-      + '<span style="color:' + (found ? '#93c5fd' : '#fca5a5') + ';font-size:.78rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + _esc(name) + '</span>'
-      + '<span style="font-family:monospace;font-size:.7rem;color:rgba(255,255,255,.3)">…' + imei.slice(-4) + '</span>'
-      + '</div>';
-  }).join('');
-}
-
-function _intUpdateProgress() {
-  var el = document.getElementById('intProgress');
-  if (!el) return;
-  if (_intSel.size > 0 && _intFound.size >= _intSel.size) {
-    el.textContent = 'All ' + _intSel.size + ' found — press Complete';
-    el.style.color = '#4ade80';
-  } else {
-    el.textContent = _intFound.size + ' / ' + _intSel.size + ' found';
-    el.style.color = '';
-  }
-}
-
-function _intManualAdd() {
-  var inp = document.getElementById('intManual');
+function _sonarAddManual() {
+  var inp = document.getElementById('sonarManualInput');
   if (!inp) return;
   var val = inp.value.replace(/[^0-9a-zA-Z\-]/g,'').trim();
   if (!val || val.length < 4) { inp.focus(); return; }
-  if (_intSel.has(val) && !_intFound.has(val)) {
-    _intFound.add(val);
-    _intBeep();
-    _intRenderList();
-    _intUpdateProgress();
-  } else if (!_intSel.has(val)) {
-    showToast('Code not in your selection');
-  }
-  inp.value = '';
-  inp.focus();
+  var isNew = !_sonarScanned.has(val);
+  _sonarScanned.add(val);
+  if (isNew) _sonarBeep();
+  _sonarUpdateUI();
+  inp.value = ''; inp.focus();
+  showToast(isNew ? '✅ Added: ' + val.slice(0,10) : 'Already in list');
 }
 
-function _intBeep() {
+function _sonarUpdateUI() {
+  var countEl = document.getElementById('sonarScanCount');
+  if (countEl) countEl.textContent = _sonarScanned.size + ' scanned';
+  var list = document.getElementById('sonarScanList');
+  if (!list || !_sonarScanned.size) return;
+  var imeis = _getIMEI();
+  var html  = '';
+  _sonarScanned.forEach(function(code) {
+    var rec   = imeis.find(function(r){ return r.imei === code || r.imei.replace(/-/g,'') === code.replace(/-/g,''); });
+    var known = !!rec;
+    var color = known ? '#16a34a' : '#d97706';
+    var label = known ? (rec.productName || 'Known') : 'Unknown';
+    html += '<div style="display:flex;justify-content:space-between;padding:4px 10px;background:rgba(255,30,30,.08);border:1px solid rgba(255,30,30,.15);border-radius:7px;font-size:.75rem">'
+      + '<span style="font-family:monospace;color:#ffaaaa">' + _imeiEsc(code.length > 12 ? code.slice(0,10)+'…' : code) + '</span>'
+      + '<span style="color:' + color + ';font-weight:600">' + _imeiEsc(label) + '</span>'
+      + '</div>';
+  });
+  list.innerHTML = html;
+  list.scrollTop = list.scrollHeight;
+}
+
+function _sonarBeep() {
   try {
     var ctx = new (window.AudioContext || window.webkitAudioContext)();
     var osc = ctx.createOscillator(); var g = ctx.createGain();
@@ -10556,71 +10386,120 @@ function _intBeep() {
   } catch(_){}
 }
 
-function _intComplete() {
-  if (_intRAF)    { clearTimeout(_intRAF); _intRAF = null; }
-  if (_intStream) { _intStream.getTracks().forEach(function(t){ t.stop(); }); _intStream = null; }
-  var video = document.getElementById('intVideo');
+function _sonarFinishScan() {
+  if (_sonarRAF)    { clearTimeout(_sonarRAF); cancelAnimationFrame(_sonarRAF); _sonarRAF = null; }
+  if (_sonarStream) { _sonarStream.getTracks().forEach(function(t){ t.stop(); }); _sonarStream = null; }
+  var video = document.getElementById('sonarVideo');
   if (video) video.srcObject = null;
-  document.getElementById('intP2').style.display = 'none';
-  document.getElementById('intP3').style.display = 'flex';
-  document.getElementById('intPhase').textContent = 'RESULTS';
-  var btn = document.getElementById('intActionBtn');
-  if (btn) btn.style.display = 'none';
-  // Save state
   var today = _todayStr();
   var state = _getIntegrity();
   if (state.date !== today) state = { date: today, confirmed: [], barVisible: true };
-  Array.from(_intFound).forEach(function(imei){ if (state.confirmed.indexOf(imei) === -1) state.confirmed.push(imei); });
-  state.barVisible = true;
+  else state.barVisible = true;
+  _sonarScanned.forEach(function(code){ if (state.confirmed.indexOf(code) === -1) state.confirmed.push(code); });
   _saveIntegrity(state);
-  // Build results
-  var vault   = _getIMEI();
-  var missing = Array.from(_intSel).filter(function(imei){ return !_intFound.has(imei); });
-  var found   = Array.from(_intFound);
-  var esc     = function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
-  var html = '<div style="text-align:center;margin-bottom:18px;padding:14px;background:rgba(255,255,255,.04);border-radius:12px">'
-    + '<div style="font-size:1.2rem;font-weight:800;color:#fff;margin-bottom:4px">' + found.length + ' found &nbsp;·&nbsp; <span style="color:#ef4444">' + missing.length + ' missing</span></div>'
-    + '<div style="font-size:.75rem;color:rgba(255,255,255,.4)">' + _intSel.size + ' items checked</div>'
-    + '</div>';
-  if (missing.length) {
-    html += '<div style="font-size:.74rem;font-weight:700;color:#ef4444;margin-bottom:8px;text-transform:uppercase;letter-spacing:.6px">Missing Items</div>';
-    missing.forEach(function(imei) {
-      var rec   = vault.find(function(v){ return v.imei === imei; });
-      var name  = rec ? (rec.productName || 'Unknown') : 'Unknown';
-      var added = rec && rec.addedAt ? new Date(rec.addedAt).toLocaleDateString() : '—';
-      html += '<div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.28);border-radius:10px;padding:12px 14px;margin-bottom:8px">'
-        + '<div style="font-weight:700;color:#fff;font-size:.85rem">' + esc(name) + '</div>'
-        + '<div style="font-family:monospace;font-size:.82rem;color:#f87171;margin:5px 0">IMEI: ' + esc(imei) + '</div>'
-        + '<div style="font-size:.72rem;color:rgba(255,255,255,.4)">Recorded: ' + esc(added) + '</div>'
-        + '</div>';
-    });
-  }
-  if (found.length) {
-    html += '<div style="font-size:.74rem;font-weight:700;color:#3b82f6;margin:14px 0 8px;text-transform:uppercase;letter-spacing:.6px">Confirmed Present</div>';
-    found.forEach(function(imei) {
-      var rec  = vault.find(function(v){ return v.imei === imei; });
-      var name = rec ? (rec.productName || 'Unknown') : 'Unknown';
-      html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.22);border-radius:8px;margin-bottom:5px">'
-        + '<span style="width:8px;height:8px;border-radius:50%;background:#3b82f6;flex-shrink:0;display:inline-block"></span>'
-        + '<span style="font-size:.82rem;color:#93c5fd;flex:1">' + esc(name) + '</span>'
-        + '<span style="font-family:monospace;font-size:.72rem;color:rgba(255,255,255,.35)">…' + esc(imei.slice(-6)) + '</span>'
-        + '</div>';
-    });
-  }
-  document.getElementById('intResults').innerHTML = html;
+  document.getElementById('sonarScanView').style.display = 'none';
+  document.getElementById('sonarResults').style.display  = 'flex';
+  document.getElementById('sonarResults').style.flexDirection = 'column';
+  document.getElementById('sonarFilter').value = 'all';
+  _applySonarFilter();
   _updateIntegrityBar();
-  var bar = document.getElementById('integrityBar');
-  if (bar) bar.style.display = 'flex';
+  var intBar = document.getElementById('integrityBar');
+  if (intBar) intBar.style.display = 'flex';
 }
 
-function _intClose() {
-  if (_intRAF)    { clearTimeout(_intRAF); cancelAnimationFrame(_intRAF); _intRAF = null; }
-  if (_intStream) { _intStream.getTracks().forEach(function(t){ t.stop(); }); _intStream = null; }
-  var video = document.getElementById('intVideo');
+function _applySonarFilter() {
+  var filter  = (document.getElementById('sonarFilter') || {}).value || 'all';
+  var imeis   = _getIMEI();
+  var scanned = Array.from(_sonarScanned);
+  var inStock = imeis.filter(function(r){ return r.status === 'in_stock'; });
+  var body    = document.getElementById('sonarResultsBody');
+  if (!body) return;
+  var rows = [];
+  if (filter === 'all') {
+    rows = scanned.map(function(code) {
+      var rec = imeis.find(function(r){ return r.imei === code; });
+      return { code: code, name: rec ? rec.productName : '—', found: !!rec, status: rec ? rec.status : 'unknown', isUnscannedInventory: false };
+    });
+  } else if (filter === 'missing') {
+    rows = scanned.filter(function(code){ return !imeis.find(function(r){ return r.imei === code; }); })
+      .map(function(code){ return { code: code, name: '—', found: false, status: 'not_in_vault', isUnscannedInventory: false }; });
+  } else if (filter === 'unscanned') {
+    rows = inStock.filter(function(r){ return !_sonarScanned.has(r.imei); })
+      .map(function(r){ return { code: r.imei, name: r.productName || '—', found: true, status: 'unscanned', isUnscannedInventory: true }; });
+  } else if (filter === 'found') {
+    rows = scanned.filter(function(code){ return imeis.find(function(r){ return r.imei === code; }); })
+      .map(function(code) {
+        var rec = imeis.find(function(r){ return r.imei === code; });
+        return { code: code, name: rec ? rec.productName : '—', found: true, status: rec.status, isUnscannedInventory: false };
+      });
+  } else if (filter === 'group') {
+    var nameCounts = {};
+    scanned.forEach(function(code) {
+      var rec = imeis.find(function(r){ return r.imei === code; });
+      var n   = rec ? (rec.productName || '—') : '—';
+      nameCounts[n] = (nameCounts[n] || 0) + 1;
+    });
+    var topName = Object.keys(nameCounts).sort(function(a,b){ return nameCounts[b]-nameCounts[a]; })[0] || '';
+    rows = imeis.filter(function(r){ return (r.productName || '—') === topName; })
+      .map(function(r){ return { code: r.imei, name: r.productName || '—', found: true, status: r.status, isUnscannedInventory: !_sonarScanned.has(r.imei) }; });
+  } else if (filter === 'sold') {
+    rows = scanned.filter(function(code){ var r = imeis.find(function(x){ return x.imei === code; }); return r && r.status === 'sold'; })
+      .map(function(code) {
+        var rec = imeis.find(function(r){ return r.imei === code; });
+        return { code: code, name: rec.productName || '—', found: true, status: 'sold', isUnscannedInventory: false };
+      });
+  }
+  if (!rows.length) {
+    body.innerHTML = '<div style="text-align:center;padding:32px;color:var(--muted);font-size:.88rem">No items match this filter.</div>';
+    return;
+  }
+  var groups = {};
+  rows.forEach(function(r){ var g = r.name || '—'; if (!groups[g]) groups[g] = []; groups[g].push(r); });
+  var html = '';
+  Object.keys(groups).sort().forEach(function(grpName) {
+    var grpRows = groups[grpName];
+    html += '<div style="margin-bottom:14px">'
+      + '<div style="font-size:.8rem;font-weight:700;color:var(--text);padding:6px 4px;border-bottom:1px solid var(--border);margin-bottom:6px">'
+      + _imeiEsc(grpName) + ' <span style="color:var(--muted);font-weight:400">(' + grpRows.length + ')</span></div>';
+    grpRows.forEach(function(r) {
+      var isRed = !r.found || r.status === 'not_in_vault' || r.isUnscannedInventory;
+      var bg    = isRed ? 'rgba(239,68,68,.08)' : 'rgba(34,197,94,.08)';
+      var bd    = isRed ? 'rgba(239,68,68,.25)' : 'rgba(34,197,94,.25)';
+      var dot   = isRed ? '#e53e3e' : '#16a34a';
+      var lbl   = r.status === 'sold' ? '🔴 SOLD' : r.isUnscannedInventory ? '🔴 NOT SCANNED' : r.found ? '✅ FOUND' : '🔴 MISSING';
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:' + bg + ';border:1px solid ' + bd + ';border-radius:8px;margin-bottom:4px">'
+        + '<div style="width:8px;height:8px;border-radius:50%;background:' + dot + ';flex-shrink:0"></div>'
+        + '<span style="font-family:monospace;font-size:.79rem;color:var(--text);flex:1">' + _imeiEsc(r.code) + '</span>'
+        + '<span style="font-size:.74rem;font-weight:700;color:' + dot + '">' + lbl + '</span>'
+        + '</div>';
+    });
+    html += '</div>';
+  });
+  var found   = rows.filter(function(r){ return r.found && !r.isUnscannedInventory; }).length;
+  var missing = rows.filter(function(r){ return !r.found || r.isUnscannedInventory; }).length;
+  body.innerHTML = '<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">'
+    + '<div style="flex:1;padding:10px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:10px;text-align:center"><div style="font-size:1.4rem;font-weight:800;color:#16a34a">' + found + '</div><div style="font-size:.72rem;color:var(--muted)">Confirmed</div></div>'
+    + '<div style="flex:1;padding:10px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:10px;text-align:center"><div style="font-size:1.4rem;font-weight:800;color:#e53e3e">' + missing + '</div><div style="font-size:.72rem;color:var(--muted)">Missing / Unscanned</div></div>'
+    + '<div style="flex:1;padding:10px;background:rgba(79,142,247,.1);border:1px solid rgba(79,142,247,.3);border-radius:10px;text-align:center"><div style="font-size:1.4rem;font-weight:800;color:#4f8ef7">' + rows.length + '</div><div style="font-size:.72rem;color:var(--muted)">Total</div></div>'
+    + '</div>' + html;
+}
+
+function _closeSonar() {
+  if (_sonarRAF)    { clearTimeout(_sonarRAF); cancelAnimationFrame(_sonarRAF); _sonarRAF = null; }
+  if (_sonarStream) { _sonarStream.getTracks().forEach(function(t){ t.stop(); }); _sonarStream = null; }
+  var video = document.getElementById('sonarVideo');
   if (video) video.srcObject = null;
-  var modal = document.getElementById('intModal');
+  var modal = document.getElementById('sonarModal');
   if (modal) modal.style.display = 'none';
 }
+
+function _sonarRescan() {
+  _sonarScanned.clear();
+  document.getElementById('sonarScanView').style.display = 'flex';
+  document.getElementById('sonarResults').style.display  = 'none';
+  _openSonar();
+}
+
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Settings — Custom Form Fields

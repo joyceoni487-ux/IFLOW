@@ -2336,6 +2336,7 @@
               <th>Stock Value</th>
               <th>Low Stock At</th>
               <th>Date Added</th>
+              <th>IMEI / Serial</th>
               <th></th>
             </tr>
           </thead>
@@ -7032,7 +7033,7 @@
       if (_tbl._fetchAt && _ms - _tbl._fetchAt < 10000) return;
       _tbl._fetchAt = _ms;
 
-      _tbl.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:44px 20px;color:var(--muted);font-size:.88rem">⏳ Loading products from cloud storage…</td></tr>';
+      _tbl.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:44px 20px;color:var(--muted);font-size:.88rem">⏳ Loading products from cloud storage…</td></tr>';
 
       fetch('/api/products')
         .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
@@ -7049,7 +7050,7 @@
             }
             renderProducts();       // re-render with whatever is in localStorage now
           } else {
-            _tbl.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px 20px">'
+            _tbl.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:40px 20px">'
               + '<div style="color:var(--muted);font-size:.88rem;line-height:1.8">'
               + '📦 No products in cloud storage.<br>'
               + '<span style="font-size:.78rem;opacity:.75">If you added products on another device or browser, '
@@ -7061,7 +7062,7 @@
         })
         .catch(function() {
           _tbl._fetchAt = 0;
-          _tbl.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px 20px">'
+          _tbl.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:40px 20px">'
             + '<div style="color:var(--muted);font-size:.88rem">⚠ Could not reach cloud storage.</div><br>'
             + '<button onclick="renderProducts()" style="padding:7px 20px;background:var(--accent);'
             + 'color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.8rem">↻ Retry</button>'
@@ -7155,7 +7156,7 @@
 
     // Empty state
     if (!_filtered.length) {
-      _tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--muted);font-size:.88rem">'
+      _tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:32px;color:var(--muted);font-size:.88rem">'
         + (_query ? 'No products match &ldquo;' + _query.replace(/[<>&"]/g,'') + '&rdquo;.'
                   : '📦 No products yet — use Quick Add or &ldquo;+ Add Product&rdquo; above.')
         + '</td></tr>';
@@ -7179,6 +7180,7 @@
         _seen[cat].push(p);
       });
 
+      var _vaultAll = _getIMEI();
       var _rn = 1, _html = '';
       _groups.forEach(function(g) {
         var cat = g.cat, items = g.items;
@@ -7197,6 +7199,7 @@
             + '<td class="cell-subtotal" data-val="' + ((Number(p.stockQty)||0)*(Number(p.unitPrice)||0)) + '">' + _cur + fmtComma((Number(p.stockQty)||0)*(Number(p.unitPrice)||0)) + '</td>'
             + '<td class="cell-datetime">' + (p.lowStockThreshold || _defThresh) + '</td>'
             + '<td class="cell-datetime">' + _esc(p.dateAdded) + '</td>'
+            + (function(){ var ev = _vaultAll.filter(function(v){ return v.productCode===p.code||v.productName===p.name; }); if(!ev.length) return '<td class="cell-datetime" style="color:var(--muted);font-size:.75rem">—</td>'; var d=ev.slice(0,2).map(function(v){ return '<span style="font-family:monospace;font-size:.7rem">'+_esc(v.imei)+'</span>'; }).join('<br>'); if(ev.length>2) d+='<br><span style="font-size:.68rem;color:var(--muted)">+'+(ev.length-2)+' more</span>'; return '<td class="cell-datetime" style="max-width:140px">'+d+'</td>'; })()
             + '<td class="cell-action"><button onclick="event.stopPropagation();_showProductQR(\'' + _esc(p.code) + '\',\'' + _esc(p.name) + '\')" style="padding:3px 8px;font-size:.7rem;background:rgba(99,102,241,.1);color:#6366f1;border:1px solid rgba(99,102,241,.25);border-radius:6px;cursor:pointer;margin-right:4px" title="Show QR Code">QR</button><button class="btn-terminate" onclick="confirmDeleteProduct(' + ri + ')" title="Remove">&#9632;</button></td>'
             + '</tr>';
         } else {
@@ -7234,10 +7237,11 @@
             + '<td class="cell-datetime" style="text-align:center;color:' + (al?'#e53e3e':'inherit') + ';font-weight:' + (al?700:400) + '">' + ts + (al?' ⚠':'') + '</td>'
             + '<td class="cell-datetime">—</td><td class="cell-subtotal">—</td><td class="cell-datetime">—</td>'
             + '<td class="cell-datetime" title="Last updated" style="font-size:.72rem;color:var(--muted)">' + _esc(lu) + '</td>'
+            + '<td class="cell-datetime" style="color:var(--muted);font-size:.75rem">—</td>'
             + '<td class="cell-action"><button class="btn-variants" onclick="event.stopPropagation();toggleVariantGroup(\'' + cid + '\')">expand</button></td>'
             + '</tr>'
             + '<tr id="' + cid + '" style="display:none">'
-            + '<td colspan="10" style="padding:8px 0 4px;border-top:none;background:var(--surface2)">'
+            + '<td colspan="11" style="padding:8px 0 4px;border-top:none;background:var(--surface2)">'
             + '<table class="variant-sub-table"><thead><tr>'
             + '<th>Code</th><th>Variant</th><th>Stock</th><th>Price</th><th>Low Stock At</th><th>Date Added</th><th></th>'
             + '</tr></thead><tbody>' + vr + '</tbody></table></td></tr>';
@@ -7249,7 +7253,7 @@
     } catch(_renderErr) {
       console.error('[iFlow] renderProducts:', _renderErr);
       try {
-        _tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:#e53e3e;font-size:.88rem">'
+        _tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:32px;color:#e53e3e;font-size:.88rem">'
           + '⚠ Render error. <button onclick="renderProducts()" style="padding:4px 14px;background:var(--accent);'
           + 'color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.8rem;margin-left:8px">↻ Retry</button>'
           + '</td></tr>';
@@ -10262,149 +10266,312 @@ function _doPrintBarcodes(items, store) {
 // ══════════════════════════════════════════════════════════════════════════════
 // Integrity Sonar Search
 // ══════════════════════════════════════════════════════════════════════════════
-var _sonarStream   = null;
-var _sonarRAF      = null;
-var _sonarScanned  = new Set();  // raw codes scanned this session
+// ── Integrity Search (3-phase) ─────────────────────────────────────────────────
+var _sonarStream  = null;
+var _sonarRAF     = null;
+var _intgSelected = new Set(); // vault IMEIs selected for this check
+var _intgFound    = new Set(); // vault IMEIs confirmed by scanning this session
+
+function _buildIntegrityGroups() {
+  var prods = _getProds();
+  var vault = _getIMEI().filter(function(v){ return v.status !== 'sold'; });
+  var prodMap = {};
+  prods.forEach(function(p){ if (p.code) prodMap[p.code] = p; });
+  var cats = Object.create(null);
+  vault.forEach(function(v) {
+    var prod = prodMap[v.productCode] || prods.find(function(p){ return p.name === v.productName; });
+    var cat  = (prod && prod.category) || v.productName || 'Unknown';
+    var pname= (prod && prod.name)     || v.productName  || 'Unknown';
+    var pkey = (prod && prod.code)     || pname;
+    if (!cats[cat]) cats[cat] = Object.create(null);
+    if (!cats[cat][pkey]) cats[cat][pkey] = { name: pname, entries: [] };
+    cats[cat][pkey].entries.push(v);
+  });
+  return cats;
+}
+
+function _renderIntegrityTree(groups, filterStr) {
+  var esc = function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+  var filter = (filterStr || '').toLowerCase().trim();
+  var html = '';
+  var catKeys = Object.keys(groups).sort();
+  if (!catKeys.length) {
+    return '<div style="text-align:center;padding:40px 16px;color:rgba(255,80,80,.5);font-size:.82rem">No tracked items in vault.<br><small style="opacity:.7">Add products with IMEI or serial numbers first.</small></div>';
+  }
+  catKeys.forEach(function(cat) {
+    var prodMap = groups[cat];
+    var prodKeys = Object.keys(prodMap).sort();
+    // Filter: if filter active, only show categories/products matching
+    if (filter) {
+      prodKeys = prodKeys.filter(function(pk){ return prodMap[pk].name.toLowerCase().indexOf(filter) !== -1 || cat.toLowerCase().indexOf(filter) !== -1; });
+      if (!prodKeys.length) return;
+    }
+    var totalItems = prodKeys.reduce(function(s,pk){ return s + prodMap[pk].entries.length; }, 0);
+    var cgId = 'ig-' + cat.replace(/[^a-zA-Z0-9]/g,'_');
+    html += '<div class="intg-cat-row" onclick="_toggleIntgCat(\'' + cgId + '\')" id="row-' + cgId + '">'
+      + '<svg id="arr-' + cgId + '" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .2s;flex-shrink:0;color:#ff7777"><polyline points="9 18 15 12 9 6"/></svg>'
+      + '<input type="checkbox" class="intg-cat-chk" data-cat="' + esc(cat) + '" onclick="event.stopPropagation()" onchange="_intgCatCheck(this,\'' + esc(cat) + '\')" />'
+      + '<span style="font-weight:700;flex:1">' + esc(cat) + '</span>'
+      + '<span style="font-size:.73rem;color:rgba(255,100,100,.6)">' + totalItems + ' item' + (totalItems!==1?'s':'') + '</span>'
+      + '</div>';
+    html += '<div id="' + cgId + '" style="display:none;padding-left:14px;margin-top:2px;display:none;flex-direction:column;gap:2px">';
+    prodKeys.forEach(function(pk) {
+      var pg = prodMap[pk];
+      var pgId = 'igp-' + pk.replace(/[^a-zA-Z0-9]/g,'_');
+      if (pg.entries.length > 1) {
+        html += '<div class="intg-prod-row" onclick="_toggleIntgProd(\'' + pgId + '\')" id="row-' + pgId + '">'
+          + '<svg id="arrp-' + pgId + '" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .2s;flex-shrink:0;color:rgba(255,120,120,.6)"><polyline points="9 18 15 12 9 6"/></svg>'
+          + '<input type="checkbox" class="intg-prod-chk" data-pkey="' + esc(pk) + '" data-cat="' + esc(cat) + '" onclick="event.stopPropagation()" onchange="_intgProdCheck(this,\'' + esc(pk) + '\',\'' + esc(cat) + '\')" />'
+          + '<span style="flex:1">' + esc(pg.name) + '</span>'
+          + '<span style="font-size:.72rem;color:rgba(255,255,255,.35)">' + pg.entries.length + '</span>'
+          + '</div>';
+        html += '<div id="' + pgId + '" style="display:none;padding-left:14px;flex-direction:column;gap:2px">';
+        pg.entries.forEach(function(v) {
+          html += '<div class="intg-item-row">'
+            + '<input type="checkbox" class="intg-item-chk" value="' + esc(v.imei) + '" data-cat="' + esc(cat) + '" data-pkey="' + esc(pk) + '" onchange="_intgItemCheck(this)" />'
+            + '<span style="font-family:monospace;font-size:.77rem;color:rgba(255,200,200,.8)">…' + esc(v.imei.slice(-6)) + '</span>'
+            + '<span style="font-size:.72rem;color:rgba(255,255,255,.35);margin-left:auto">' + (v.addedAt ? new Date(v.addedAt).toLocaleDateString() : '') + '</span>'
+            + '</div>';
+        });
+        html += '</div>';
+      } else {
+        var v = pg.entries[0];
+        html += '<div class="intg-item-row" style="padding-left:22px">'
+          + '<input type="checkbox" class="intg-item-chk" value="' + esc(v.imei) + '" data-cat="' + esc(cat) + '" data-pkey="' + esc(pk) + '" onchange="_intgItemCheck(this)" />'
+          + '<span style="flex:1">' + esc(pg.name) + '</span>'
+          + '<span style="font-family:monospace;font-size:.75rem;color:rgba(255,200,200,.7)">…' + esc(v.imei.slice(-6)) + '</span>'
+          + '</div>';
+      }
+    });
+    html += '</div>';
+  });
+  return html;
+}
+
+function _toggleIntgCat(id) {
+  var el  = document.getElementById(id);
+  var arr = document.getElementById('arr-' + id);
+  if (!el) return;
+  var open = el.style.display !== 'none' && el.style.display !== '';
+  el.style.display  = open ? 'none' : 'flex';
+  if (arr) arr.style.transform = open ? '' : 'rotate(90deg)';
+}
+
+function _toggleIntgProd(id) {
+  var el  = document.getElementById(id);
+  var arr = document.getElementById('arrp-' + id);
+  if (!el) return;
+  var open = el.style.display !== 'none' && el.style.display !== '';
+  el.style.display = open ? 'none' : 'flex';
+  if (arr) arr.style.transform = open ? '' : 'rotate(90deg)';
+}
+
+function _intgCatCheck(chk, cat) {
+  var groups = _buildIntegrityGroups();
+  var catGroup = groups[cat];
+  if (!catGroup) return;
+  var checked = chk.checked;
+  // Tick/untick all items in this category
+  Object.keys(catGroup).forEach(function(pk) {
+    catGroup[pk].entries.forEach(function(v) {
+      checked ? _intgSelected.add(v.imei) : _intgSelected.delete(v.imei);
+    });
+  });
+  // Sync visible checkboxes
+  document.querySelectorAll('.intg-item-chk[data-cat="' + cat + '"]').forEach(function(el){ el.checked = checked; });
+  document.querySelectorAll('.intg-prod-chk[data-cat="' + cat + '"]').forEach(function(el){ el.checked = checked; });
+  _updateIntgCounts();
+}
+
+function _intgProdCheck(chk, pkey, cat) {
+  var groups = _buildIntegrityGroups();
+  var pg = groups[cat] && groups[cat][pkey];
+  if (!pg) return;
+  var checked = chk.checked;
+  pg.entries.forEach(function(v) {
+    checked ? _intgSelected.add(v.imei) : _intgSelected.delete(v.imei);
+  });
+  document.querySelectorAll('.intg-item-chk[data-pkey="' + pkey + '"][data-cat="' + cat + '"]').forEach(function(el){ el.checked = checked; });
+  _updateIntgCounts();
+}
+
+function _intgItemCheck(chk) {
+  chk.checked ? _intgSelected.add(chk.value) : _intgSelected.delete(chk.value);
+  _updateIntgCounts();
+}
+
+function _intgSelectAll(selectAll) {
+  var groups = _buildIntegrityGroups();
+  _intgSelected.clear();
+  if (selectAll) {
+    Object.keys(groups).forEach(function(cat) {
+      Object.keys(groups[cat]).forEach(function(pk) {
+        groups[cat][pk].entries.forEach(function(v){ _intgSelected.add(v.imei); });
+      });
+    });
+  }
+  document.querySelectorAll('.intg-item-chk,.intg-prod-chk,.intg-cat-chk').forEach(function(el){ el.checked = selectAll; });
+  _updateIntgCounts();
+}
+
+function _filterIntgTree() {
+  var groups = _buildIntegrityGroups();
+  var filter = (document.getElementById('intgSearch') || {}).value || '';
+  var tree = document.getElementById('integrityTree');
+  if (tree) tree.innerHTML = _renderIntegrityTree(groups, filter);
+}
+
+function _updateIntgCounts() {
+  var n = _intgSelected.size;
+  var countEl = document.getElementById('sonarSelCount');
+  var btn     = document.getElementById('sonarActionBtn');
+  if (countEl) countEl.textContent = n ? n + ' item' + (n!==1?'s':'') + ' selected' : '';
+  if (btn) { btn.disabled = n === 0; btn.style.opacity = n ? '1' : '.45'; btn.style.cursor = n ? 'pointer' : 'default'; }
+}
 
 function _openSonar() {
-  _sonarScanned.clear();
+  if (_sonarRAF) { clearTimeout(_sonarRAF); _sonarRAF = null; }
+  if (_sonarStream) { _sonarStream.getTracks().forEach(function(t){ t.stop(); }); _sonarStream = null; }
+  _intgSelected.clear();
+  _intgFound.clear();
   var modal = document.getElementById('sonarModal');
   if (!modal) return;
   modal.style.display = 'flex';
-  _sonarUpdateUI();
-  // Show scan view, hide results
-  document.getElementById('sonarScanView').style.display = 'flex';
-  document.getElementById('sonarResults').style.display  = 'none';
+  var p1 = document.getElementById('sonarPhase1');
+  var p2 = document.getElementById('sonarPhase2');
+  var p3 = document.getElementById('sonarPhase3');
+  if (p1) p1.style.display = 'flex';
+  if (p2) p2.style.display = 'none';
+  if (p3) p3.style.display = 'none';
+  var phaseTxt = document.getElementById('sonarPhaseTxt');
+  if (phaseTxt) phaseTxt.textContent = 'SELECT PRODUCTS';
+  var actionBtn = document.getElementById('sonarActionBtn');
+  if (actionBtn) { actionBtn.textContent = 'Start Scan →'; actionBtn.onclick = _sonarStartScan; }
+  var groups = _buildIntegrityGroups();
+  var tree   = document.getElementById('integrityTree');
+  if (tree)   tree.innerHTML   = _renderIntegrityTree(groups, '');
+  var srchEl = document.getElementById('intgSearch');
+  if (srchEl) srchEl.value = '';
+  _updateIntgCounts();
+  _initOcrWorker();
+}
 
-  _initOcrWorker(); // warm up OCR engine in background
-
+function _sonarStartScan() {
+  if (!_intgSelected.size) { showToast('Select at least one item to scan'); return; }
+  _intgFound.clear();
+  var p1 = document.getElementById('sonarPhase1');
+  var p2 = document.getElementById('sonarPhase2');
+  if (p1) p1.style.display = 'none';
+  if (p2) p2.style.display = 'flex';
+  var phaseTxt = document.getElementById('sonarPhaseTxt');
+  if (phaseTxt) phaseTxt.textContent = 'SCANNING';
+  _renderChecklist();
+  _updateScanProgress();
+  // Start camera
   var video = document.getElementById('sonarVideo');
   if (!video) return;
-  // Request high resolution rear camera for better barcode reading
-  var camConstraints = {
-    video: {
-      facingMode: { ideal: 'environment' },
-      width:  { ideal: 1920, min: 640 },
-      height: { ideal: 1080, min: 480 }
-    }
-  };
+  var camConstraints = { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920, min: 640 }, height: { ideal: 1080, min: 480 } } };
   navigator.mediaDevices.getUserMedia(camConstraints)
     .catch(function(){ return navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); })
     .then(function(stream) {
       _sonarStream = stream;
       video.srcObject = stream;
       video.play();
-      var statusEl  = document.getElementById('sonarStatusTxt');
       var videoStat = document.getElementById('sonarVideoStatus');
-      if (statusEl) statusEl.textContent = 'SCANNING';
-
-      if (!('BarcodeDetector' in window)) {
-        if (statusEl)  statusEl.textContent = 'OCR MODE';
-        if (videoStat) videoStat.textContent = 'Reading IMEI via text recognition…';
-        // OCR-only loop — runs on browsers without BarcodeDetector
-        var ocrLoop = function() {
-          if (!_sonarStream) return;
-          _runOcrOnFrame(video, function(ocrCodes) {
-            if (!_sonarStream) return;
-            ocrCodes.forEach(function(code) {
-              if (_sonarScanned.has(code)) return;
-              _sonarScanned.add(code); _sonarBeep(); _sonarUpdateUI();
-              if (videoStat) videoStat.textContent = '✅ Text: ' + code.slice(0,12);
-            });
-          }, videoStat);
-          _sonarRAF = setTimeout(ocrLoop, 2500);
-        };
-        _sonarRAF = setTimeout(ocrLoop, 1200);
-        return;
-      }
-
-      // Full format list — includes all types used on phone boxes and screen
-      BarcodeDetector.getSupportedFormats().then(function(supported) {
-        var wantedFormats = ['code_128','code_39','ean_13','ean_8','qr_code','itf','pdf_417','aztec','data_matrix','codabar','upc_a','upc_e'];
-        var useFormats    = wantedFormats.filter(function(f){ return supported.indexOf(f) !== -1; });
-        if (!useFormats.length) useFormats = ['code_128','ean_13','qr_code'];
-
-        var det       = new window.BarcodeDetector({ formats: useFormats });
-        var _scanning = true;
-        var _lastDetected = '';
-        var _pauseUntil   = 0;
-
-        var scan = function() {
-          if (!_sonarStream || !_scanning) return;
-          var now = Date.now();
-          if (now < _pauseUntil) { _sonarRAF = setTimeout(scan, 150); return; }
-
-          det.detect(video).then(function(codes) {
-            if (!_sonarStream) return;
-            var found = false;
-            for (var i = 0; i < codes.length; i++) {
-              var raw     = codes[i].rawValue.trim();
-              var numOnly = raw.replace(/\D/g,'');
-              // Accept: IMEI (13+ digits), or any 6+ char alphanumeric serial
-              var isCode  = numOnly.length >= 13 || (raw.length >= 6 && /[0-9]/.test(raw));
-
-              // Always flash to show something was detected
-              if (raw && raw !== _lastDetected) {
-                _lastDetected = raw;
-                var fl = document.getElementById('sonarFlash');
-                if (fl) { fl.style.opacity = '1'; setTimeout(function(){ if(fl) fl.style.opacity = '0'; }, 160); }
-                if (videoStat) videoStat.textContent = '⚡ Detected: ' + (raw.length > 20 ? raw.slice(0,18)+'…' : raw);
-              }
-
-              if (isCode && !_sonarScanned.has(raw)) {
-                _sonarScanned.add(raw);
-                _sonarBeep();
-                _sonarUpdateUI();
-                if (videoStat) videoStat.textContent = '✅ Added: ' + raw.slice(0,12) + (raw.length > 12 ? '…' : '');
-                var mode = (document.getElementById('sonarMode') || {}).value || 'multi';
-                if (mode === 'individual') { _pauseUntil = Date.now() + 2000; }
-                found = true;
-                break;
-              }
-            }
-            if (!found && codes.length === 0) {
-              if (_lastDetected) { _lastDetected = ''; }
-              // No barcode — try OCR to read plain-text IMEI displayed on screen
-              _runOcrOnFrame(video, function(ocrCodes) {
-                if (!_sonarStream) return;
-                ocrCodes.forEach(function(code) {
-                  if (_sonarScanned.has(code)) return;
-                  _sonarScanned.add(code);
-                  _sonarBeep();
-                  _sonarUpdateUI();
-                  var fl = document.getElementById('sonarFlash');
-                  if (fl) { fl.style.opacity = '1'; setTimeout(function(){ if(fl) fl.style.opacity = '0'; }, 180); }
-                  if (videoStat) videoStat.textContent = '✅ Text read: ' + code.slice(0, 12) + (code.length > 12 ? '…' : '');
-                });
-              }, videoStat);
-            }
-            _sonarRAF = setTimeout(scan, 200); // 200ms polling — gives CPU time to decode
-          }).catch(function(){ _sonarRAF = setTimeout(scan, 300); });
-        };
-        _sonarRAF = setTimeout(scan, 300); // small initial delay after camera starts
-      }).catch(function() {
-        // getSupportedFormats failed — OCR-only fallback
-        var scan = function() {
-          if (!_sonarStream) return;
-          _runOcrOnFrame(video, function(ocrCodes) {
-            if (!_sonarStream) return;
-            ocrCodes.forEach(function(code) {
-              if (_sonarScanned.has(code)) return;
-              _sonarScanned.add(code); _sonarBeep(); _sonarUpdateUI();
-              if (videoStat) videoStat.textContent = '✅ Text: ' + code.slice(0,12);
-            });
-          }, videoStat);
-          _sonarRAF = setTimeout(scan, 2500);
-        };
-        _sonarRAF = setTimeout(scan, 300);
-      });
+      _startSonarScanLoop(video, videoStat);
     })
     .catch(function() {
-      var statusEl = document.getElementById('sonarStatusTxt');
-      var hintEl   = document.getElementById('sonarHint');
-      if (statusEl) statusEl.textContent = 'NO CAMERA';
-      if (hintEl)   hintEl.textContent   = 'Camera unavailable — type IMEI/codes in the box above';
+      var vs = document.getElementById('sonarVideoStatus');
+      if (vs) vs.textContent = 'Camera unavailable — type IMEI/serial in the box below';
     });
+}
+
+function _startSonarScanLoop(video, videoStat) {
+  if (!('BarcodeDetector' in window)) {
+    var ocrLoop = function() {
+      if (!_sonarStream) return;
+      _runOcrOnFrame(video, function(codes) {
+        codes.forEach(function(code) { _onIntgScanned(code, videoStat); });
+      }, videoStat);
+      _sonarRAF = setTimeout(ocrLoop, 2500);
+    };
+    _sonarRAF = setTimeout(ocrLoop, 1200);
+    return;
+  }
+  BarcodeDetector.getSupportedFormats().then(function(supported) {
+    var wanted = ['code_128','code_39','ean_13','ean_8','qr_code','itf','pdf_417','aztec','data_matrix','codabar','upc_a','upc_e'];
+    var formats = wanted.filter(function(f){ return supported.indexOf(f) !== -1; });
+    if (!formats.length) formats = ['code_128','ean_13','qr_code'];
+    var det = new window.BarcodeDetector({ formats: formats });
+    var scan = function() {
+      if (!_sonarStream) return;
+      det.detect(video).then(function(codes) {
+        if (!_sonarStream) return;
+        var anyHit = false;
+        for (var i = 0; i < codes.length; i++) {
+          var raw = codes[i].rawValue.trim();
+          if (raw) { _onIntgScanned(raw, videoStat); anyHit = true; }
+        }
+        if (!anyHit) {
+          _runOcrOnFrame(video, function(ocrCodes) {
+            ocrCodes.forEach(function(code){ _onIntgScanned(code, videoStat); });
+          }, videoStat);
+        }
+        _sonarRAF = setTimeout(scan, 200);
+      }).catch(function(){ _sonarRAF = setTimeout(scan, 300); });
+    };
+    _sonarRAF = setTimeout(scan, 300);
+  }).catch(function(){
+    var ocrLoop = function() {
+      if (!_sonarStream) return;
+      _runOcrOnFrame(video, function(codes) {
+        codes.forEach(function(code){ _onIntgScanned(code, videoStat); });
+      }, videoStat);
+      _sonarRAF = setTimeout(ocrLoop, 2500);
+    };
+    _sonarRAF = setTimeout(ocrLoop, 1200);
+  });
+}
+
+function _onIntgScanned(code, videoStat) {
+  if (!code || !_intgSelected.has(code)) return;
+  if (_intgFound.has(code)) return; // already confirmed
+  _intgFound.add(code);
+  _sonarBeep();
+  _renderChecklist();
+  _updateScanProgress();
+  var fl = document.getElementById('sonarFlash');
+  if (fl) { fl.style.opacity = '1'; setTimeout(function(){ if(fl) fl.style.opacity = '0'; }, 200); }
+  if (videoStat) videoStat.textContent = 'Found: …' + code.slice(-6) + ' ✓';
+}
+
+function _renderChecklist() {
+  var el = document.getElementById('sonarChecklist');
+  if (!el) return;
+  var vault = _getIMEI();
+  var items = Array.from(_intgSelected);
+  if (!items.length) { el.innerHTML = '<div style="text-align:center;padding:16px;color:rgba(255,80,80,.4);font-size:.78rem">No items selected</div>'; return; }
+  var html = items.map(function(imei) {
+    var found = _intgFound.has(imei);
+    var rec   = vault.find(function(v){ return v.imei === imei; });
+    var name  = rec ? (rec.productName || 'Unknown') : 'Unknown';
+    var bg    = found ? 'rgba(59,130,246,.14)' : 'rgba(239,68,68,.1)';
+    var bord  = found ? 'rgba(59,130,246,.3)'  : 'rgba(239,68,68,.22)';
+    var dot   = found
+      ? '<span style="width:9px;height:9px;border-radius:50%;background:#3b82f6;box-shadow:0 0 7px #3b82f6;flex-shrink:0;display:inline-block"></span>'
+      : '<span style="width:9px;height:9px;border-radius:50%;background:#ef4444;box-shadow:0 0 6px rgba(239,68,68,.7);flex-shrink:0;display:inline-block"></span>';
+    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:' + bg + ';border:1px solid ' + bord + ';border-radius:8px">'
+      + dot
+      + '<span style="color:' + (found?'#93c5fd':'#fca5a5') + ';font-size:.78rem;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">' + name + '</span>'
+      + '<span style="font-family:monospace;font-size:.7rem;color:rgba(255,255,255,.3);flex-shrink:0">…' + imei.slice(-4) + '</span>'
+      + '</div>';
+  }).join('');
+  el.innerHTML = html;
+}
+
+function _updateScanProgress() {
+  var prog = document.getElementById('sonarScanProgress');
+  if (prog) prog.textContent = _intgFound.size + ' / ' + _intgSelected.size + ' found';
 }
 
 function _sonarAddManual() {
@@ -10412,48 +10579,79 @@ function _sonarAddManual() {
   if (!inp) return;
   var val = inp.value.replace(/[^0-9a-zA-Z\-]/g,'').trim();
   if (!val || val.length < 4) { inp.focus(); return; }
-  var isNew = !_sonarScanned.has(val);
-  _sonarScanned.add(val);
-  if (isNew) _sonarBeep();
-  _sonarUpdateUI();
-  inp.value = '';
-  inp.focus();
-  showToast(isNew ? '✅ Added: ' + val.slice(0,10) : 'Already in list');
-}
-
-function _sonarUpdateUI() {
-  var countEl = document.getElementById('sonarScanCount');
-  if (countEl) countEl.textContent = _sonarScanned.size + ' scanned';
-  var list = document.getElementById('sonarScanList');
-  if (!list) return;
-  if (!_sonarScanned.size) return;
-  var imeis = _getIMEI();
-  var html  = '';
-  _sonarScanned.forEach(function(code) {
-    var rec    = imeis.find(function(r){ return r.imei === code || r.imei.replace(/-/g,'') === code.replace(/-/g,''); });
-    var known  = !!rec;
-    var color  = known ? '#16a34a' : '#d97706';
-    var label  = known ? (rec.productName || 'Known') : 'Unknown';
-    html += '<div style="display:flex;justify-content:space-between;padding:4px 10px;background:rgba(255,30,30,.08);border:1px solid rgba(255,30,30,.15);border-radius:7px;font-size:.75rem">'
-      + '<span style="font-family:monospace;color:#ffaaaa">' + _imeiEsc(code.length > 12 ? code.slice(0,10)+'…' : code) + '</span>'
-      + '<span style="color:' + color + ';font-weight:600">' + _imeiEsc(label) + '</span>'
-      + '</div>';
-  });
-  list.innerHTML = html;
-  list.scrollTop = list.scrollHeight;
+  _onIntgScanned(val, document.getElementById('sonarVideoStatus'));
+  inp.value = ''; inp.focus();
 }
 
 function _sonarBeep() {
   try {
     var ctx = new (window.AudioContext || window.webkitAudioContext)();
-    var osc = ctx.createOscillator();
-    var g   = ctx.createGain();
+    var osc = ctx.createOscillator(); var g = ctx.createGain();
     osc.connect(g); g.connect(ctx.destination);
     osc.frequency.value = 880; osc.type = 'sine';
     g.gain.setValueAtTime(0.2, ctx.currentTime);
     g.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.12);
     osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.14);
   } catch(_){}
+}
+
+function _sonarCompleteSearch() {
+  if (_sonarRAF) { clearTimeout(_sonarRAF); _sonarRAF = null; }
+  if (_sonarStream) { _sonarStream.getTracks().forEach(function(t){ t.stop(); }); _sonarStream = null; }
+  var video = document.getElementById('sonarVideo');
+  if (video) video.srcObject = null;
+  var p2 = document.getElementById('sonarPhase2');
+  var p3 = document.getElementById('sonarPhase3');
+  if (p2) p2.style.display = 'none';
+  if (p3) p3.style.display = 'flex';
+  var phaseTxt = document.getElementById('sonarPhaseTxt');
+  if (phaseTxt) phaseTxt.textContent = 'SEARCH COMPLETE';
+  var vault   = _getIMEI();
+  var missing = Array.from(_intgSelected).filter(function(imei){ return !_intgFound.has(imei); });
+  var found   = Array.from(_intgFound);
+  var esc = function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+  // Save integrity state
+  var today = _todayStr();
+  var state = _getIntegrity();
+  if (state.date !== today) state = { date: today, confirmed: [], barVisible: true };
+  found.forEach(function(imei){ if (state.confirmed.indexOf(imei) === -1) state.confirmed.push(imei); });
+  state.barVisible = true;
+  _saveIntegrity(state);
+  // Build results HTML
+  var html = '<div style="text-align:center;margin-bottom:18px;padding:14px;background:rgba(255,255,255,.04);border-radius:12px">'
+    + '<div style="font-size:1.2rem;font-weight:800;color:#fff;margin-bottom:4px">'
+    + found.length + ' found &nbsp;·&nbsp; <span style="color:#ef4444">' + missing.length + ' missing</span></div>'
+    + '<div style="font-size:.75rem;color:rgba(255,255,255,.4)">' + _intgSelected.size + ' items checked</div>'
+    + '</div>';
+  if (missing.length) {
+    html += '<div style="font-size:.75rem;font-weight:700;color:#ef4444;margin-bottom:8px;text-transform:uppercase;letter-spacing:.6px">Missing Items</div>';
+    missing.forEach(function(imei) {
+      var rec = vault.find(function(v){ return v.imei === imei; });
+      var name  = rec ? (rec.productName || 'Unknown') : 'Unknown';
+      var added = rec && rec.addedAt ? new Date(rec.addedAt).toLocaleDateString() : '—';
+      html += '<div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.28);border-radius:10px;padding:12px 14px;margin-bottom:8px">'
+        + '<div style="font-weight:700;color:#fff;font-size:.85rem">' + esc(name) + '</div>'
+        + '<div style="font-family:monospace;font-size:.82rem;color:#f87171;margin:5px 0;letter-spacing:.03em">IMEI: ' + esc(imei) + '</div>'
+        + '<div style="font-size:.72rem;color:rgba(255,255,255,.4)">Recorded: ' + esc(added) + ' &nbsp;·&nbsp; Last seen: today (not found)</div>'
+        + '</div>';
+    });
+  }
+  if (found.length) {
+    html += '<div style="font-size:.75rem;font-weight:700;color:#3b82f6;margin:14px 0 8px;text-transform:uppercase;letter-spacing:.6px">Confirmed Present</div>';
+    found.forEach(function(imei) {
+      var rec  = vault.find(function(v){ return v.imei === imei; });
+      var name = rec ? (rec.productName || 'Unknown') : 'Unknown';
+      html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.22);border-radius:8px;margin-bottom:5px">'
+        + '<span style="width:8px;height:8px;border-radius:50%;background:#3b82f6;flex-shrink:0;display:inline-block"></span>'
+        + '<span style="font-size:.82rem;color:#93c5fd;flex:1">' + esc(name) + '</span>'
+        + '<span style="font-family:monospace;font-size:.72rem;color:rgba(255,255,255,.35)">…' + esc(imei.slice(-6)) + '</span>'
+        + '</div>';
+    });
+  }
+  document.getElementById('sonarMissingList').innerHTML = html;
+  _updateIntegrityBar();
+  var intBar = document.getElementById('integrityBar');
+  if (intBar) intBar.style.display = 'flex';
 }
 
 function _closeSonar() {
@@ -10463,137 +10661,6 @@ function _closeSonar() {
   if (video) video.srcObject = null;
   var modal = document.getElementById('sonarModal');
   if (modal) modal.style.display = 'none';
-}
-
-function _sonarRescan() {
-  _sonarScanned.clear();
-  document.getElementById('sonarScanView').style.display = 'flex';
-  document.getElementById('sonarResults').style.display  = 'none';
-  _openSonar();
-}
-
-function _sonarFinishScan() {
-  // Stop camera
-  if (_sonarRAF) { clearTimeout(_sonarRAF); cancelAnimationFrame(_sonarRAF); _sonarRAF = null; }
-  if (_sonarStream) { _sonarStream.getTracks().forEach(function(t){ t.stop(); }); _sonarStream = null; }
-  var video = document.getElementById('sonarVideo');
-  if (video) video.srcObject = null;
-
-  // Save integrity state
-  var today = _todayStr();
-  var state = _getIntegrity();
-  if (state.date !== today) state = { date: today, confirmed: [], barVisible: true };
-  else state.barVisible = true;
-  _sonarScanned.forEach(function(code) { if (state.confirmed.indexOf(code) === -1) state.confirmed.push(code); });
-  _saveIntegrity(state);
-
-  // Show results
-  document.getElementById('sonarScanView').style.display = 'none';
-  document.getElementById('sonarResults').style.display  = 'flex';
-  document.getElementById('sonarResults').style.flexDirection = 'column';
-  document.getElementById('sonarFilter').value = 'all';
-  _applySonarFilter();
-  // Update integrity bar on IMEI vault
-  _updateIntegrityBar();
-  var intBar = document.getElementById('integrityBar');
-  if (intBar) intBar.style.display = 'flex';
-}
-
-function _applySonarFilter() {
-  var filter   = (document.getElementById('sonarFilter') || {}).value || 'all';
-  var imeis    = _getIMEI();
-  var scanned  = Array.from(_sonarScanned);
-  var inStock  = imeis.filter(function(r){ return r.status === 'in_stock'; });
-  var body     = document.getElementById('sonarResultsBody');
-  if (!body) return;
-
-  var rows = [];
-
-  if (filter === 'all') {
-    // All scanned codes with their vault status
-    rows = scanned.map(function(code) {
-      var rec = imeis.find(function(r){ return r.imei === code; });
-      return { code: code, name: rec ? rec.productName : '—', found: !!rec, status: rec ? rec.status : 'unknown', isUnscannedInventory: false };
-    });
-  } else if (filter === 'missing') {
-    // Scanned but NOT in vault
-    rows = scanned.filter(function(code){ return !imeis.find(function(r){ return r.imei === code; }); })
-      .map(function(code){ return { code: code, name: '—', found: false, status: 'not_in_vault', isUnscannedInventory: false }; });
-  } else if (filter === 'unscanned') {
-    // In vault (in_stock) but NOT scanned
-    rows = inStock.filter(function(r){ return !_sonarScanned.has(r.imei); })
-      .map(function(r){ return { code: r.imei, name: r.productName || '—', found: true, status: 'unscanned', isUnscannedInventory: true }; });
-  } else if (filter === 'found') {
-    // Scanned AND found in vault
-    rows = scanned.filter(function(code){ return imeis.find(function(r){ return r.imei === code; }); })
-      .map(function(code) {
-        var rec = imeis.find(function(r){ return r.imei === code; });
-        return { code: code, name: rec ? rec.productName : '—', found: true, status: rec.status, isUnscannedInventory: false };
-      });
-  } else if (filter === 'group') {
-    // Find most common product name in scanned set, show all of that product
-    var nameCounts = {};
-    scanned.forEach(function(code) {
-      var rec = imeis.find(function(r){ return r.imei === code; });
-      var n   = rec ? (rec.productName || '—') : '—';
-      nameCounts[n] = (nameCounts[n] || 0) + 1;
-    });
-    var topName = Object.keys(nameCounts).sort(function(a,b){ return nameCounts[b]-nameCounts[a]; })[0] || '';
-    rows = imeis.filter(function(r){ return (r.productName || '—') === topName; })
-      .map(function(r) {
-        return { code: r.imei, name: r.productName || '—', found: true, status: r.status, isUnscannedInventory: !_sonarScanned.has(r.imei) };
-      });
-  } else if (filter === 'sold') {
-    // Scanned codes that are marked as sold
-    rows = scanned.filter(function(code){ var r = imeis.find(function(x){ return x.imei === code; }); return r && r.status === 'sold'; })
-      .map(function(code) {
-        var rec = imeis.find(function(r){ return r.imei === code; });
-        return { code: code, name: rec.productName || '—', found: true, status: 'sold', isUnscannedInventory: false };
-      });
-  }
-
-  if (!rows.length) {
-    body.innerHTML = '<div style="text-align:center;padding:32px;color:var(--muted);font-size:.88rem">No items match this filter.</div>';
-    return;
-  }
-
-  // Group by product name
-  var groups = {};
-  rows.forEach(function(r) {
-    var g = r.name || '—';
-    if (!groups[g]) groups[g] = [];
-    groups[g].push(r);
-  });
-
-  var html = '';
-  Object.keys(groups).sort().forEach(function(grpName) {
-    var grpRows = groups[grpName];
-    html += '<div style="margin-bottom:14px">'
-      + '<div style="font-size:.8rem;font-weight:700;color:var(--text);padding:6px 4px;border-bottom:1px solid var(--border);margin-bottom:6px">'
-      + _imeiEsc(grpName) + ' <span style="color:var(--muted);font-weight:400">(' + grpRows.length + ')</span></div>';
-    grpRows.forEach(function(r) {
-      var isRed   = !r.found || r.status === 'not_in_vault' || r.isUnscannedInventory;
-      var bg      = isRed ? 'rgba(239,68,68,.08)' : 'rgba(34,197,94,.08)';
-      var bdColor = isRed ? 'rgba(239,68,68,.25)' : 'rgba(34,197,94,.25)';
-      var dot     = isRed ? '#e53e3e' : '#16a34a';
-      var statusLbl = r.status === 'sold' ? '🔴 SOLD' : r.isUnscannedInventory ? '🔴 NOT SCANNED' : r.found ? '✅ FOUND' : '🔴 MISSING';
-      html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:' + bg + ';border:1px solid ' + bdColor + ';border-radius:8px;margin-bottom:4px">'
-        + '<div style="width:8px;height:8px;border-radius:50%;background:' + dot + ';flex-shrink:0"></div>'
-        + '<span style="font-family:monospace;font-size:.79rem;color:var(--text);flex:1">' + _imeiEsc(r.code) + '</span>'
-        + '<span style="font-size:.74rem;font-weight:700;color:' + dot + '">' + statusLbl + '</span>'
-        + '</div>';
-    });
-    html += '</div>';
-  });
-
-  // Summary stats
-  var found   = rows.filter(function(r){ return r.found && !r.isUnscannedInventory; }).length;
-  var missing = rows.filter(function(r){ return !r.found || r.isUnscannedInventory; }).length;
-  body.innerHTML = '<div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">'
-    + '<div style="flex:1;padding:10px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:10px;text-align:center"><div style="font-size:1.4rem;font-weight:800;color:#16a34a">' + found + '</div><div style="font-size:.72rem;color:var(--muted)">Confirmed</div></div>'
-    + '<div style="flex:1;padding:10px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:10px;text-align:center"><div style="font-size:1.4rem;font-weight:800;color:#e53e3e">' + missing + '</div><div style="font-size:.72rem;color:var(--muted)">Missing / Unscanned</div></div>'
-    + '<div style="flex:1;padding:10px;background:rgba(79,142,247,.1);border:1px solid rgba(79,142,247,.3);border-radius:10px;text-align:center"><div style="font-size:1.4rem;font-weight:800;color:#4f8ef7">' + rows.length + '</div><div style="font-size:.72rem;color:var(--muted)">Total</div></div>'
-    + '</div>' + html;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

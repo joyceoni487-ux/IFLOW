@@ -10488,70 +10488,63 @@ function _sonarStartScan() {
 }
 
 function _startSonarScanLoop(video, videoStat) {
+  var _lastRaw = '';
+  var fl = document.getElementById('sonarFlash');
+
+  function _detectedFlash(raw) {
+    if (raw === _lastRaw) return;
+    _lastRaw = raw;
+    if (fl) { fl.style.background = 'rgba(50,255,50,.35)'; fl.style.opacity = '1'; setTimeout(function(){ if(fl) fl.style.opacity='0'; }, 160); }
+    if (videoStat && !_intgSelected.has(raw)) videoStat.textContent = '⚡ Detected: ' + (raw.length > 20 ? raw.slice(0,18)+'…' : raw);
+  }
+
   if (!('BarcodeDetector' in window)) {
     var ocrLoop = function() {
       if (!_sonarStream) return;
       _runOcrOnFrame(video, function(codes) {
-        codes.forEach(function(code) { _onIntgScanned(code, videoStat); });
+        codes.forEach(function(code) { _detectedFlash(code); _onIntgScanned(code, videoStat); });
       }, videoStat);
       _sonarRAF = setTimeout(ocrLoop, 2500);
     };
     _sonarRAF = setTimeout(ocrLoop, 1200);
     return;
   }
-  BarcodeDetector.getSupportedFormats().then(function(supported) {
-    var wanted = ['code_128','code_39','ean_13','ean_8','qr_code','itf','pdf_417','aztec','data_matrix','codabar','upc_a','upc_e'];
-    var formats = wanted.filter(function(f){ return supported.indexOf(f) !== -1; });
-    if (!formats.length) formats = ['code_128','ean_13','qr_code'];
-    var det = new window.BarcodeDetector({ formats: formats });
-    var scan = function() {
+
+  var allFormats = ['code_128','code_39','ean_13','ean_8','qr_code','itf','pdf_417','aztec','data_matrix','codabar','upc_a','upc_e'];
+  var det = new window.BarcodeDetector({ formats: allFormats });
+
+  var scan = function() {
+    if (!_sonarStream) return;
+    det.detect(video).then(function(codes) {
       if (!_sonarStream) return;
-      det.detect(video).then(function(codes) {
-        if (!_sonarStream) return;
-        var anyHit = false;
-        for (var i = 0; i < codes.length; i++) {
-          var raw = codes[i].rawValue.trim();
-          if (raw) { _onIntgScanned(raw, videoStat); anyHit = true; }
-        }
-        if (!anyHit) {
-          _runOcrOnFrame(video, function(ocrCodes) {
-            ocrCodes.forEach(function(code){ _onIntgScanned(code, videoStat); });
-          }, videoStat);
-        }
-        _sonarRAF = setTimeout(scan, 200);
-      }).catch(function(){ _sonarRAF = setTimeout(scan, 300); });
-    };
-    _sonarRAF = setTimeout(scan, 300);
-  }).catch(function(){
-    var ocrLoop = function() {
-      if (!_sonarStream) return;
-      _runOcrOnFrame(video, function(codes) {
-        codes.forEach(function(code){ _onIntgScanned(code, videoStat); });
-      }, videoStat);
-      _sonarRAF = setTimeout(ocrLoop, 2500);
-    };
-    _sonarRAF = setTimeout(ocrLoop, 1200);
-  });
+      var anyHit = false;
+      for (var i = 0; i < codes.length; i++) {
+        var raw = codes[i].rawValue.trim();
+        if (!raw) continue;
+        anyHit = true;
+        _detectedFlash(raw);
+        _onIntgScanned(raw, videoStat);
+      }
+      if (!anyHit) {
+        _lastRaw = '';
+        _runOcrOnFrame(video, function(ocrCodes) {
+          ocrCodes.forEach(function(code){ _detectedFlash(code); _onIntgScanned(code, videoStat); });
+        }, videoStat);
+      }
+      _sonarRAF = setTimeout(scan, 200);
+    }).catch(function(){ _sonarRAF = setTimeout(scan, 300); });
+  };
+  _sonarRAF = setTimeout(scan, 300);
 }
 
 function _onIntgScanned(code, videoStat) {
-  if (!code) return;
-  var fl = document.getElementById('sonarFlash');
-  if (!_intgSelected.has(code)) {
-    // Detected but not in this search — amber pulse, no checklist change
-    if (fl) {
-      fl.style.background = 'rgba(251,191,36,.35)';
-      fl.style.opacity = '1';
-      setTimeout(function(){ if(fl){ fl.style.opacity='0'; fl.style.background='rgba(50,255,50,.35)'; } }, 180);
-    }
-    if (videoStat) videoStat.textContent = 'Detected (not in selection): …' + code.slice(-6);
-    return;
-  }
-  if (_intgFound.has(code)) return; // already confirmed
+  if (!code || !_intgSelected.has(code)) return;
+  if (_intgFound.has(code)) return;
   _intgFound.add(code);
   _sonarBeep();
   _renderChecklist();
   _updateScanProgress();
+  var fl = document.getElementById('sonarFlash');
   if (fl) { fl.style.background = 'rgba(50,255,50,.35)'; fl.style.opacity = '1'; setTimeout(function(){ if(fl) fl.style.opacity = '0'; }, 200); }
   if (videoStat) videoStat.textContent = 'Found: …' + code.slice(-6) + ' ✓';
 }

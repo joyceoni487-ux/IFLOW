@@ -9446,6 +9446,15 @@ function _ocrGetCanvas(video) {
   return _ocrCanvas;
 }
 
+function _levenshtein(a, b) {
+  var m = a.length, n = b.length, i, j;
+  var dp = []; for (i = 0; i <= m; i++) dp[i] = [i];
+  for (j = 0; j <= n; j++) dp[0][j] = j;
+  for (i = 1; i <= m; i++) for (j = 1; j <= n; j++)
+    dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+  return dp[m][n];
+}
+
 function _extractCodesFromOCR(text) {
   if (!text) return [];
   // Fix common OCR digit-substitution errors
@@ -10301,14 +10310,20 @@ function _openSonar() {
         if (!raw || !_sonarStream) return;
         raw = raw.trim();
         if (raw.length < 4) return;
-        var numOnly = raw.replace(/\D/g,'');
+        var numOnly     = raw.replace(/\D/g,'');
+        var isNumericOnly = /^\d+$/.test(raw);
         var vault   = typeof _getIMEI  === 'function' ? _getIMEI()  : [];
         var prods   = typeof _getProds === 'function' ? _getProds() : [];
         var inVault = vault.some(function(v){ return v.imei === raw; });
         var inStore = inVault || prods.some(function(p){ return p.code===raw||p.serialCode===raw; });
-        var isCode  = numOnly.length >= 8 || (raw.length >= 8 && /[0-9]/.test(raw)) || inStore;
+        // Camera numeric reads must be ≥14 digits — blocks partial barcode reads (10-12 digit fragments)
+        // OCR and alphanumeric codes use a shorter minimum since they're inherently deliberate/full-word
+        var isCode = fromOcr
+          ? (numOnly.length >= 8 || (raw.length >= 8 && /[0-9]/.test(raw)) || inStore)
+          : (isNumericOnly ? (numOnly.length >= 14 || inStore)
+                           : (raw.length >= 8 && /[0-9]/.test(raw)) || inStore);
         if (!isCode) return;
-        // Visual flash on first sight of a new code
+        // Show flash on first sighting of this code
         if (raw !== _lastDetected) {
           _lastDetected = raw;
           _confirmMap = {};
@@ -10317,13 +10332,22 @@ function _openSonar() {
           if (videoStat) videoStat.textContent = '⚡ Detected: ' + (raw.length > 20 ? raw.slice(0,18)+'…' : raw);
         }
         if (_sonarScanned.has(raw)) return;
-        // Debounce camera reads: require 2 consecutive detections to filter partial/noise reads
-        // OCR detections are accepted immediately (slower, more deliberate)
+        // Debounce camera reads: same code must be seen twice consecutively
         if (!fromOcr) {
           _confirmMap[raw] = (_confirmMap[raw] || 0) + 1;
           if (_confirmMap[raw] < 2) return;
         }
         delete _confirmMap[raw];
+        // Fuzzy-match against vault: if ≤2 digits differ and length matches, use vault IMEI
+        // This corrects digit transposition from ZXing or OCR
+        if (!inVault && numOnly.length >= 14) {
+          var fuzzy = vault.find(function(v) {
+            var vi = (v.imei || '').replace(/\D/g,'');
+            return vi.length === numOnly.length && _levenshtein(vi, numOnly) <= 2;
+          });
+          if (fuzzy) { raw = fuzzy.imei; inVault = true; }
+        }
+        if (_sonarScanned.has(raw)) return; // might now match after fuzzy substitution
         _sonarScanned.add(raw);
         if (inVault) { _sonarBeep(); } else { _sonarBeepUnknown(); }
         _sonarUpdateUI();

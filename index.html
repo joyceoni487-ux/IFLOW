@@ -1962,6 +1962,7 @@
             <th>Time</th>
             <th>Customer</th>
             <th>Product</th>
+            <th>IMEI / Serial</th>
             <th>Qty</th>
             <th>Unit Price</th>
             <th>Subtotal</th>
@@ -1970,7 +1971,7 @@
         </thead>
         <tbody id="salesBody">
           <tr id="emptyRow">
-            <td colspan="7">
+            <td colspan="10">
               <div class="empty-state">
                 <div class="icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:.4"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></div>
                 No sales recorded yet. Add your first sale above.
@@ -3642,8 +3643,10 @@
   let sales = JSON.parse(localStorage.getItem('iflow_sales') || '[]');
 
   // ── Draft rows: pending (uncommitted) sales entries ──
-  let _draftRows  = {};   // { rowIndex: { product, quantity, price, customer } }
+  let _draftRows  = {};   // { rowIndex: { product, quantity, price, customer, imei } }
   let _wipeTimers = {};   // { rowIndex: timeoutId }
+  let _imeiSaleRowIdx = -1;
+  let _imeiValidateTimer = null;
 
   function showWarning(msg) {
     const t = document.getElementById('saveToast');
@@ -5193,7 +5196,7 @@
         return toks.every(t => hay.includes(t));
       });
       if (matched.length === 0) {
-        body.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:28px;color:var(--muted);font-size:0.88rem;">No results for "${escHtml(query)}"</td></tr>`;
+        body.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:28px;color:var(--muted);font-size:0.88rem;">No results for "${escHtml(query)}"</td></tr>`;
       } else {
         matched.forEach(({ s, i }) => {
           const sub = s.quantity * s.price;
@@ -5205,10 +5208,11 @@
             <td class="cell-datetime">${fmtTime(s.timestamp)}</td>
             <td><input class="cell-input" value="${escAttr(s.customer)}" data-field="customer" data-index="${i}" /></td>
             <td><input class="cell-input product" value="${escAttr(s.product)}" data-field="product" data-index="${i}" data-prev-product="${escAttr(s.product)}" list="productsList" /></td>
+            <td style="position:relative;min-width:130px"><input class="cell-input" value="${escAttr(s.imei||'')}" data-field="imei" data-index="${i}" placeholder="IMEI…" style="padding-right:24px;font-family:monospace;font-size:.78rem" /><button onclick="_scanSaleIMEI(${i})" style="position:absolute;right:3px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:.8rem;padding:0" title="Scan">📷</button></td>
             <td><input class="cell-input" type="number" min="1" value="${s.quantity}" data-field="quantity" data-index="${i}" data-val="${s.quantity}" data-committed-qty="${s.quantity}" /></td>
             <td><input class="cell-input" type="number" min="0" step="0.01" value="${s.price}" data-field="price" data-index="${i}" data-val="${s.price}" /></td>
             <td class="cell-subtotal" data-val="${sub}">${getCurrency()}${fmtComma(sub)}</td>
-            <td class="cell-action"><button class="btn-terminate" onclick="confirmDeleteRow(${i})" title="Delete row">&#9632;</button></td>
+            <td class="cell-action"><button class="btn-terminate" onclick="confirmDeleteRow(${i})" title="Delete row">&#9632;</button><button onclick="_printSaleReceipt(${i})" style="background:none;border:none;cursor:pointer;font-size:.82rem;padding:2px 3px" title="Print Receipt">🧾</button><button onclick="_reverseSale(${i})" style="background:none;border:none;cursor:pointer;font-size:.8rem;padding:2px 3px;color:#d97706" title="Reverse Sale">↩</button></td>
           `;
           body.appendChild(tr);
         });
@@ -5235,10 +5239,11 @@
         <td class="cell-datetime">${s ? fmtTime(s.timestamp) : ''}</td>
         <td><input class="cell-input" value="${s ? escAttr(s.customer) : ''}" placeholder="${isEntry ? 'Customer name…' : ''}" data-field="customer" data-index="${i}" /></td>
         <td><input class="cell-input product" value="${s ? escAttr(s.product) : ''}" placeholder="${isEntry ? 'Product name…' : ''}" data-field="product" data-index="${i}" data-prev-product="${s ? escAttr(s.product) : ''}" list="productsList" /></td>
+        <td style="position:relative;min-width:130px"><input class="cell-input" value="${s ? escAttr(s.imei||'') : ''}" placeholder="${isEntry ? 'IMEI / Serial…' : ''}" data-field="imei" data-index="${i}" style="padding-right:24px;font-family:monospace;font-size:.78rem" /><button onclick="_scanSaleIMEI(${i})" style="position:absolute;right:3px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:.8rem;padding:0" title="Scan IMEI">📷</button></td>
         <td><input class="cell-input" type="number" min="1" value="${s ? s.quantity : ''}" placeholder="${isEntry ? 'Qty' : ''}" data-field="quantity" data-index="${i}" data-val="${s ? s.quantity : ''}" data-committed-qty="${s ? s.quantity : '0'}" /></td>
         <td><input class="cell-input" type="number" min="0" step="0.01" value="${s ? s.price : ''}" placeholder="${isEntry ? 'Price' : ''}" data-field="price" data-index="${i}" data-val="${s ? s.price : ''}" /></td>
         <td class="cell-subtotal" data-val="${sub !== null ? sub : ''}">${sub !== null ? getCurrency() + fmtComma(sub) : ''}</td>
-        <td class="cell-action">${s ? `<button class="btn-terminate" onclick="confirmDeleteRow(${i})" title="Delete row">&#9632;</button>` : ''}</td>
+        <td class="cell-action">${s ? `<button class="btn-terminate" onclick="confirmDeleteRow(${s ? i : i})" title="Delete row">&#9632;</button><button onclick="_printSaleReceipt(${i})" style="background:none;border:none;cursor:pointer;font-size:.82rem;padding:2px 3px" title="Print Receipt">🧾</button><button onclick="_reverseSale(${i})" style="background:none;border:none;cursor:pointer;font-size:.8rem;padding:2px 3px;color:#d97706" title="Reverse Sale">↩</button>` : ''}</td>
       `;
       body.appendChild(tr);
     }
@@ -5258,6 +5263,24 @@
 
     // Don't persist/create row for the product field — wait for focusout validation
     if (field === 'product') return;
+
+    // IMEI field: buffer + debounced validation
+    if (field === 'imei') {
+      const imeiVal = val.trim();
+      if (!sales[i]) {
+        if (!_draftRows[i]) _draftRows[i] = {};
+        _draftRows[i].imei = imeiVal;
+        clearTimeout(_imeiValidateTimer);
+        if (imeiVal.length >= 6) {
+          _imeiValidateTimer = setTimeout(() => { _validateSaleIMEI(imeiVal, i, inp.closest('tr')); }, 700);
+        }
+      } else {
+        sales[i].imei = imeiVal;
+        persist();
+        if (imeiVal.length >= 6) _validateSaleIMEI(imeiVal, i, inp.closest('tr'), true);
+      }
+      return;
+    }
 
     // For uncommitted rows, buffer into _draftRows instead of sales[]
     if (!sales[i]) {
@@ -5353,6 +5376,7 @@
         const quantity = draft.quantity !== undefined ? draft.quantity : parseFloat(tr?.querySelector('[data-field="quantity"]')?.value) || 0;
         const price    = draft.price    !== undefined ? draft.price    : parseFloat(tr?.querySelector('[data-field="price"]')?.value);
         const customer = draft.customer !== undefined ? draft.customer : (tr?.querySelector('[data-field="customer"]')?.value.trim() || '');
+        const imei     = draft.imei     !== undefined ? draft.imei     : (tr?.querySelector('[data-field="imei"]')?.value.trim() || '');
         const match    = product ? findStockProduct(product) : null;
 
         // Check stock before committing
@@ -5362,16 +5386,34 @@
             _scheduleWipe(i, tr);
             return;
           }
+          // IMEI is required
+          if (!imei) {
+            showWarning('⚠️ IMEI / Serial number is required for every sale.');
+            _scheduleWipe(i, tr);
+            return;
+          }
+          // Validate IMEI against vault
+          const vaultArr = _getIMEI();
+          const vaultRec = vaultArr.find(v => v.imei === imei);
+          if (!vaultRec) {
+            const suggestions = _closestIMEIs(imei).slice(0,3).map(r => r.imei.slice(0,8)+'… ('+r.productName+')').join(', ');
+            showWarning(`⚠️ IMEI "${imei.slice(0,10)}…" not found in inventory.${suggestions ? ' Closest: '+suggestions : ''}`);
+            _scheduleWipe40(i, tr); // 40-second timeout for invalid IMEI
+            return;
+          }
           // All required fields present — commit the sale
           const ts = Date.now();
           sales[i] = {
             customer: customer || '',
             product,
+            imei,
             quantity,
             price: isNaN(price) ? match.unitPrice : price,
             timestamp: ts
           };
           deductStock(product, quantity);
+          // Mark IMEI as sold in vault
+          if (vaultRec) { _markIMEISold(imei, customer || ''); }
           persist();
           SheetsAPI.withToken(() => SheetsAPI.updateRow(i, sales[i]));
           updateOrdersBadge();
@@ -5385,6 +5427,7 @@
           const missing = [];
           if (!product)      missing.push('product');
           if (!(quantity>0)) missing.push('quantity');
+          if (!imei)         missing.push('IMEI');
           showWarning(`⚠️ Incomplete entry — missing: ${missing.join(', ')}. Row clears in 1 min.`);
           _scheduleWipe(i, tr);
         }
@@ -5502,6 +5545,120 @@
         setTimeout(() => render(), 0);
       }
     }, 60000);
+  }
+
+  function _scheduleWipe40(i, tr) {
+    clearTimeout(_wipeTimers[i]);
+    _wipeTimers[i] = setTimeout(() => {
+      delete _draftRows[i];
+      delete _wipeTimers[i];
+      if (tr && tr.isConnected) {
+        tr.querySelectorAll('.cell-input').forEach(inp => {
+          inp.value = ''; inp.dataset.val = ''; inp.dataset.prevProduct = ''; inp.dataset.committedQty = '0';
+        });
+      } else {
+        setTimeout(() => render(), 0);
+      }
+    }, 40000);
+  }
+
+  function _closestIMEIs(imei) {
+    var vault = _getIMEI();
+    var numQuery = (imei || '').replace(/\D/g, '');
+    return vault
+      .filter(v => v.status === 'in_stock')
+      .map(v => {
+        var vNum = (v.imei || '').replace(/\D/g, '');
+        var dist = (vNum.length === numQuery.length && numQuery.length >= 6)
+          ? _levenshtein(vNum, numQuery) : 999;
+        return { imei: v.imei, productName: v.productName || '', dist };
+      })
+      .filter(r => r.dist < 5)
+      .sort((a, b) => a.dist - b.dist);
+  }
+
+  function _validateSaleIMEI(imei, rowIdx, tr, isTyped) {
+    if (!imei) return;
+    var vault = _getIMEI();
+    var rec = vault.find(v => v.imei === imei);
+    var cell = tr ? tr.querySelector('[data-field="imei"]') : null;
+    if (!cell) return;
+    if (rec) {
+      cell.style.outline = '2px solid #22c55e';
+      cell.title = (rec.status === 'in_stock' ? 'In stock' : 'Already sold') + ': ' + (rec.productName || '');
+    } else {
+      cell.style.outline = '2px solid #d97706';
+      if (isTyped) {
+        var closest = _closestIMEIs(imei)[0];
+        cell.title = closest
+          ? 'Not found. Closest: ' + closest.imei.slice(0, 8) + '… (' + closest.productName + ')'
+          : 'IMEI not found in vault';
+      }
+    }
+  }
+
+  function _scanSaleIMEI(rowIndex) {
+    _imeiSaleRowIdx = rowIndex;
+    _openCameraScanner('sale');
+  }
+
+  function _printSaleReceipt(i) {
+    var s = sales[i];
+    if (!s) { showToast('Sale record not found'); return; }
+    var cur = typeof getCurrency === 'function' ? getCurrency() : '₦';
+    var fmtC = typeof fmtComma === 'function' ? fmtComma : function(n){ return Number(n).toFixed(2); };
+    var subtotal = (s.quantity || 1) * (s.price || 0);
+    var dt = s.timestamp ? new Date(s.timestamp) : new Date();
+    var bizName = (JSON.parse(localStorage.getItem('iflow_settings') || '{}').businessName) || 'IFLOW';
+    var w = window.open('', '_blank', 'width=420,height=640');
+    if (!w) { showToast('Pop-up blocked — allow pop-ups to print'); return; }
+    w.document.write('<!DOCTYPE html><html><head><title>Receipt</title><style>'
+      + 'body{font-family:monospace;padding:24px;max-width:360px;margin:0 auto}'
+      + 'h2{text-align:center;margin:0 0 4px;font-size:1.1rem}'
+      + '.sub{text-align:center;color:#555;font-size:.8rem;margin-bottom:10px}'
+      + '.sep{border:none;border-top:1px dashed #333;margin:10px 0}'
+      + '.row{display:flex;justify-content:space-between;margin:4px 0;font-size:.88rem}'
+      + '.label{color:#555}.total{font-weight:bold;font-size:1rem}'
+      + '.imei{font-size:.75rem;word-break:break-all}'
+      + '.footer{text-align:center;font-size:.78rem;color:#777;margin-top:18px}'
+      + '@media print{body{padding:0}}'
+      + '</style></head><body>'
+      + '<h2>' + bizName + '</h2>'
+      + '<div class="sub">SALE RECEIPT</div>'
+      + '<hr class="sep">'
+      + '<div class="row"><span class="label">Date:</span><span>' + dt.toLocaleDateString() + '</span></div>'
+      + '<div class="row"><span class="label">Time:</span><span>' + dt.toLocaleTimeString() + '</span></div>'
+      + '<div class="row"><span class="label">Customer:</span><span>' + (s.customer || '—') + '</span></div>'
+      + '<hr class="sep">'
+      + '<div class="row"><span class="label">Product:</span><span>' + (s.product || '—') + '</span></div>'
+      + '<div class="row imei"><span class="label">IMEI / Serial:</span><span>' + (s.imei || '—') + '</span></div>'
+      + '<div class="row"><span class="label">Qty:</span><span>' + (s.quantity || 1) + '</span></div>'
+      + '<div class="row"><span class="label">Unit Price:</span><span>' + cur + fmtC(s.price || 0) + '</span></div>'
+      + '<hr class="sep">'
+      + '<div class="row total"><span>TOTAL:</span><span>' + cur + fmtC(subtotal) + '</span></div>'
+      + '<div class="footer">Thank you for your purchase</div>'
+      + '</body></html>');
+    w.document.close();
+    setTimeout(function() { w.focus(); w.print(); }, 400);
+  }
+
+  function _reverseSale(i) {
+    var s = sales[i];
+    if (!s) { showToast('Sale record not found'); return; }
+    openPwGate('↩ Reverse Sale', 'Enter your password to reverse this sale and return the IMEI to stock.', function() {
+      if (s.imei) {
+        var vault = _getIMEI();
+        var vRec = vault.find(v => v.imei === s.imei);
+        if (vRec) { vRec.status = 'in_stock'; delete vRec.customerName; _saveIMEI(vault); }
+      }
+      if (s.product && s.quantity) { deductStock(s.product, -s.quantity); }
+      sales.splice(i, 1);
+      persist();
+      updateOrdersBadge();
+      _refreshProfitStat();
+      setTimeout(() => render(), 0);
+      showToast('Sale reversed — IMEI returned to stock');
+    });
   }
 
   function wipeRow(i, tr, prevProduct, toastMsg) {
@@ -9544,7 +9701,7 @@ function _openCameraScanner(mode) {
   if (result) result.style.display = 'none';
   if (inp) inp.value = '';
   if (title) {
-    var labels = { lookup:'📷 Scan to Look Up', add:'📷 Scan to Add IMEI', audit:'📷 Scan for Audit' };
+    var labels = { lookup:'📷 Scan to Look Up', add:'📷 Scan to Add IMEI', audit:'📷 Scan for Audit', sale:'📷 Scan IMEI for Sale' };
     title.textContent = labels[mode] || '📷 Scan Barcode / IMEI';
   }
 
@@ -9560,24 +9717,39 @@ function _openCameraScanner(mode) {
       video.srcObject = stream;
       video.play();
       var _scanFb = document.getElementById('imeiScanFeedback');
+      // Clear any stale error message now that camera is live
+      if (_scanFb) { _scanFb.textContent = 'Point camera at barcode or IMEI'; }
+      if (noticeEl) { noticeEl.style.display = 'none'; }
 
-      if ('BarcodeDetector' in window) {
+      if (typeof ZXing !== 'undefined' && ZXing.BrowserMultiFormatReader) {
+        // ZXing universal barcode detection
+        var _czReader = new ZXing.BrowserMultiFormatReader(null, 80);
+        var _czScan = function() {
+          if (!_imeiScanStream) return;
+          _czReader.decodeFromVideoElement(video).then(function(result) {
+            if (!_imeiScanStream) return;
+            var raw = result.getText().trim();
+            if (raw) { _processIMEIValue(raw, true); }
+            _imeiScanRAF = setTimeout(_czScan, 80);
+          }).catch(function() {
+            _runOcrOnFrame(video, function(codes) {
+              if (!_imeiScanStream) return;
+              codes.forEach(function(c) { _processIMEIValue(c, true); });
+            }, _scanFb);
+            _imeiScanRAF = setTimeout(_czScan, 200);
+          });
+        };
+        _imeiScanRAF = setTimeout(_czScan, 300);
+      } else if ('BarcodeDetector' in window) {
         var _allFormats = ['code_128','code_39','ean_13','ean_8','qr_code','itf','pdf_417','aztec','data_matrix','codabar','upc_a','upc_e'];
         var detector = new window.BarcodeDetector({ formats: _allFormats });
         var scan = function() {
           if (!_imeiScanStream) return;
           detector.detect(video).then(function(barcodes) {
             for (var b = 0; b < barcodes.length; b++) {
-              var raw     = barcodes[b].rawValue.trim();
-              var numOnly = raw.replace(/\D/g,'');
-              var prods   = typeof _getProds === 'function' ? _getProds() : [];
-              var isProd  = prods.some(function(p){ return p.code && (p.code === raw || p.code.replace(/-/g,'') === raw.replace(/-/g,'')); });
-              if (numOnly.length >= 13 || isProd) {
-                _processIMEIValue(raw, true);
-                return;
-              }
+              var raw = barcodes[b].rawValue.trim();
+              if (raw) { _processIMEIValue(raw, true); return; }
             }
-            // No barcode detected — fall back to OCR for plain-text IMEI on screen
             _runOcrOnFrame(video, function(codes) {
               if (!_imeiScanStream) return;
               codes.forEach(function(c) { _processIMEIValue(c, true); });
@@ -9587,7 +9759,7 @@ function _openCameraScanner(mode) {
         };
         _imeiScanRAF = setTimeout(scan, 300);
       } else {
-        // No BarcodeDetector — OCR-only mode
+        // OCR-only fallback
         if (noticeEl) { noticeEl.textContent = 'Auto-detecting IMEI via text recognition…'; noticeEl.style.display = 'block'; }
         var scan = function() {
           if (!_imeiScanStream) return;
@@ -9642,6 +9814,25 @@ function _processIMEIValue(val, fromCamera) {
       }, 350);
     }, 300);
     showToast('📦 Found: ' + _prodCodeMatch.name);
+    return;
+  }
+
+  // ── Sale mode: fill IMEI into the sale row ────────────────────────────────────
+  if (_imeiScanMode === 'sale') {
+    _closeIMEIScan();
+    var _saleInp = document.querySelector('[data-field="imei"][data-index="' + _imeiSaleRowIdx + '"]');
+    var _saleTr  = _saleInp ? _saleInp.closest('tr') : null;
+    if (_saleInp) {
+      var _existing = _saleInp.value.trim();
+      if (_existing && _existing !== val) {
+        showToast('⚠ Scanner overrides previous IMEI "' + _existing.slice(0,8) + '…"');
+      }
+      _saleInp.value = val;
+      if (!_draftRows[_imeiSaleRowIdx]) _draftRows[_imeiSaleRowIdx] = {};
+      _draftRows[_imeiSaleRowIdx].imei = val;
+      _validateSaleIMEI(val, _imeiSaleRowIdx, _saleTr, false);
+    }
+    _imeiSaleRowIdx = -1;
     return;
   }
 

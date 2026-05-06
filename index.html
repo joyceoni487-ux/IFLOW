@@ -9527,29 +9527,35 @@ function renderIMEIVault() {
 
   var html = '';
   filtered.forEach(function(r, i) {
-    var isSold    = r.status === 'sold';
+    var isSold           = r.status === 'sold';
+    var isScannedUnknown = r.status === 'scanned_unknown';
     var isAuditOK = _auditSession && _auditSession.has(r.imei);
-    var isAuditNG = _auditSession && !_auditSession.has(r.imei) && !isSold;
-    // Integrity overrides audit when active
-    var isIntOK   = _intBarVisible && !isSold && _intConfirmed.indexOf(r.imei) !== -1;
-    var isIntNG   = _intBarVisible && !isSold && _intConfirmed.indexOf(r.imei) === -1;
+    var isAuditNG = _auditSession && !_auditSession.has(r.imei) && !isSold && !isScannedUnknown;
+    // Integrity overrides audit when active; unknown/scanned entries don't count as stock
+    var isIntOK   = _intBarVisible && !isSold && !isScannedUnknown && _intConfirmed.indexOf(r.imei) !== -1;
+    var isIntNG   = _intBarVisible && !isSold && !isScannedUnknown && _intConfirmed.indexOf(r.imei) === -1;
     var rowBg     = isIntOK  ? 'rgba(37,99,235,.13)'
                   : isIntNG  ? 'rgba(245,158,11,.08)'
                   : isAuditOK ? 'rgba(34,197,94,.09)' : (isAuditNG ? 'rgba(245,158,11,.09)' : '');
     var badge     = isSold  ? '<span style="background:rgba(100,116,139,.15);color:#64748b;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">SOLD</span>'
+                  : isScannedUnknown ? '<span style="background:rgba(107,114,128,.12);color:#6b7280;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">SCANNED</span>'
                   : isIntOK ? '<span style="background:rgba(37,99,235,.18);color:#3b82f6;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">✅ CONFIRMED</span>'
                   : isIntNG ? '<span style="background:rgba(245,158,11,.15);color:#d97706;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">⚠ UNSCANNED</span>'
                   : isAuditNG ? '<span style="background:rgba(245,158,11,.15);color:#d97706;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">⚠ NOT SCANNED</span>'
                   : '<span style="background:rgba(34,197,94,.15);color:#16a34a;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">IN STOCK</span>';
+    var addedCell = (r.addedAt ? new Date(r.addedAt).toLocaleDateString() : '—')
+      + (r.lastSeen ? '<br><span style="font-size:.69rem;color:var(--muted)">Seen: ' + new Date(r.lastSeen).toLocaleDateString()
+          + (r.scanCount > 1 ? ' ×' + r.scanCount : '') + '</span>' : '');
     html += '<tr id="imei-row-' + _imeiEsc(r.imei) + '" style="transition:background .35s;background:' + rowBg + '">'
       + '<td class="row-num">' + (i+1) + '</td>'
       + '<td style="padding:10px 14px;font-family:monospace;font-size:.82rem;font-weight:700;color:var(--text)">' + _imeiEsc(r.imei) + '</td>'
       + '<td style="padding:10px 14px;font-weight:600;color:var(--text)">'  + _imeiEsc(r.productName || '—') + '</td>'
       + '<td style="padding:10px 14px">' + badge + '</td>'
-      + '<td style="padding:10px 14px;font-size:.79rem;color:var(--muted)">' + (r.addedAt ? new Date(r.addedAt).toLocaleDateString() : '—') + '</td>'
+      + '<td style="padding:10px 14px;font-size:.79rem;color:var(--muted)">' + addedCell + '</td>'
       + '<td style="padding:10px 14px;font-size:.79rem;color:var(--muted)">' + _imeiEsc(r.customerName || (isSold ? 'Sold' : '—')) + '</td>'
       + '<td class="cell-action">'
-        + (!isSold ? '<button onclick="_markIMEISold(\'' + _imeiEsc(r.imei) + '\')" style="padding:4px 10px;font-size:.71rem;background:rgba(239,68,68,.1);color:#e53e3e;border:1px solid rgba(239,68,68,.25);border-radius:6px;cursor:pointer;margin-right:4px">Mark Sold</button>' : '')
+        + (!isSold && !isScannedUnknown ? '<button onclick="_markIMEISold(\'' + _imeiEsc(r.imei) + '\')" style="padding:4px 10px;font-size:.71rem;background:rgba(239,68,68,.1);color:#e53e3e;border:1px solid rgba(239,68,68,.25);border-radius:6px;cursor:pointer;margin-right:4px">Mark Sold</button>' : '')
+        + (isScannedUnknown ? '<button onclick="_openIMEILink(\'' + _imeiEsc(r.imei) + '\')" style="padding:4px 10px;font-size:.71rem;background:rgba(99,102,241,.1);color:#6366f1;border:1px solid rgba(99,102,241,.25);border-radius:6px;cursor:pointer;margin-right:4px">Link</button>' : '')
         + '<button onclick="_deleteIMEIRecord(\'' + _imeiEsc(r.imei) + '\')" style="padding:4px 8px;font-size:.71rem;background:none;color:var(--muted);border:none;cursor:pointer" title="Delete">✕</button>'
       + '</td>'
       + '</tr>';
@@ -10016,10 +10022,11 @@ function _processIMEIValue(val, fromCamera) {
   // 'add' mode: auto-open the link modal immediately, no intermediate step
   if (_imeiScanMode === 'add') {
     var _addImeis = _getIMEI();
-    var _addRec   = _addImeis.find(function(r){ return r.imei === val; });
+    var _addNorm  = val.replace(/[\s\-]/g, '');
+    var _addRec   = _addImeis.find(function(r){ return (r.imei||'').replace(/[\s\-]/g,'') === _addNorm; });
     if (_addRec) {
       _closeIMEIScan();
-      showToast('IMEI already in vault: ' + (_addRec.productName || val.slice(0,8) + '…'));
+      _openIMEIRelink(_addRec, val); // show relink form instead of plain toast
     } else {
       _openIMEILink(val);
     }
@@ -10059,6 +10066,11 @@ function _openIMEILink(imei) {
   var sel    = document.getElementById('imeiLinkProductSelect');
   var search = document.getElementById('imeiLinkSearch');
   if (!modal || !sel) return;
+  // If this IMEI is already a transcript-only entry (scanned_unknown), treat as relink
+  var _existingRec = (typeof _getIMEI === 'function' ? _getIMEI() : []).find(function(r){
+    return (r.imei||'').replace(/[\s\-]/g,'') === imei.replace(/[\s\-]/g,'');
+  });
+  modal._relinkMode = !!(_existingRec && _existingRec.status === 'scanned_unknown');
   if (disp) disp.textContent = 'IMEI: ' + imei;
   modal._pendingIMEI = imei;
   if (search) search.value = '';
@@ -10082,23 +10094,60 @@ function _openIMEILink(imei) {
   modal.style.display = 'flex';
 }
 
+function _openIMEIRelink(existingRec, imei) {
+  var modal  = document.getElementById('imeiLinkModal');
+  var disp   = document.getElementById('imeiLinkIMEIDisplay');
+  var sel    = document.getElementById('imeiLinkProductSelect');
+  var search = document.getElementById('imeiLinkSearch');
+  if (!modal || !sel) return;
+  if (disp) disp.innerHTML = 'IMEI: <strong style="font-family:monospace">' + _imeiEsc(imei) + '</strong>'
+    + '<br><span style="font-size:.78rem;color:#d97706;margin-top:2px;display:block">⚠ Already linked to: <strong>'
+    + _imeiEsc(existingRec.productName || 'Unknown') + '</strong> [' + _imeiEsc(existingRec.status || 'unknown') + ']'
+    + ' — choose a product below to relink</span>';
+  modal._pendingIMEI = imei;
+  modal._relinkMode  = true;
+  if (search) search.value = '';
+  var prods     = typeof _getProds === 'function' ? _getProds() : [];
+  var imeiProds = prods.filter(function(p){ return p.isIMEITracked; });
+  var otherProd = prods.filter(function(p){ return !p.isIMEITracked; });
+  sel._allOptions = imeiProds.concat(otherProd).map(function(p) {
+    return { value: p.code, name: p.name, text: p.name + (p.isIMEITracked ? ' 📱' : '') };
+  });
+  sel.innerHTML = '<option value="">— Choose product to relink —</option>';
+  sel._allOptions.forEach(function(o) {
+    var opt = document.createElement('option');
+    opt.value = o.value; opt.dataset.name = o.name; opt.textContent = o.text;
+    sel.appendChild(opt);
+  });
+  _imeiSetMode('link');
+  modal.style.display = 'flex';
+}
+
 function _confirmIMEILink() {
   var modal  = document.getElementById('imeiLinkModal');
   var sel    = document.getElementById('imeiLinkProductSelect');
   if (!modal || !sel) return;
   var imei = modal._pendingIMEI;
   var code = sel.value;
-  var name = sel.options[sel.selectedIndex]?.dataset?.name || sel.options[sel.selectedIndex]?.text || '';
+  var name = (sel.options[sel.selectedIndex] && (sel.options[sel.selectedIndex].dataset.name || sel.options[sel.selectedIndex].text)) || '';
   if (!imei || !code) { showToast('Choose a product first'); return; }
-  var arr = _getIMEI();
+  var arr      = _getIMEI();
   var normImei = imei.replace(/[\s\-]/g,'');
-  if (arr.find(function(r){ return (r.imei||'').replace(/[\s\-]/g,'') === normImei; })) { showToast('IMEI already in vault'); modal.style.display='none'; return; }
-  arr.push({ imei: imei, productCode: code, productName: name, status: 'in_stock', addedAt: new Date().toISOString() });
+  var existing = arr.find(function(r){ return (r.imei||'').replace(/[\s\-]/g,'') === normImei; });
+  if (existing && !modal._relinkMode) { showToast('IMEI already in vault'); modal.style.display='none'; return; }
+  if (existing) {
+    existing.productCode = code;
+    existing.productName = name;
+    existing.relinkAt    = new Date().toISOString();
+  } else {
+    arr.push({ imei: imei, productCode: code, productName: name, status: 'in_stock', addedAt: new Date().toISOString() });
+  }
+  modal._relinkMode = false;
   _saveIMEI(arr);
   modal.style.display = 'none';
   navigateTo('products');
   setTimeout(function(){ switchProdTab('imei'); renderIMEIVault(); _highlightIMEIRow(imei); }, 300);
-  showToast('IMEI ' + imei.slice(0,6) + '… added to vault ✓');
+  showToast((existing ? 'Relinked to ' : 'IMEI ') + name.slice(0,25) + ' ✓');
 }
 
 function _imeiSetMode(mode) {
@@ -10217,8 +10266,15 @@ function _novaIMEIContext() {
   if (!imeis.length) return '';
   var inStock = imeis.filter(function(r){ return r.status === 'in_stock'; });
   var sold    = imeis.filter(function(r){ return r.status === 'sold'; });
-  return '\nIMEI Vault: ' + inStock.length + ' units in stock, ' + sold.length + ' sold. '
-    + 'You can find a product by IMEI using action {"type":"findIMEI","imei":"..."}.';
+  var lines   = imeis.slice(0, 60).map(function(r) {
+    return '  ' + (r.imei || '?') + ' -> ' + (r.productName || 'Unknown')
+      + ' [' + (r.status || 'unknown') + ']'
+      + (r.customerName ? ' sold-to:' + r.customerName : '')
+      + (r.lastSeen ? ' last-seen:' + r.lastSeen.slice(0,10) : '');
+  });
+  return '\nIMEI Vault (' + inStock.length + ' in-stock, ' + sold.length + ' sold):\n'
+    + lines.join('\n')
+    + '\nUse action {"type":"findIMEI","imei":"..."} to navigate to an IMEI in the vault.';
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -10722,6 +10778,20 @@ function _openSonar() {
         }
         delete _confirmMap[raw];
         _sonarScanned.add(raw);
+        // Vault transcript: stamp lastSeen + increment scanCount; create scanned_unknown entry if new
+        (function() {
+          var _tArr  = typeof _getIMEI === 'function' ? _getIMEI() : [];
+          var _tNorm = raw.replace(/[\s\-]/g, '');
+          var _tNow  = new Date().toISOString();
+          var _tIdx  = _tArr.findIndex(function(r){ return (r.imei||'').replace(/[\s\-]/g,'') === _tNorm; });
+          if (_tIdx >= 0) {
+            _tArr[_tIdx].lastSeen  = _tNow;
+            _tArr[_tIdx].scanCount = (_tArr[_tIdx].scanCount || 0) + 1;
+          } else {
+            _tArr.push({ imei: raw, productCode: '', productName: 'Unknown', status: 'scanned_unknown', addedAt: _tNow, lastSeen: _tNow, scanCount: 1 });
+          }
+          _saveIMEI(_tArr);
+        })();
         if (inStore) { _sonarBeep(); } else { _sonarBeepUnknown(); }
         _sonarUpdateUI();
         if (videoStat) videoStat.textContent = '✅ ' + raw;
@@ -10735,11 +10805,37 @@ function _openSonar() {
           if (ZXing.DecodeHintType) hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
           var _zxReader = new ZXing.BrowserMultiFormatReader(hints, 50);
           _sonarZXing = _zxReader;
+          // Snapshot approach: accumulate all reads over a 350ms window, then
+          // pick the candidate that matches vault/products — or longest if none match.
+          // This corrects partial reads where the same barcode yields different digit counts.
+          var _pendingRaws = {}, _pendingTimer = null;
           _zxReader.decodeFromVideoElementContinuously(video, function(result, err) {
             if (!_sonarStream) return;
             if (Date.now() < _pauseUntil) return;
             if (result) {
-              _onCodeFound(result.getText ? result.getText() : result.text, false);
+              var _zxRaw = (result.getText ? result.getText() : result.text || '').trim();
+              if (!_zxRaw || _zxRaw.length < 5) return;
+              _pendingRaws[_zxRaw] = (_pendingRaws[_zxRaw] || 0) + 1;
+              if (_pendingTimer) return; // already collecting
+              _pendingTimer = setTimeout(function() {
+                _pendingTimer = null;
+                if (!_sonarStream) { _pendingRaws = {}; return; }
+                var _cands = Object.keys(_pendingRaws);
+                _pendingRaws = {};
+                if (!_cands.length) return;
+                var _v2 = typeof _getIMEI  === 'function' ? _getIMEI()  : [];
+                var _p2 = typeof _getProds === 'function' ? _getProds() : [];
+                // Start with the longest read as default best
+                var _best = _cands.reduce(function(a, c) { return c.length > a.length ? c : a; }, _cands[0]);
+                // Prefer any candidate that matches vault or products exactly
+                _cands.forEach(function(c) {
+                  var _n = c.replace(/[\s\-]/g, '');
+                  var _hit = _v2.some(function(v){ return (v.imei||'').replace(/[\s\-]/g,'') === _n; })
+                          || _p2.some(function(p){ return (p.code||'').replace(/[\s\-]/g,'') === _n || (p.serialCode||'').replace(/[\s\-]/g,'') === _n; });
+                  if (_hit) _best = c;
+                });
+                _onCodeFound(_best, false);
+              }, 350);
             } else {
               _lastDetected = '';
               _runOcrOnFrame(video, function(ocrCodes) {
@@ -10800,13 +10896,20 @@ function _sonarAddManual() {
   if (!inp) return;
   var val = inp.value.replace(/[^0-9a-zA-Z\-]/g,'').trim();
   if (!val || val.length < 4) { inp.focus(); return; }
+  var normVal = val.replace(/[\s\-]/g, '');
   var isNew   = !_sonarScanned.has(val);
-  var inVault = (typeof _getIMEI === 'function' ? _getIMEI() : []).some(function(v){ return v.imei === val; });
+  var vault   = typeof _getIMEI  === 'function' ? _getIMEI()  : [];
+  var prods   = typeof _getProds === 'function' ? _getProds() : [];
+  var inStore = vault.some(function(v){ return (v.imei||'').replace(/[\s\-]/g,'') === normVal; })
+             || prods.some(function(p){
+                  return (p.code||'').replace(/[\s\-]/g,'') === normVal
+                      || (p.serialCode||'').replace(/[\s\-]/g,'') === normVal;
+                });
   _sonarScanned.add(val);
-  if (isNew) { if (inVault) _sonarBeep(); else _sonarBeepUnknown(); }
+  if (isNew) { if (inStore) _sonarBeep(); else _sonarBeepUnknown(); }
   _sonarUpdateUI();
   inp.value = ''; inp.focus();
-  showToast(isNew ? '✅ Added: ' + val.slice(0,10) : 'Already in list');
+  showToast(isNew ? (inStore ? '✅ Added: ' + val.slice(0,10) : '⚠ Unknown: ' + val.slice(0,10)) : 'Already in list');
 }
 
 function _sonarUpdateUI() {

@@ -10296,7 +10296,7 @@ function _openSonar() {
   _initOcrWorker();
   var video = document.getElementById('sonarVideo');
   if (!video) return;
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280, min: 480 }, height: { ideal: 720, min: 360 } } })
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 640, min: 480 }, height: { ideal: 480, min: 360 } } })
     .catch(function(){ return navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); })
     .then(function(stream) {
       _sonarStream = stream;
@@ -10309,20 +10309,15 @@ function _openSonar() {
       var _onCodeFound = function(raw, fromOcr) {
         if (!raw || !_sonarStream) return;
         raw = raw.trim();
-        if (raw.length < 4) return;
-        var numOnly       = raw.replace(/\D/g,'');
-        var isNumericOnly = /^\d+$/.test(raw);
-        var vault  = typeof _getIMEI  === 'function' ? _getIMEI()  : [];
-        var prods  = typeof _getProds === 'function' ? _getProds() : [];
+        if (raw.length < 5) return;
+        var numOnly = raw.replace(/\D/g,'');
+        var vault   = typeof _getIMEI  === 'function' ? _getIMEI()  : [];
+        var prods   = typeof _getProds === 'function' ? _getProds() : [];
+        // Exact vault/product match
         var inVault = vault.some(function(v){ return v.imei === raw; });
         var inProds = prods.some(function(p){ return p.code===raw||p.serialCode===raw; });
-        // Camera pure-numeric: must be ≥14 digits to block partial barcode fragments
-        var isCode = fromOcr
-          ? (numOnly.length >= 8 || raw.length >= 8)
-          : (isNumericOnly ? numOnly.length >= 14 : raw.length >= 8 && /[0-9]/.test(raw));
-        if (!isCode && !inVault && !inProds) return;
-        // Fuzzy-match vault FIRST — before debounce, so transposed digits still confirm in one read
-        if (!inVault && numOnly.length >= 14) {
+        // Fuzzy vault match — correct up to 2 transposed/misread digits, same length
+        if (!inVault && numOnly.length >= 10) {
           var fuzzy = vault.find(function(v) {
             var vi = (v.imei || '').replace(/\D/g,'');
             return vi.length === numOnly.length && _levenshtein(vi, numOnly) <= 2;
@@ -10330,7 +10325,17 @@ function _openSonar() {
           if (fuzzy) { raw = fuzzy.imei; inVault = true; numOnly = raw.replace(/\D/g,''); }
         }
         var inStore = inVault || inProds;
-        // Visual flash on first sighting
+        // Reject partial reads: code is a leading prefix of a longer vault/product code
+        if (!inStore) {
+          var isPartial = vault.some(function(v){ return (v.imei||'').indexOf(raw)===0 && v.imei.length > raw.length; })
+                       || prods.some(function(p){
+                            return ((p.code||'').indexOf(raw)===0 && p.code.length > raw.length)
+                                || ((p.serialCode||'').indexOf(raw)===0 && p.serialCode.length > raw.length);
+                          });
+          if (isPartial) return;
+          if (raw.length < 8) return; // too short to be a meaningful unknown code
+        }
+        // Visual flash on first sighting of this code value
         if (raw !== _lastDetected) {
           _lastDetected = raw;
           _confirmMap   = {};
@@ -10339,8 +10344,8 @@ function _openSonar() {
           if (videoStat) videoStat.textContent = '⚡ ' + raw;
         }
         if (_sonarScanned.has(raw)) return;
-        // Known vault/product codes: accept immediately (no debounce)
-        // Unknown camera reads: require 2 consecutive detections to filter noise
+        // Vault/product codes: accept on first read — no debounce
+        // Unknown codes: require 2 consecutive camera reads to filter one-frame noise
         if (!fromOcr && !inStore) {
           _confirmMap[raw] = (_confirmMap[raw] || 0) + 1;
           if (_confirmMap[raw] < 2) return;
@@ -10358,7 +10363,7 @@ function _openSonar() {
         try {
           var hints = new Map();
           if (ZXing.DecodeHintType) hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-          var _zxReader = new ZXing.BrowserMultiFormatReader(hints, 100);
+          var _zxReader = new ZXing.BrowserMultiFormatReader(hints, 50);
           _sonarZXing = _zxReader;
           _zxReader.decodeFromVideoElementContinuously(video, function(result, err) {
             if (!_sonarStream) return;

@@ -3415,16 +3415,42 @@
 
 <!-- IMEI Link-to-Product Modal -->
 <div id="imeiLinkModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9810;flex-direction:column;align-items:center;justify-content:center">
-  <div style="background:var(--surface);border-radius:18px;padding:24px;max-width:440px;width:94%;box-shadow:0 12px 48px rgba(0,0,0,.45)">
-    <h3 style="margin:0 0 16px;font-size:1rem;font-weight:700;color:var(--text)">Link IMEI to Product</h3>
-    <p id="imeiLinkIMEIDisplay" style="font-family:monospace;font-size:.95rem;font-weight:700;color:var(--accent);margin:0 0 14px;padding:8px 12px;background:rgba(79,142,247,.07);border-radius:8px"></p>
-    <label style="font-size:.8rem;font-weight:600;color:var(--text);display:block;margin-bottom:6px">Select Product</label>
-    <select id="imeiLinkProductSelect" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:.88rem;margin-bottom:16px">
-      <option value="">— Choose product —</option>
-    </select>
-    <div style="display:flex;gap:10px">
-      <button onclick="_confirmIMEILink()" style="flex:1;padding:11px;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;border-radius:10px;color:#fff;font-weight:700;cursor:pointer">Save to Vault</button>
-      <button onclick="document.getElementById('imeiLinkModal').style.display='none'" style="padding:11px 20px;background:none;border:1.5px solid var(--border);border-radius:10px;color:var(--muted);cursor:pointer">Cancel</button>
+  <div style="background:var(--surface);border-radius:18px;padding:20px;max-width:480px;width:96%;max-height:92vh;overflow-y:auto;box-shadow:0 12px 48px rgba(0,0,0,.45)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h3 style="margin:0;font-size:1rem;font-weight:700;color:var(--text)">Add Scanned Item</h3>
+      <button onclick="document.getElementById('imeiLinkModal').style.display='none'" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--muted)">✕</button>
+    </div>
+    <p id="imeiLinkIMEIDisplay" style="font-family:monospace;font-size:.88rem;font-weight:700;color:var(--accent);margin:0 0 14px;padding:8px 12px;background:rgba(79,142,247,.07);border-radius:8px;word-break:break-all"></p>
+    <!-- Mode toggle -->
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <button id="imeiModeLinkBtn" onclick="_imeiSetMode('link')" style="flex:1;padding:9px;background:var(--accent);color:#fff;border:none;border-radius:9px;font-size:.82rem;font-weight:700;cursor:pointer">Link to Existing Product</button>
+      <button id="imeiModeNewBtn" onclick="_imeiSetMode('new')" style="flex:1;padding:9px;background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:9px;font-size:.82rem;font-weight:600;cursor:pointer">Register New Product</button>
+    </div>
+    <!-- Link mode -->
+    <div id="imeiLinkPanel">
+      <input id="imeiLinkSearch" type="text" placeholder="Search products…" oninput="_filterImeiProducts(this.value)"
+        style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);color:var(--text);font-size:.85rem;margin-bottom:8px;box-sizing:border-box" />
+      <select id="imeiLinkProductSelect" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:.88rem;margin-bottom:16px">
+        <option value="">— Choose product —</option>
+      </select>
+      <button onclick="_confirmIMEILink()" style="width:100%;padding:11px;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;border-radius:10px;color:#fff;font-weight:700;cursor:pointer;font-size:.9rem">Save to Vault</button>
+    </div>
+    <!-- New Product mode (hidden) -->
+    <div id="imeiNewProdPanel" style="display:none">
+      <div style="display:grid;gap:10px">
+        <input id="imeiNewName" type="text" placeholder="Product Name *" style="padding:9px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);color:var(--text);font-size:.88rem" />
+        <input id="imeiNewCode" type="text" placeholder="Product Code (auto-generated if blank)" style="padding:9px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);color:var(--text);font-size:.88rem" />
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <input id="imeiNewCost" type="number" min="0" placeholder="Cost Price" style="padding:9px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);color:var(--text);font-size:.88rem" />
+          <input id="imeiNewPrice" type="number" min="0" placeholder="Unit / Selling Price *" style="padding:9px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);color:var(--text);font-size:.88rem" />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <input id="imeiNewQty" type="number" min="0" placeholder="Qty in Stock" style="padding:9px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);color:var(--text);font-size:.88rem" />
+          <input id="imeiNewDiscount" type="number" min="0" max="100" placeholder="Discount %" style="padding:9px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);color:var(--text);font-size:.88rem" />
+        </div>
+        <input id="imeiNewCategory" type="text" placeholder="Category (optional)" style="padding:9px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface2);color:var(--text);font-size:.88rem" />
+      </div>
+      <button onclick="_confirmIMEINewProduct()" style="width:100%;padding:11px;background:linear-gradient(135deg,#6366f1,#4f46e5);border:none;border-radius:10px;color:#fff;font-weight:700;cursor:pointer;font-size:.9rem;margin-top:14px">Register Product &amp; Save to Vault</button>
     </div>
   </div>
 </div>
@@ -9856,8 +9882,9 @@ function _processIMEIValue(val, fromCamera) {
       // Resolve product name + price: vault log first, then products list by code
       var _prodName = null, _prodPrice = null;
 
+      var _normVal  = val.replace(/[\s\-]/g, '');
       var _vaultAll = _getIMEI();
-      var _vRec = _vaultAll.find(function(v){ return v.imei === val; });
+      var _vRec = _vaultAll.find(function(v){ return (v.imei||'').replace(/[\s\-]/g,'') === _normVal; });
       if (_vRec && _vRec.productName) {
         _prodName = _vRec.productName;
         var _sp0 = typeof findStockProduct === 'function' ? findStockProduct(_vRec.productName) : null;
@@ -9867,10 +9894,8 @@ function _processIMEIValue(val, fromCamera) {
       if (!_prodName) {
         var _allProds = typeof _getProds === 'function' ? _getProds() : [];
         var _pMatch = _allProds.find(function(p) {
-          var clean = val.replace(/-/g, '');
-          return p.code === val || p.serialCode === val
-              || (p.code && p.code.replace(/-/g,'') === clean)
-              || (p.serialCode && p.serialCode.replace(/-/g,'') === clean);
+          return (p.code||'').replace(/[\s\-]/g,'') === _normVal
+              || (p.serialCode||'').replace(/[\s\-]/g,'') === _normVal;
         });
         if (_pMatch) { _prodName = _pMatch.name; _prodPrice = _pMatch.unitPrice; }
       }
@@ -10032,20 +10057,28 @@ function _openIMEILink(imei) {
   var modal  = document.getElementById('imeiLinkModal');
   var disp   = document.getElementById('imeiLinkIMEIDisplay');
   var sel    = document.getElementById('imeiLinkProductSelect');
+  var search = document.getElementById('imeiLinkSearch');
   if (!modal || !sel) return;
   if (disp) disp.textContent = 'IMEI: ' + imei;
   modal._pendingIMEI = imei;
+  if (search) search.value = '';
 
   // Populate products dropdown — IMEI-tracked ones first
   var prods = typeof _getProds === 'function' ? _getProds() : [];
-  var opts = '<option value="">— Choose product —</option>';
-  var imeiProds = prods.filter(function(p){ return p.isIMEITracked; });
+  var imeiProds  = prods.filter(function(p){ return p.isIMEITracked; });
   var otherProds = prods.filter(function(p){ return !p.isIMEITracked; });
-  var allSorted = imeiProds.concat(otherProds);
-  allSorted.forEach(function(p, idx){
-    opts += '<option value="' + _imeiEsc(p.code) + '" data-name="' + _imeiEsc(p.name) + '">' + _imeiEsc(p.name) + (p.isIMEITracked ? ' 📱' : '') + '</option>';
+  var allSorted  = imeiProds.concat(otherProds);
+  // Store full option list for search filtering
+  sel._allOptions = allSorted.map(function(p) {
+    return { value: p.code, name: p.name, text: p.name + (p.isIMEITracked ? ' 📱' : '') };
   });
-  sel.innerHTML = opts;
+  sel.innerHTML = '<option value="">— Choose product —</option>';
+  sel._allOptions.forEach(function(o) {
+    var opt = document.createElement('option');
+    opt.value = o.value; opt.dataset.name = o.name; opt.textContent = o.text;
+    sel.appendChild(opt);
+  });
+  _imeiSetMode('link');
   modal.style.display = 'flex';
 }
 
@@ -10058,13 +10091,76 @@ function _confirmIMEILink() {
   var name = sel.options[sel.selectedIndex]?.dataset?.name || sel.options[sel.selectedIndex]?.text || '';
   if (!imei || !code) { showToast('Choose a product first'); return; }
   var arr = _getIMEI();
-  if (arr.find(function(r){ return r.imei === imei; })) { showToast('IMEI already in vault'); modal.style.display='none'; return; }
+  var normImei = imei.replace(/[\s\-]/g,'');
+  if (arr.find(function(r){ return (r.imei||'').replace(/[\s\-]/g,'') === normImei; })) { showToast('IMEI already in vault'); modal.style.display='none'; return; }
   arr.push({ imei: imei, productCode: code, productName: name, status: 'in_stock', addedAt: new Date().toISOString() });
   _saveIMEI(arr);
   modal.style.display = 'none';
   navigateTo('products');
   setTimeout(function(){ switchProdTab('imei'); renderIMEIVault(); _highlightIMEIRow(imei); }, 300);
   showToast('IMEI ' + imei.slice(0,6) + '… added to vault ✓');
+}
+
+function _imeiSetMode(mode) {
+  var linkPanel = document.getElementById('imeiLinkPanel');
+  var newPanel  = document.getElementById('imeiNewProdPanel');
+  var linkBtn   = document.getElementById('imeiModeLinkBtn');
+  var newBtn    = document.getElementById('imeiModeNewBtn');
+  if (!linkPanel || !newPanel) return;
+  var isLink = mode === 'link';
+  linkPanel.style.display = isLink ? '' : 'none';
+  newPanel.style.display  = isLink ? 'none' : '';
+  if (linkBtn) { linkBtn.style.background = isLink ? 'var(--accent)' : 'var(--surface2)'; linkBtn.style.color = isLink ? '#fff' : 'var(--muted)'; linkBtn.style.border = isLink ? 'none' : '1px solid var(--border)'; }
+  if (newBtn)  { newBtn.style.background  = isLink ? 'var(--surface2)' : 'var(--accent)';  newBtn.style.color  = isLink ? 'var(--muted)' : '#fff'; newBtn.style.border  = isLink ? '1px solid var(--border)' : 'none'; }
+}
+
+function _filterImeiProducts(query) {
+  var sel = document.getElementById('imeiLinkProductSelect');
+  if (!sel || !sel._allOptions) return;
+  var q = (query || '').toLowerCase().trim();
+  sel.innerHTML = '<option value="">— Choose product —</option>';
+  sel._allOptions.filter(function(o) { return !q || o.text.toLowerCase().includes(q); })
+    .forEach(function(o) {
+      var opt = document.createElement('option');
+      opt.value = o.value; opt.dataset.name = o.name; opt.textContent = o.text;
+      sel.appendChild(opt);
+    });
+}
+
+function _confirmIMEINewProduct() {
+  var modal = document.getElementById('imeiLinkModal');
+  if (!modal) return;
+  var imei  = modal._pendingIMEI || '';
+  var name  = (document.getElementById('imeiNewName')  || {}).value?.trim() || '';
+  var code  = (document.getElementById('imeiNewCode')  || {}).value?.trim() || '';
+  var cost  = parseFloat((document.getElementById('imeiNewCost')  || {}).value) || undefined;
+  var price = parseFloat((document.getElementById('imeiNewPrice') || {}).value) || 0;
+  var qty   = parseFloat((document.getElementById('imeiNewQty')   || {}).value) || 0;
+  var disc  = parseFloat((document.getElementById('imeiNewDiscount') || {}).value) || 0;
+  var cat   = (document.getElementById('imeiNewCategory') || {}).value?.trim() || '';
+  if (!name) { showToast('Product name is required'); return; }
+  if (!price) { showToast('Unit price is required'); return; }
+  if (!code) code = 'P' + Date.now().toString(36).toUpperCase();
+  // Save product
+  var arr = typeof _getProds === 'function' ? _getProds() : JSON.parse(localStorage.getItem('iflow_products') || '[]');
+  arr.push({ code: code, name: name, category: cat || name, type: '', stockQty: qty, unitPrice: price, costPrice: cost, discount: disc || undefined, isIMEITracked: true, trackType: 'imei', dateAdded: new Date().toLocaleDateString() });
+  localStorage.setItem('iflow_products', JSON.stringify(arr));
+  if (typeof _saveProds === 'function') _saveProds(arr);
+  // Save IMEI to vault
+  if (imei) {
+    var vault = _getIMEI();
+    var normImei = imei.replace(/[\s\-]/g,'');
+    if (!vault.find(function(r){ return (r.imei||'').replace(/[\s\-]/g,'') === normImei; })) {
+      vault.push({ imei: imei, productCode: code, productName: name, status: 'in_stock', addedAt: new Date().toISOString() });
+      _saveIMEI(vault);
+    }
+  }
+  modal.style.display = 'none';
+  // Clear form
+  ['imeiNewName','imeiNewCode','imeiNewCost','imeiNewPrice','imeiNewQty','imeiNewDiscount','imeiNewCategory'].forEach(function(id){ var el = document.getElementById(id); if(el) el.value=''; });
+  showToast('"' + name + '" registered & IMEI saved to vault ✓');
+  if (typeof renderProducts === 'function') setTimeout(renderProducts, 200);
+  if (typeof renderIMEIVault === 'function') setTimeout(renderIMEIVault, 200);
 }
 
 // ── Customer Database ─────────────────────────────────────────────────────────
@@ -10576,11 +10672,20 @@ function _openSonar() {
         raw = raw.trim();
         if (raw.length < 5) return;
         var numOnly = raw.replace(/\D/g,'');
+        var normRaw = raw.replace(/[\s\-]/g,'');
         var vault   = typeof _getIMEI  === 'function' ? _getIMEI()  : [];
         var prods   = typeof _getProds === 'function' ? _getProds() : [];
-        // Exact vault/product match
-        var inVault = vault.some(function(v){ return v.imei === raw; });
-        var inProds = prods.some(function(p){ return p.code===raw||p.serialCode===raw; });
+        // Normalized vault/product match (ignore spaces and dashes)
+        var inVault = vault.some(function(v){ return (v.imei||'').replace(/[\s\-]/g,'') === normRaw; });
+        var inProds = prods.some(function(p){
+          return (p.code||'').replace(/[\s\-]/g,'') === normRaw
+              || (p.serialCode||'').replace(/[\s\-]/g,'') === normRaw;
+        });
+        // If normalized match found in vault, snap raw to stored value (keeps consistency)
+        if (inVault && !vault.some(function(v){ return v.imei === raw; })) {
+          var vSnap = vault.find(function(v){ return (v.imei||'').replace(/[\s\-]/g,'') === normRaw; });
+          if (vSnap) { raw = vSnap.imei; numOnly = raw.replace(/\D/g,''); }
+        }
         // Fuzzy vault match — correct up to 2 transposed/misread digits, same length
         if (!inVault && numOnly.length >= 10) {
           var fuzzy = vault.find(function(v) {

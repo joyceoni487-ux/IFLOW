@@ -5393,14 +5393,7 @@
             _scheduleWipe(i, tr);
             return;
           }
-          // Check IMEI against vault (warn only — don't block the sale)
-          const vaultArr = _getIMEI();
-          const vaultRec = vaultArr.find(v => v.imei === imei);
-          if (!vaultRec) {
-            const suggestions = _closestIMEIs(imei).slice(0,3).map(r => r.imei.slice(0,8)+'… ('+r.productName+')').join(', ');
-            showToast('⚠ IMEI not in vault — sale recorded' + (suggestions ? '. Closest: ' + suggestions : ''));
-          }
-          // Commit the sale
+          // Commit the sale — IMEI is recorded as-is
           const ts = Date.now();
           sales[i] = {
             customer: customer || '',
@@ -5411,8 +5404,10 @@
             timestamp: ts
           };
           deductStock(product, quantity);
-          // Mark IMEI as sold in vault if found
-          if (vaultRec) { _markIMEISold(imei, customer || ''); }
+          // If this IMEI happens to be in the vault scan log, mark it sold
+          const _vaultArr = _getIMEI();
+          const _vaultRec = _vaultArr.find(v => v.imei === imei);
+          if (_vaultRec) { _markIMEISold(imei, customer || ''); }
           persist();
           SheetsAPI.withToken(() => SheetsAPI.updateRow(i, sales[i]));
           updateOrdersBadge();
@@ -9784,17 +9779,18 @@ function _openCameraScanner(mode) {
         _imeiScanRAF = setTimeout(scanOcr, 600);
       }
 
-      // Wait for video to be playing before starting ZXing
-      video.onloadedmetadata = null;
-      if (video.readyState >= 2) {
-        video.play().catch(function(){}).then(_startZXing);
-      } else {
-        video.addEventListener('canplay', function _onCanPlay() {
-          video.removeEventListener('canplay', _onCanPlay);
-          video.play().catch(function(){}).then(_startZXing);
-        });
-        video.load();
-      }
+      // Start video then ZXing — never call video.load() on a MediaStream
+      video.oncanplay = function() {
+        video.oncanplay = null;
+        _startZXing();
+      };
+      video.play().then(function() {
+        // If canplay already fired before play() resolved, start directly
+        if (video.oncanplay) { video.oncanplay = null; _startZXing(); }
+      }).catch(function() {
+        // Autoplay blocked or other error — try starting ZXing anyway after a short delay
+        setTimeout(_startZXing, 600);
+      });
     })
     .catch(function() {
       var fb = document.getElementById('imeiScanFeedback');

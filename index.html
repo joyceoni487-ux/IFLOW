@@ -3368,46 +3368,47 @@
 </div>
 
 <!-- Camera / IMEI Scanner Modal -->
-<div id="imeiScanModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9800;flex-direction:column;align-items:center;justify-content:center">
-  <div style="background:var(--surface);border-radius:20px;padding:24px;max-width:460px;width:94%;max-height:92vh;overflow-y:auto;box-shadow:0 12px 48px rgba(0,0,0,.5)">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-      <h3 id="imeiScanTitle" style="margin:0;font-size:1rem;font-weight:700;color:var(--text)">📷 Scan Barcode / IMEI</h3>
-      <button onclick="_closeIMEIScan()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted);line-height:1">✕</button>
+<div id="imeiScanModal" style="display:none;position:fixed;inset:0;background:#000;z-index:9800;flex-direction:column;align-items:stretch;justify-content:flex-start">
+  <!-- Header bar -->
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:rgba(0,0,0,.85);flex-shrink:0;z-index:1">
+    <h3 id="imeiScanTitle" style="margin:0;font-size:1rem;font-weight:700;color:#fff">📷 Scan Barcode / IMEI</h3>
+    <button onclick="_closeIMEIScan()" style="background:rgba(255,255,255,.12);border:none;font-size:1.1rem;cursor:pointer;color:#fff;line-height:1;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center">✕</button>
+  </div>
+  <!-- Video area: fills remaining screen space -->
+  <div style="position:relative;flex:1;background:#000;overflow:hidden;min-height:0">
+    <video id="imeiScanVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;display:block"></video>
+    <!-- Scan target: wide for barcodes -->
+    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
+      <div style="width:82%;max-width:480px;height:140px;border:3px solid rgba(79,142,247,.95);border-radius:10px;box-shadow:0 0 0 2000px rgba(0,0,0,.45)"></div>
     </div>
-    <div style="position:relative;border-radius:14px;overflow:hidden;background:#111;margin-bottom:14px;min-height:160px">
-      <video id="imeiScanVideo" autoplay playsinline muted style="width:100%;max-height:240px;object-fit:cover;display:block"></video>
-      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
-        <div style="width:210px;height:72px;border:2.5px solid rgba(79,142,247,.9);border-radius:8px;box-shadow:0 0 0 2000px rgba(0,0,0,.28)"></div>
-      </div>
-      <div id="imeiScanFeedback" style="position:absolute;bottom:8px;left:0;right:0;text-align:center;color:#fff;font-size:.78rem;text-shadow:0 1px 4px rgba(0,0,0,.9);padding:0 12px">Point camera at barcode</div>
-    </div>
-    <div id="noBarcodeNotice" style="display:none;padding:9px 12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:8px;font-size:.75rem;color:#d97706;margin-bottom:12px">
+    <div id="imeiScanFeedback" style="position:absolute;bottom:14px;left:0;right:0;text-align:center;color:#fff;font-size:.85rem;font-weight:600;text-shadow:0 1px 6px rgba(0,0,0,1);padding:0 16px;letter-spacing:.02em">Point camera at barcode</div>
+  </div>
+  <!-- Bottom controls panel -->
+  <div style="background:var(--surface,#1e1e2e);padding:14px 16px;flex-shrink:0;max-height:46vh;overflow-y:auto">
+    <div id="noBarcodeNotice" style="display:none;padding:8px 12px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:8px;font-size:.75rem;color:#d97706;margin-bottom:10px">
       Auto-scan works on <strong>Android Chrome</strong>. On iOS / Safari — type IMEI below.
     </div>
-    <div style="margin-bottom:12px">
-      <label style="font-size:.8rem;font-weight:600;color:var(--text);display:block;margin-bottom:6px">Or type IMEI / Serial manually</label>
-      <div style="display:flex;gap:8px">
-        <input id="imeiManualInput" type="text" inputmode="numeric" placeholder="15-digit IMEI or serial number"
-          style="flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text);font-size:.88rem"
-          oninput="_onIMEIInput(this.value)" onkeydown="if(event.key==='Enter')_processIMEIValue(this.value)" />
-        <button onclick="_processIMEIValue(document.getElementById('imeiManualInput').value)"
-          style="padding:10px 18px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:.85rem;font-weight:600;cursor:pointer">Go</button>
-      </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input id="imeiManualInput" type="text" inputmode="numeric" placeholder="Type IMEI / serial manually…"
+        style="flex:1;padding:10px 12px;border:1px solid var(--border,#333);border-radius:10px;background:var(--surface2,#2a2a3e);color:var(--text,#fff);font-size:.88rem"
+        oninput="_onIMEIInput(this.value)" onkeydown="if(event.key==='Enter')_processIMEIValue(this.value)" />
+      <button onclick="_processIMEIValue(document.getElementById('imeiManualInput').value)"
+        style="padding:10px 18px;background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:10px;font-size:.85rem;font-weight:600;cursor:pointer">Go</button>
     </div>
     <div id="imeiScanResult" style="display:none;padding:14px;border-radius:12px;background:rgba(79,142,247,.07);border:1.5px solid rgba(79,142,247,.28)">
-      <div id="imeiScanResultText" style="font-size:.88rem;color:var(--text);line-height:1.7"></div>
+      <div id="imeiScanResultText" style="font-size:.88rem;color:var(--text,#fff);line-height:1.7"></div>
       <div id="imeiScanActions" style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"></div>
     </div>
     <!-- Batch scan live list -->
-    <div id="batchScanPanel" style="display:none;margin-top:8px">
+    <div id="batchScanPanel" style="display:none">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <span style="font-size:.85rem;font-weight:700;color:var(--text)">Scanned (<span id="batchCount">0</span>)</span>
+        <span style="font-size:.85rem;font-weight:700;color:var(--text,#fff)">Scanned (<span id="batchCount">0</span>)</span>
         <button onclick="_processBatchAll()" style="padding:6px 16px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:8px;font-size:.8rem;font-weight:600;cursor:pointer">Process All ✓</button>
       </div>
-      <div id="batchScanList" style="max-height:130px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding:8px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
-        <span style="color:var(--muted);font-size:.78rem">Waiting for scans...</span>
+      <div id="batchScanList" style="max-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding:8px;background:var(--surface2,#2a2a3e);border-radius:8px;border:1px solid var(--border,#333)">
+        <span style="color:var(--muted,#888);font-size:.78rem">Waiting for scans...</span>
       </div>
-      <button onclick="_clearBatchScan()" style="width:100%;padding:6px;background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:.78rem;cursor:pointer;margin-top:8px">Clear List</button>
+      <button onclick="_clearBatchScan()" style="width:100%;padding:6px;background:none;border:1px solid var(--border,#333);border-radius:8px;color:var(--muted,#888);font-size:.78rem;cursor:pointer;margin-top:8px">Clear List</button>
     </div>
   </div>
 </div>
@@ -9692,6 +9693,11 @@ var _imeiScanRAF    = null;
 var _imeiScanZXing  = null;
 
 function _openCameraScanner(mode) {
+  // Clean up any previous session immediately
+  if (_imeiScanZXing) { try { _imeiScanZXing.reset(); } catch(e){} _imeiScanZXing = null; }
+  if (_imeiScanRAF)   { clearTimeout(_imeiScanRAF); cancelAnimationFrame(_imeiScanRAF); _imeiScanRAF = null; }
+  if (_imeiScanStream){ _imeiScanStream.getTracks().forEach(function(t){ t.stop(); }); _imeiScanStream = null; }
+
   _imeiScanMode  = mode || 'lookup';
   _imeiScanValue = '';
   var modal = document.getElementById('imeiScanModal');
@@ -9711,67 +9717,85 @@ function _openCameraScanner(mode) {
   if (!video) return;
 
   _initOcrWorker();
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } })
-    .catch(function() { return navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); })
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } })
+    .catch(function() { return navigator.mediaDevices.getUserMedia({ video: true }); })
     .then(function(stream) {
       _imeiScanStream = stream;
       video.srcObject = stream;
-      video.play();
+
       var _scanFb = document.getElementById('imeiScanFeedback');
-      // Clear any stale error message now that camera is live
-      if (_scanFb) { _scanFb.textContent = 'Point camera at barcode or IMEI'; }
+      if (_scanFb) { _scanFb.textContent = 'Starting camera…'; }
       if (noticeEl) { noticeEl.style.display = 'none'; }
 
-      if (typeof ZXing !== 'undefined' && ZXing.BrowserMultiFormatReader) {
-        try {
-          var _czHints = new Map();
-          if (ZXing.DecodeHintType) _czHints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-          var _czReader = new ZXing.BrowserMultiFormatReader(_czHints, 40);
-          _imeiScanZXing = _czReader;
-          _czReader.decodeFromVideoElementContinuously(video, function(result, err) {
+      function _startZXing() {
+        if (!_imeiScanStream) return;
+        if (typeof ZXing !== 'undefined' && ZXing.BrowserMultiFormatReader) {
+          try {
+            var _czHints = new Map();
+            if (ZXing.DecodeHintType) _czHints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+            var _czReader = new ZXing.BrowserMultiFormatReader(_czHints, 40);
+            _imeiScanZXing = _czReader;
+            if (_scanFb) _scanFb.textContent = 'Point camera at barcode or IMEI';
+            _czReader.decodeFromVideoElementContinuously(video, function(result, err) {
+              if (!_imeiScanStream) return;
+              if (result) {
+                var raw = result.getText ? result.getText().trim() : '';
+                if (raw) { _processIMEIValue(raw, true); }
+              } else {
+                _runOcrOnFrame(video, function(codes) {
+                  if (!_imeiScanStream) return;
+                  codes.forEach(function(c) { _processIMEIValue(c, true); });
+                }, _scanFb);
+              }
+            });
+            return;
+          } catch(e) { _imeiScanZXing = null; }
+        }
+        // BarcodeDetector fallback (Chrome/Edge)
+        if ('BarcodeDetector' in window) {
+          var _allFormats = ['code_128','code_39','ean_13','ean_8','qr_code','itf','pdf_417','aztec','data_matrix','codabar','upc_a','upc_e'];
+          var detector = new window.BarcodeDetector({ formats: _allFormats });
+          var scan = function() {
             if (!_imeiScanStream) return;
-            if (result) {
-              var raw = result.getText ? result.getText().trim() : '';
-              if (raw) { _processIMEIValue(raw, true); }
-            } else {
-              // No barcode found — try OCR for on-screen text
+            detector.detect(video).then(function(barcodes) {
+              for (var b = 0; b < barcodes.length; b++) {
+                var raw = barcodes[b].rawValue.trim();
+                if (raw) { _processIMEIValue(raw, true); return; }
+              }
               _runOcrOnFrame(video, function(codes) {
                 if (!_imeiScanStream) return;
                 codes.forEach(function(c) { _processIMEIValue(c, true); });
               }, _scanFb);
-            }
-          });
-        } catch(e) { _imeiScanZXing = null; }
-      } else if ('BarcodeDetector' in window) {
-        var _allFormats = ['code_128','code_39','ean_13','ean_8','qr_code','itf','pdf_417','aztec','data_matrix','codabar','upc_a','upc_e'];
-        var detector = new window.BarcodeDetector({ formats: _allFormats });
-        var scan = function() {
-          if (!_imeiScanStream) return;
-          detector.detect(video).then(function(barcodes) {
-            for (var b = 0; b < barcodes.length; b++) {
-              var raw = barcodes[b].rawValue.trim();
-              if (raw) { _processIMEIValue(raw, true); return; }
-            }
-            _runOcrOnFrame(video, function(codes) {
-              if (!_imeiScanStream) return;
-              codes.forEach(function(c) { _processIMEIValue(c, true); });
-            }, _scanFb);
-            _imeiScanRAF = setTimeout(scan, 200);
-          }).catch(function(){ _imeiScanRAF = setTimeout(scan, 250); });
-        };
-        _imeiScanRAF = setTimeout(scan, 300);
-      } else {
-        // OCR-only fallback
+              _imeiScanRAF = setTimeout(scan, 200);
+            }).catch(function(){ _imeiScanRAF = setTimeout(scan, 250); });
+          };
+          _imeiScanRAF = setTimeout(scan, 100);
+          return;
+        }
+        // OCR-only last resort
         if (noticeEl) { noticeEl.textContent = 'Auto-detecting IMEI via text recognition…'; noticeEl.style.display = 'block'; }
-        var scan = function() {
+        if (_scanFb) _scanFb.textContent = 'Scanning for text…';
+        var scanOcr = function() {
           if (!_imeiScanStream) return;
           _runOcrOnFrame(video, function(codes) {
             if (!_imeiScanStream) return;
             codes.forEach(function(c) { _processIMEIValue(c, true); });
           }, _scanFb);
-          _imeiScanRAF = setTimeout(scan, 2500);
+          _imeiScanRAF = setTimeout(scanOcr, 1200);
         };
-        _imeiScanRAF = setTimeout(scan, 1200);
+        _imeiScanRAF = setTimeout(scanOcr, 600);
+      }
+
+      // Wait for video to be playing before starting ZXing
+      video.onloadedmetadata = null;
+      if (video.readyState >= 2) {
+        video.play().catch(function(){}).then(_startZXing);
+      } else {
+        video.addEventListener('canplay', function _onCanPlay() {
+          video.removeEventListener('canplay', _onCanPlay);
+          video.play().catch(function(){}).then(_startZXing);
+        });
+        video.load();
       }
     })
     .catch(function() {
@@ -9843,10 +9867,11 @@ function _processIMEIValue(val, fromCamera) {
   var _continuingMode = (_imeiScanMode === 'integrity' || _imeiScanMode === 'batch' || _imeiScanMode === 'audit');
 
   if (fromCamera && !_continuingMode) {
-    if (_imeiScanRAF) { clearTimeout(_imeiScanRAF); cancelAnimationFrame(_imeiScanRAF); _imeiScanRAF = null; }
-    if (_imeiScanStream) { _imeiScanStream.getTracks().forEach(function(t){ t.stop(); }); _imeiScanStream = null; }
+    // Stop stream and ZXing reader for one-shot modes
+    if (_imeiScanZXing) { try { _imeiScanZXing.reset(); } catch(e){} _imeiScanZXing = null; }
+    if (_imeiScanRAF)   { clearTimeout(_imeiScanRAF); cancelAnimationFrame(_imeiScanRAF); _imeiScanRAF = null; }
+    if (_imeiScanStream){ _imeiScanStream.getTracks().forEach(function(t){ t.stop(); }); _imeiScanStream = null; }
   } else if (fromCamera) {
-    // Just stop the current RAF frame so we restart it after processing
     if (_imeiScanRAF) { clearTimeout(_imeiScanRAF); cancelAnimationFrame(_imeiScanRAF); _imeiScanRAF = null; }
   }
   if (!_continuingMode) {
@@ -9930,7 +9955,20 @@ function _processIMEIValue(val, fromCamera) {
     return;
   }
 
-  // Lookup / add mode
+  // 'add' mode: auto-open the link modal immediately, no intermediate step
+  if (_imeiScanMode === 'add') {
+    var _addImeis = _getIMEI();
+    var _addRec   = _addImeis.find(function(r){ return r.imei === val; });
+    if (_addRec) {
+      _closeIMEIScan();
+      showToast('IMEI already in vault: ' + (_addRec.productName || val.slice(0,8) + '…'));
+    } else {
+      _openIMEILink(val);
+    }
+    return;
+  }
+
+  // Lookup mode: show result panel
   var imeis   = _getIMEI();
   var rec     = imeis.find(function(r){ return r.imei === val; });
   var resultDiv  = document.getElementById('imeiScanResult');

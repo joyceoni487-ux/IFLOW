@@ -10701,6 +10701,9 @@ var _sonarStream  = null;
 var _sonarRAF     = null;
 var _sonarZXing   = null;
 var _sonarScanned = new Set();
+var _snapZXReader = null;  // reused reader for still-frame snapshot decodes
+var _snapImgEl    = null;  // reused img element for snapshot decodes
+var _snapBusy     = false; // prevents parallel snapshot decodes
 
 function _openSonar() {
   _sonarScanned.clear();
@@ -10778,7 +10781,8 @@ function _openSonar() {
         }
         delete _confirmMap[raw];
         _sonarScanned.add(raw);
-        // Vault transcript: stamp lastSeen + increment scanCount; create scanned_unknown entry if new
+        // Vault transcript: stamp lastSeen + scanCount on every confirmed scan.
+        // Never create a scanned_unknown entry for items already known via products list.
         (function() {
           var _tArr  = typeof _getIMEI === 'function' ? _getIMEI() : [];
           var _tNorm = raw.replace(/[\s\-]/g, '');
@@ -10787,8 +10791,28 @@ function _openSonar() {
           if (_tIdx >= 0) {
             _tArr[_tIdx].lastSeen  = _tNow;
             _tArr[_tIdx].scanCount = (_tArr[_tIdx].scanCount || 0) + 1;
-          } else {
-            _tArr.push({ imei: raw, productCode: '', productName: 'Unknown', status: 'scanned_unknown', addedAt: _tNow, lastSeen: _tNow, scanCount: 1 });
+            // If this was a scanned_unknown entry but we now know the product, upgrade it
+            if (_tArr[_tIdx].status === 'scanned_unknown' && inStore) {
+              var _upProd = prods.find(function(p){
+                return (p.code||'').replace(/[\s\-]/g,'') === _tNorm
+                    || (p.serialCode||'').replace(/[\s\-]/g,'') === _tNorm;
+              });
+              if (_upProd) {
+                _tArr[_tIdx].status      = 'in_stock';
+                _tArr[_tIdx].productName = _upProd.name  || _tArr[_tIdx].productName;
+                _tArr[_tIdx].productCode = _upProd.code  || _tArr[_tIdx].productCode;
+              }
+            }
+          } else if (inStore && inProds) {
+            // Recognized via products list but not yet in vault — add proper entry
+            var _pFound = prods.find(function(p){
+              return (p.code||'').replace(/[\s\-]/g,'') === _tNorm
+                  || (p.serialCode||'').replace(/[\s\-]/g,'') === _tNorm;
+            });
+            if (_pFound) _tArr.push({ imei: raw, productCode: _pFound.code||'', productName: _pFound.name||'', status: 'in_stock', addedAt: _tNow, lastSeen: _tNow, scanCount: 1 });
+          } else if (!inStore) {
+            // Truly unknown code — log as transcript entry only
+            _tArr.push({ imei: raw, productCode: '', productName: '', status: 'scanned_unknown', addedAt: _tNow, lastSeen: _tNow, scanCount: 1 });
           }
           _saveIMEI(_tArr);
         })();
@@ -10805,37 +10829,18 @@ function _openSonar() {
           if (ZXing.DecodeHintType) hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
           var _zxReader = new ZXing.BrowserMultiFormatReader(hints, 50);
           _sonarZXing = _zxReader;
-          // Snapshot approach: accumulate all reads over a 350ms window, then
-          // pick the candidate that matches vault/products — or longest if none match.
-          // This corrects partial reads where the same barcode yields different digit counts.
-          var _pendingRaws = {}, _pendingTimer = null;
           _zxReader.decodeFromVideoElementContinuously(video, function(result, err) {
             if (!_sonarStream) return;
             if (Date.now() < _pauseUntil) return;
             if (result) {
               var _zxRaw = (result.getText ? result.getText() : result.text || '').trim();
               if (!_zxRaw || _zxRaw.length < 5) return;
-              _pendingRaws[_zxRaw] = (_pendingRaws[_zxRaw] || 0) + 1;
-              if (_pendingTimer) return; // already collecting
-              _pendingTimer = setTimeout(function() {
-                _pendingTimer = null;
-                if (!_sonarStream) { _pendingRaws = {}; return; }
-                var _cands = Object.keys(_pendingRaws);
-                _pendingRaws = {};
-                if (!_cands.length) return;
-                var _v2 = typeof _getIMEI  === 'function' ? _getIMEI()  : [];
-                var _p2 = typeof _getProds === 'function' ? _getProds() : [];
-                // Start with the longest read as default best
-                var _best = _cands.reduce(function(a, c) { return c.length > a.length ? c : a; }, _cands[0]);
-                // Prefer any candidate that matches vault or products exactly
-                _cands.forEach(function(c) {
-                  var _n = c.replace(/[\s\-]/g, '');
-                  var _hit = _v2.some(function(v){ return (v.imei||'').replace(/[\s\-]/g,'') === _n; })
-                          || _p2.some(function(p){ return (p.code||'').replace(/[\s\-]/g,'') === _n || (p.serialCode||'').replace(/[\s\-]/g,'') === _n; });
-                  if (_hit) _best = c;
-                });
-                _onCodeFound(_best, false);
-              }, 350);
+              // Immediately capture a still frame and re-decode it — eliminates motion blur
+              // so partial reads from the continuous loop are corrected by the still image.
+              _sonarDecodeSnap(video, _zxRaw, function(best) {
+                if (!_sonarStream) return;
+                _onCodeFound(best, false);
+              });
             } else {
               _lastDetected = '';
               _runOcrOnFrame(video, function(ocrCodes) {
@@ -10900,7 +10905,7 @@ function _sonarAddManual() {
   var isNew   = !_sonarScanned.has(val);
   var vault   = typeof _getIMEI  === 'function' ? _getIMEI()  : [];
   var prods   = typeof _getProds === 'function' ? _getProds() : [];
-  var inStore = vault.some(function(v){ return (v.imei||'').replace(/[\s\-]/g,'') === normVal; })
+  var inStore = vault.some(function(v){ return (v.imei||'').replace(/[\s\-]/g,'') === normVal && v.status !== 'scanned_unknown'; })
              || prods.some(function(p){
                   return (p.code||'').replace(/[\s\-]/g,'') === normVal
                       || (p.serialCode||'').replace(/[\s\-]/g,'') === normVal;
@@ -10923,12 +10928,16 @@ function _sonarUpdateUI() {
   _sonarScanned.forEach(function(code) {
     var normCode = code.replace(/[\s\-]/g,'');
     var vRec  = imeis.find(function(r){ return (r.imei||'').replace(/[\s\-]/g,'') === normCode; });
-    var pRec  = !vRec && prods.find(function(p){
+    var pRec  = prods.find(function(p){   // always check products, even if vault entry exists
       return (p.code||'').replace(/[\s\-]/g,'') === normCode
           || (p.serialCode||'').replace(/[\s\-]/g,'') === normCode;
     });
-    var known = !!(vRec || pRec);
-    var label = vRec ? (vRec.productName || 'In Vault') : (pRec ? (pRec.name || 'In Products') : 'Unknown');
+    // scanned_unknown vault entries don't count as "known" unless we also find a product match
+    var isRealVault = !!(vRec && vRec.status !== 'scanned_unknown');
+    var known = !!(isRealVault || pRec);
+    // Prefer the vault product name; fall back to products list if vault name is empty/unknown
+    var vName = vRec && vRec.productName && vRec.productName !== 'Unknown' ? vRec.productName : null;
+    var label = vName || (pRec ? (pRec.name || 'In Products') : (isRealVault ? 'In Vault' : 'Unknown'));
     var color = known ? '#3b82f6' : '#d97706';
     html += '<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 10px;background:' + (known ? 'rgba(59,130,246,.06)' : 'rgba(217,119,6,.06)') + ';border:1px solid ' + (known ? 'rgba(59,130,246,.2)' : 'rgba(217,119,6,.2)') + ';border-radius:7px;font-size:.75rem">'
       + '<span style="font-family:monospace;color:var(--text);word-break:break-all">' + _imeiEsc(code) + '</span>'
@@ -11064,8 +11073,39 @@ function _applySonarFilter() {
     + '</div>' + html;
 }
 
+// Capture current video frame → still image → decode with TRY_HARDER for better accuracy
+function _sonarDecodeSnap(video, initialRaw, callback) {
+  if (_snapBusy) { callback(initialRaw); return; }
+  _snapBusy = true;
+  try {
+    var c = document.createElement('canvas');
+    c.width  = video.videoWidth  || 640;
+    c.height = video.videoHeight || 480;
+    c.getContext('2d').drawImage(video, 0, 0, c.width, c.height);
+    var dataUrl = c.toDataURL('image/jpeg', 0.92);
+    if (!_snapImgEl) _snapImgEl = new Image();
+    if (!_snapZXReader && window.ZXing && ZXing.BrowserMultiFormatReader) {
+      var _sh = new Map();
+      if (ZXing.DecodeHintType) _sh.set(ZXing.DecodeHintType.TRY_HARDER, true);
+      _snapZXReader = new ZXing.BrowserMultiFormatReader(_sh);
+    }
+    if (_snapZXReader && typeof _snapZXReader.decodeFromImage === 'function') {
+      _snapZXReader.decodeFromImage(_snapImgEl, dataUrl).then(function(r) {
+        _snapBusy = false;
+        var snap = (r.getText ? r.getText() : (r.text || '')).trim();
+        callback(snap || initialRaw);
+      }).catch(function() { _snapBusy = false; callback(initialRaw); });
+    } else {
+      _snapBusy = false;
+      callback(initialRaw);
+    }
+  } catch(e) { _snapBusy = false; callback(initialRaw); }
+}
+
 function _closeSonar() {
   if (_sonarZXing)  { try { _sonarZXing.reset(); } catch(e){} _sonarZXing = null; }
+  if (_snapZXReader){ try { _snapZXReader.reset(); } catch(e){} _snapZXReader = null; }
+  _snapBusy = false;
   if (_sonarRAF)    { clearTimeout(_sonarRAF); cancelAnimationFrame(_sonarRAF); _sonarRAF = null; }
   if (_sonarStream) { _sonarStream.getTracks().forEach(function(t){ t.stop(); }); _sonarStream = null; }
   var video = document.getElementById('sonarVideo');

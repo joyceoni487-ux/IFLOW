@@ -9853,21 +9853,39 @@ function _processIMEIValue(val, fromCamera) {
       if (!_draftRows[_rowIdx]) _draftRows[_rowIdx] = {};
       _draftRows[_rowIdx].imei = val;
 
-      // Auto-fill product name and price from vault record
+      // Resolve product name + price: vault log first, then products list by code
+      var _prodName = null, _prodPrice = null;
+
       var _vaultAll = _getIMEI();
       var _vRec = _vaultAll.find(function(v){ return v.imei === val; });
       if (_vRec && _vRec.productName) {
+        _prodName = _vRec.productName;
+        var _sp0 = typeof findStockProduct === 'function' ? findStockProduct(_vRec.productName) : null;
+        if (_sp0) _prodPrice = _sp0.unitPrice;
+      }
+
+      if (!_prodName) {
+        var _allProds = typeof _getProds === 'function' ? _getProds() : [];
+        var _pMatch = _allProds.find(function(p) {
+          var clean = val.replace(/-/g, '');
+          return p.code === val || p.serialCode === val
+              || (p.code && p.code.replace(/-/g,'') === clean)
+              || (p.serialCode && p.serialCode.replace(/-/g,'') === clean);
+        });
+        if (_pMatch) { _prodName = _pMatch.name; _prodPrice = _pMatch.unitPrice; }
+      }
+
+      if (_prodName) {
         var _prodInp = document.querySelector('[data-field="product"][data-index="' + _rowIdx + '"]');
         if (_prodInp && !_prodInp.value.trim()) {
-          _prodInp.value = _vRec.productName;
-          _draftRows[_rowIdx].product = _vRec.productName;
+          _prodInp.value = _prodName;
+          _draftRows[_rowIdx].product = _prodName;
         }
-        var _stockProd = typeof findStockProduct === 'function' ? findStockProduct(_vRec.productName) : null;
-        if (_stockProd) {
+        if (_prodPrice !== undefined && _prodPrice !== null) {
           var _priceInp = document.querySelector('[data-field="price"][data-index="' + _rowIdx + '"]');
           if (_priceInp && !_priceInp.value.trim()) {
-            _priceInp.value = _stockProd.unitPrice;
-            _draftRows[_rowIdx].price = _stockProd.unitPrice;
+            _priceInp.value = _prodPrice;
+            _draftRows[_rowIdx].price = _prodPrice;
           }
         }
       }

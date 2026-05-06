@@ -1789,6 +1789,7 @@
   </style>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -10271,6 +10272,7 @@ function _doPrintBarcodes(items, store) {
 // ══════════════════════════════════════════════════════════════════════════════
 var _sonarStream  = null;
 var _sonarRAF     = null;
+var _sonarZXing   = null;
 var _sonarScanned = new Set();
 
 function _openSonar() {
@@ -10293,72 +10295,105 @@ function _openSonar() {
       var statusEl  = document.getElementById('sonarStatusTxt');
       var videoStat = document.getElementById('sonarVideoStatus');
       if (statusEl) statusEl.textContent = 'SCANNING';
-      if (!('BarcodeDetector' in window)) {
-        if (statusEl)  statusEl.textContent = 'OCR MODE';
-        if (videoStat) videoStat.textContent = 'Reading IMEI via text recognition…';
-        var ocrLoop = function() {
-          if (!_sonarStream) return;
-          _runOcrOnFrame(video, function(ocrCodes) {
+      var _lastDetected = '', _pauseUntil = 0;
+      var _onCodeFound = function(raw) {
+        if (!raw || !_sonarStream) return;
+        raw = raw.trim();
+        var numOnly = raw.replace(/\D/g,'');
+        var _prods  = typeof _getProds === 'function' ? _getProds() : [];
+        var _vault  = typeof _getIMEI  === 'function' ? _getIMEI()  : [];
+        var inStore = _prods.some(function(p){ return p.code===raw||p.serialCode===raw; }) ||
+                      _vault.some(function(v){ return v.imei===raw; });
+        var isCode  = numOnly.length >= 6 || (raw.length >= 6 && /[0-9]/.test(raw)) || inStore;
+        if (raw !== _lastDetected) {
+          _lastDetected = raw;
+          var fl = document.getElementById('sonarFlash');
+          if (fl) { fl.style.opacity='1'; setTimeout(function(){ if(fl) fl.style.opacity='0'; },160); }
+          if (videoStat) videoStat.textContent = '⚡ Detected: ' + (raw.length > 20 ? raw.slice(0,18)+'…' : raw);
+        }
+        if (isCode && !_sonarScanned.has(raw)) {
+          _sonarScanned.add(raw); _sonarBeep(); _sonarUpdateUI();
+          if (videoStat) videoStat.textContent = '✅ Added: ' + raw.slice(0,12) + (raw.length > 12 ? '…' : '');
+          var mode = (document.getElementById('sonarMode') || {}).value || 'multi';
+          if (mode === 'individual') { _pauseUntil = Date.now() + 2000; }
+        }
+      };
+      // ZXing — pure-JS, works in all browsers, handles screen & physical barcodes
+      if (window.ZXing && window.ZXing.BrowserMultiFormatReader) {
+        try {
+          var hints = new Map();
+          if (ZXing.DecodeHintType) hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+          var _zxReader = new ZXing.BrowserMultiFormatReader(hints, 200);
+          _sonarZXing = _zxReader;
+          _zxReader.decodeFromVideoElementContinuously(video, function(result, err) {
             if (!_sonarStream) return;
-            ocrCodes.forEach(function(code) {
-              if (_sonarScanned.has(code)) return;
-              _sonarScanned.add(code); _sonarBeep(); _sonarUpdateUI();
-              if (videoStat) videoStat.textContent = '✅ Text: ' + code.slice(0,12);
-            });
-          }, videoStat);
-          _sonarRAF = setTimeout(ocrLoop, 1000);
+            var now = Date.now();
+            if (now < _pauseUntil) return;
+            if (result) {
+              _onCodeFound(result.getText ? result.getText() : result.text);
+            } else {
+              _lastDetected = '';
+              _runOcrOnFrame(video, function(ocrCodes) {
+                if (!_sonarStream) return;
+                ocrCodes.forEach(function(c) {
+                  if (_sonarScanned.has(c)) return;
+                  _sonarScanned.add(c); _sonarBeep(); _sonarUpdateUI();
+                  var fl = document.getElementById('sonarFlash');
+                  if (fl) { fl.style.opacity='1'; setTimeout(function(){ if(fl) fl.style.opacity='0'; },180); }
+                  if (videoStat) videoStat.textContent = '✅ Text: ' + c.slice(0,12) + (c.length > 12 ? '…' : '');
+                });
+              }, videoStat);
+            }
+          });
+          return;
+        } catch(zxErr) { _sonarZXing = null; }
+      }
+      // Fallback: native BarcodeDetector (Chrome/Edge desktop only)
+      if ('BarcodeDetector' in window) {
+        var det = new window.BarcodeDetector({ formats: ['code_128','code_39','ean_13','ean_8','qr_code','itf','pdf_417','aztec','data_matrix','codabar','upc_a','upc_e','code_93'] });
+        var scan = function() {
+          if (!_sonarStream) return;
+          var now = Date.now();
+          if (now < _pauseUntil) { _sonarRAF = setTimeout(scan, 150); return; }
+          det.detect(video).then(function(codes) {
+            if (!_sonarStream) return;
+            if (codes.length) {
+              _onCodeFound(codes[0].rawValue);
+            } else {
+              _lastDetected = '';
+              _runOcrOnFrame(video, function(ocrCodes) {
+                if (!_sonarStream) return;
+                ocrCodes.forEach(function(c) {
+                  if (_sonarScanned.has(c)) return;
+                  _sonarScanned.add(c); _sonarBeep(); _sonarUpdateUI();
+                  var fl = document.getElementById('sonarFlash');
+                  if (fl) { fl.style.opacity='1'; setTimeout(function(){ if(fl) fl.style.opacity='0'; },180); }
+                  if (videoStat) videoStat.textContent = '✅ Text: ' + c.slice(0,12) + (c.length > 12 ? '…' : '');
+                });
+              }, videoStat);
+            }
+            _sonarRAF = setTimeout(scan, 200);
+          }).catch(function(){ _sonarRAF = setTimeout(scan, 300); });
         };
-        _sonarRAF = setTimeout(ocrLoop, 1200);
+        _sonarRAF = setTimeout(scan, 300);
         return;
       }
-      var det = new window.BarcodeDetector({ formats: ['code_128','code_39','ean_13','ean_8','qr_code','itf','pdf_417','aztec','data_matrix','codabar','upc_a','upc_e','code_93'] });
-      var _lastDetected = '', _pauseUntil = 0;
-      var scan = function() {
+      // Last resort: OCR-only
+      if (statusEl)  statusEl.textContent = 'OCR MODE';
+      if (videoStat) videoStat.textContent = 'Reading via text recognition…';
+      var ocrLoop = function() {
         if (!_sonarStream) return;
-        var now = Date.now();
-        if (now < _pauseUntil) { _sonarRAF = setTimeout(scan, 150); return; }
-        det.detect(video).then(function(codes) {
+        _runOcrOnFrame(video, function(ocrCodes) {
           if (!_sonarStream) return;
-          var found = false;
-          for (var i = 0; i < codes.length; i++) {
-            var raw     = codes[i].rawValue.trim();
-            var numOnly = raw.replace(/\D/g,'');
-            var _prods  = typeof _getProds === 'function' ? _getProds() : [];
-            var _vault  = typeof _getIMEI  === 'function' ? _getIMEI()  : [];
-            var inStore = _prods.some(function(p){ return p.code===raw||p.serialCode===raw; }) ||
-                          _vault.some(function(v){ return v.imei===raw; });
-            var isCode  = numOnly.length >= 13 || (raw.length >= 6 && /[0-9]/.test(raw)) || inStore;
-            if (raw && raw !== _lastDetected) {
-              _lastDetected = raw;
-              var fl = document.getElementById('sonarFlash');
-              if (fl) { fl.style.opacity = '1'; setTimeout(function(){ if(fl) fl.style.opacity='0'; }, 160); }
-              if (videoStat) videoStat.textContent = '⚡ Detected: ' + (raw.length > 20 ? raw.slice(0,18)+'…' : raw);
-            }
-            if (isCode && !_sonarScanned.has(raw)) {
-              _sonarScanned.add(raw); _sonarBeep(); _sonarUpdateUI();
-              if (videoStat) videoStat.textContent = '✅ Added: ' + raw.slice(0,12) + (raw.length > 12 ? '…' : '');
-              var mode = (document.getElementById('sonarMode') || {}).value || 'multi';
-              if (mode === 'individual') { _pauseUntil = Date.now() + 2000; }
-              found = true; break;
-            }
-          }
-          if (!found && codes.length === 0) {
-            _lastDetected = '';
-            _runOcrOnFrame(video, function(ocrCodes) {
-              if (!_sonarStream) return;
-              ocrCodes.forEach(function(code) {
-                if (_sonarScanned.has(code)) return;
-                _sonarScanned.add(code); _sonarBeep(); _sonarUpdateUI();
-                var fl = document.getElementById('sonarFlash');
-                if (fl) { fl.style.opacity='1'; setTimeout(function(){ if(fl) fl.style.opacity='0'; },180); }
-                if (videoStat) videoStat.textContent = '✅ Text: ' + code.slice(0,12) + (code.length > 12 ? '…' : '');
-              });
-            }, videoStat);
-          }
-          _sonarRAF = setTimeout(scan, 200);
-        }).catch(function(){ _sonarRAF = setTimeout(scan, 300); });
+          ocrCodes.forEach(function(code) {
+            if (_sonarScanned.has(code)) return;
+            _sonarScanned.add(code); _sonarBeep(); _sonarUpdateUI();
+            if (videoStat) videoStat.textContent = '✅ Text: ' + code.slice(0,12);
+          });
+        }, videoStat);
+        _sonarRAF = setTimeout(ocrLoop, 1000);
       };
-      _sonarRAF = setTimeout(scan, 300);
+      _sonarRAF = setTimeout(ocrLoop, 1200);
     })
     .catch(function() {
       var statusEl = document.getElementById('sonarStatusTxt');
@@ -10513,6 +10548,7 @@ function _applySonarFilter() {
 }
 
 function _closeSonar() {
+  if (_sonarZXing)  { try { _sonarZXing.reset(); } catch(e){} _sonarZXing = null; }
   if (_sonarRAF)    { clearTimeout(_sonarRAF); cancelAnimationFrame(_sonarRAF); _sonarRAF = null; }
   if (_sonarStream) { _sonarStream.getTracks().forEach(function(t){ t.stop(); }); _sonarStream = null; }
   var video = document.getElementById('sonarVideo');
@@ -10522,6 +10558,9 @@ function _closeSonar() {
 }
 
 function _sonarRescan() {
+  if (_sonarZXing) { try { _sonarZXing.reset(); } catch(e){} _sonarZXing = null; }
+  if (_sonarRAF)   { clearTimeout(_sonarRAF); cancelAnimationFrame(_sonarRAF); _sonarRAF = null; }
+  if (_sonarStream){ _sonarStream.getTracks().forEach(function(t){ t.stop(); }); _sonarStream = null; }
   _sonarScanned.clear();
   document.getElementById('sonarScanView').style.display = 'flex';
   document.getElementById('sonarResults').style.display  = 'none';

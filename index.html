@@ -9437,7 +9437,8 @@ function _ocrGetCanvas(video) {
   _ocrCanvas.width  = Math.min(video.videoWidth  || 640, 1280);
   _ocrCanvas.height = Math.min(video.videoHeight || 480,  720);
   var ctx = _ocrCanvas.getContext('2d');
-  ctx.filter = 'contrast(1.6) brightness(1.1) grayscale(1)';
+  // Moderate sharpening — screen content is already high-contrast so avoid over-processing
+  ctx.filter = 'contrast(1.3) brightness(1.05) grayscale(1)';
   ctx.drawImage(video, 0, 0, _ocrCanvas.width, _ocrCanvas.height);
   ctx.filter = 'none';
   return _ocrCanvas;
@@ -9459,14 +9460,37 @@ function _extractCodesFromOCR(text) {
       results.push(digits);
     }
   });
-  // Also match known vault codes that appear verbatim in OCR text
+  // Also match 6-12 digit numeric sequences (shorter serial / product codes)
+  var shortSeqs = t.match(/\b\d{6,12}\b/g) || [];
+  shortSeqs.forEach(function(seq) {
+    if (results.indexOf(seq) === -1) results.push(seq);
+  });
+  var compact = text.replace(/[\s\-]/g, '').toLowerCase();
+  // Match known vault codes that appear verbatim in OCR text
   try {
-    var vault   = _getIMEI();
-    var compact = text.replace(/[\s\-]/g, '').toLowerCase();
+    var vault = _getIMEI();
     vault.forEach(function(r) {
       var c = (r.imei || '').replace(/[\s\-]/g, '').toLowerCase();
       if (c.length >= 6 && compact.indexOf(c) !== -1 && results.indexOf(r.imei) === -1) {
         results.push(r.imei);
+      }
+    });
+  } catch(e) {}
+  // Match known product codes and serial codes verbatim in OCR text
+  try {
+    var prods = typeof _getProds === 'function' ? _getProds() : [];
+    prods.forEach(function(p) {
+      if (p.code) {
+        var c = p.code.replace(/[\s\-]/g, '').toLowerCase();
+        if (c.length >= 4 && compact.indexOf(c) !== -1 && results.indexOf(p.code) === -1) {
+          results.push(p.code);
+        }
+      }
+      if (p.serialCode) {
+        var sc = p.serialCode.replace(/[\s\-]/g, '').toLowerCase();
+        if (sc.length >= 6 && compact.indexOf(sc) !== -1 && results.indexOf(p.serialCode) === -1) {
+          results.push(p.serialCode);
+        }
       }
     });
   } catch(e) {}
@@ -9476,7 +9500,7 @@ function _extractCodesFromOCR(text) {
 function _runOcrOnFrame(video, onFound, statusEl) {
   if (_ocrBusy || !_ocrWorker) return;
   var now = Date.now();
-  if (now - _ocrLastRun < 2500) return; // max once per 2.5 s to avoid CPU overload
+  if (now - _ocrLastRun < 1000) return; // max once per 1 s
   _ocrLastRun = now;
   _ocrBusy    = true;
   if (statusEl) statusEl.textContent = '🔍 Reading text…';
@@ -10282,12 +10306,12 @@ function _openSonar() {
               if (videoStat) videoStat.textContent = '✅ Text: ' + code.slice(0,12);
             });
           }, videoStat);
-          _sonarRAF = setTimeout(ocrLoop, 2500);
+          _sonarRAF = setTimeout(ocrLoop, 1000);
         };
         _sonarRAF = setTimeout(ocrLoop, 1200);
         return;
       }
-      var det = new window.BarcodeDetector({ formats: ['code_128','code_39','ean_13','ean_8','qr_code','itf','pdf_417','aztec','data_matrix','codabar','upc_a','upc_e'] });
+      var det = new window.BarcodeDetector({ formats: ['code_128','code_39','ean_13','ean_8','qr_code','itf','pdf_417','aztec','data_matrix','codabar','upc_a','upc_e','code_93'] });
       var _lastDetected = '', _pauseUntil = 0;
       var scan = function() {
         if (!_sonarStream) return;
@@ -10299,7 +10323,11 @@ function _openSonar() {
           for (var i = 0; i < codes.length; i++) {
             var raw     = codes[i].rawValue.trim();
             var numOnly = raw.replace(/\D/g,'');
-            var isCode  = numOnly.length >= 13 || (raw.length >= 6 && /[0-9]/.test(raw));
+            var _prods  = typeof _getProds === 'function' ? _getProds() : [];
+            var _vault  = typeof _getIMEI  === 'function' ? _getIMEI()  : [];
+            var inStore = _prods.some(function(p){ return p.code===raw||p.serialCode===raw; }) ||
+                          _vault.some(function(v){ return v.imei===raw; });
+            var isCode  = numOnly.length >= 13 || (raw.length >= 6 && /[0-9]/.test(raw)) || inStore;
             if (raw && raw !== _lastDetected) {
               _lastDetected = raw;
               var fl = document.getElementById('sonarFlash');

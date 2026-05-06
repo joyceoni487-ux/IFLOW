@@ -2331,12 +2331,19 @@
         <button onclick="_openSonar()" id="integritySearchBtn" style="padding:8px 18px;background:linear-gradient(135deg,#e53e3e,#991b1b);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:700;cursor:pointer;box-shadow:0 2px 12px rgba(229,62,62,.35)">Integrity Search</button>
       </div>
       <!-- Integrity status bar (restored when active today) -->
-      <div id="integrityBar" style="display:none;background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:10px 16px;margin-bottom:12px;align-items:center;gap:12px;flex-wrap:wrap">
-        <span style="font-size:.85rem;font-weight:700;color:#e53e3e">Last Integrity Check</span>
-        <span id="integrityCount" style="font-size:.8rem;color:var(--muted)">0 confirmed</span>
-        <span id="integrityMissing" style="font-size:.8rem;font-weight:600"></span>
-        <button onclick="_openSonar()" style="padding:5px 14px;background:linear-gradient(135deg,#e53e3e,#991b1b);color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer">Re-Scan</button>
-        <button onclick="document.getElementById('integrityBar').style.display='none'" style="padding:5px 12px;background:none;border:1px solid var(--border);border-radius:8px;font-size:.78rem;cursor:pointer;color:var(--muted);margin-left:auto">✕</button>
+      <div id="integrityBar" style="display:none;flex-direction:column;gap:8px;background:rgba(37,99,235,.05);border:1px solid rgba(37,99,235,.2);border-radius:10px;padding:10px 14px;margin-bottom:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <span style="font-size:.8rem;font-weight:700;color:var(--text)">Scan Session</span>
+          <div style="display:flex;gap:6px">
+            <button onclick="_openSonar()" style="padding:4px 12px;background:linear-gradient(135deg,#e53e3e,#991b1b);color:#fff;border:none;border-radius:7px;font-size:.75rem;font-weight:600;cursor:pointer">↺ Rescan</button>
+            <button onclick="document.getElementById('integrityBar').style.display='none';renderIMEIVault();" style="padding:4px 9px;background:none;border:1px solid var(--border);border-radius:7px;font-size:.75rem;cursor:pointer;color:var(--muted)">✕</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <div style="padding:5px 10px;background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.25);border-radius:8px;font-size:.77rem;font-weight:700;color:#3b82f6"><span id="integrityFound">0</span> found</div>
+          <div style="padding:5px 10px;background:rgba(217,119,6,.12);border:1px solid rgba(217,119,6,.25);border-radius:8px;font-size:.77rem;font-weight:700;color:#d97706"><span id="integrityMissing">0</span> missing</div>
+          <div style="padding:5px 10px;background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.2);border-radius:8px;font-size:.77rem;font-weight:700;color:#d97706"><span id="integrityUnknown">0</span> unknown</div>
+        </div>
       </div>
       <div class="table-wrap">
         <table>
@@ -3582,7 +3589,7 @@
     </div>
     <div style="display:flex;gap:8px;align-items:center">
       <span id="sonarScanCount" style="color:rgba(255,80,80,.9);font-size:.85rem;font-weight:700">0 scanned</span>
-      <button onclick="_sonarFinishScan()" style="padding:8px 18px;background:linear-gradient(135deg,#ff3333,#990000);color:#fff;border:none;border-radius:10px;font-size:.82rem;font-weight:700;cursor:pointer">Search →</button>
+      <button onclick="_sonarDone()" style="padding:8px 18px;background:rgba(34,197,94,.2);border:1px solid rgba(34,197,94,.5);color:#22c55e;border-radius:10px;font-size:.82rem;font-weight:700;cursor:pointer">Done ✓</button>
       <button onclick="_closeSonar()" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:50%;width:32px;height:32px;cursor:pointer;color:rgba(255,255,255,.6);font-size:1rem;display:flex;align-items:center;justify-content:center">✕</button>
     </div>
   </div>
@@ -9545,14 +9552,16 @@ function renderIMEIVault() {
     // Integrity overrides audit when active; unknown/scanned entries don't count as stock
     var isIntOK   = _intBarVisible && !isSold && !isScannedUnknown && _intConfirmed.indexOf(r.imei) !== -1;
     var isIntNG   = _intBarVisible && !isSold && !isScannedUnknown && _intConfirmed.indexOf(r.imei) === -1;
-    var rowBg     = isIntOK  ? 'rgba(37,99,235,.13)'
-                  : isIntNG  ? 'rgba(245,158,11,.08)'
-                  : isAuditOK ? 'rgba(34,197,94,.09)' : (isAuditNG ? 'rgba(245,158,11,.09)' : '');
-    var badge     = isSold  ? '<span style="background:rgba(100,116,139,.15);color:#64748b;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">SOLD</span>'
-                  : isScannedUnknown ? '<span style="background:rgba(107,114,128,.12);color:#6b7280;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">SCANNED</span>'
-                  : isIntOK ? '<span style="background:rgba(37,99,235,.18);color:#3b82f6;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">✅ CONFIRMED</span>'
-                  : isIntNG ? '<span style="background:rgba(245,158,11,.15);color:#d97706;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">⚠ UNSCANNED</span>'
-                  : isAuditNG ? '<span style="background:rgba(245,158,11,.15);color:#d97706;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">⚠ NOT SCANNED</span>'
+    var rowBg     = isIntOK       ? 'rgba(37,99,235,.1)'
+                  : isIntNG       ? 'rgba(217,119,6,.07)'
+                  : isScannedUnknown ? 'rgba(217,119,6,.06)'
+                  : isAuditOK     ? 'rgba(34,197,94,.09)'
+                  : isAuditNG     ? 'rgba(245,158,11,.09)' : '';
+    var badge     = isSold         ? '<span style="background:rgba(100,116,139,.15);color:#64748b;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">SOLD</span>'
+                  : isIntOK        ? '<span style="background:rgba(37,99,235,.18);color:#3b82f6;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">FOUND</span>'
+                  : isScannedUnknown ? '<span style="background:rgba(217,119,6,.15);color:#d97706;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">UNKNOWN</span>'
+                  : isIntNG        ? '<span style="background:rgba(217,119,6,.15);color:#d97706;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">MISSING</span>'
+                  : isAuditNG      ? '<span style="background:rgba(245,158,11,.15);color:#d97706;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">NOT SCANNED</span>'
                   : '<span style="background:rgba(34,197,94,.15);color:#16a34a;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">IN STOCK</span>';
     var addedCell = (r.addedAt ? new Date(r.addedAt).toLocaleDateString() : '—')
       + (r.lastSeen ? '<br><span style="font-size:.69rem;color:var(--muted)">Seen: ' + new Date(r.lastSeen).toLocaleDateString()
@@ -10352,16 +10361,26 @@ function _updateIntegrityBar() {
   var imeis   = _getIMEI();
   var today   = _todayStr();
   if (state.date !== today) return;
-  var inStock   = imeis.filter(function(r){ return r.status === 'in_stock'; });
   var confirmed = state.confirmed || [];
-  var unconf    = inStock.filter(function(r){ return confirmed.indexOf(r.imei) === -1; });
-  var cEl = document.getElementById('integrityCount');
+  var inStock   = imeis.filter(function(r){ return r.status === 'in_stock'; });
+  // Found = confirmed + vault entry is a proper product (not scanned_unknown)
+  var found   = confirmed.filter(function(c){
+    var r = imeis.find(function(x){ return (x.imei||'').replace(/[\s\-]/g,'') === c.replace(/[\s\-]/g,''); });
+    return r && r.status !== 'scanned_unknown';
+  }).length;
+  // Missing = in-stock vault items not in confirmed
+  var missing = inStock.filter(function(r){ return confirmed.indexOf(r.imei) === -1; }).length;
+  // Unknown = confirmed but no proper vault record (scanned_unknown status)
+  var unknown = confirmed.filter(function(c){
+    var r = imeis.find(function(x){ return (x.imei||'').replace(/[\s\-]/g,'') === c.replace(/[\s\-]/g,''); });
+    return !r || r.status === 'scanned_unknown';
+  }).length;
+  var fEl = document.getElementById('integrityFound');
   var mEl = document.getElementById('integrityMissing');
-  if (cEl) cEl.textContent = confirmed.length + ' of ' + inStock.length + ' confirmed';
-  if (mEl) {
-    mEl.textContent = unconf.length > 0 ? '⚠ ' + unconf.length + ' unconfirmed' : '✅ All confirmed!';
-    mEl.style.color = unconf.length > 0 ? '#e53e3e' : '#16a34a';
-  }
+  var uEl = document.getElementById('integrityUnknown');
+  if (fEl) fEl.textContent = found;
+  if (mEl) mEl.textContent = missing;
+  if (uEl) uEl.textContent = unknown;
 }
 
 function _playConfirmSound() {
@@ -10734,6 +10753,9 @@ var _snapBusy     = false; // prevents parallel snapshot decodes
 
 function _openSonar() {
   _sonarScanned.clear();
+  // Ensure an integrity state exists for today so real-time tracking works
+  var _oSt = _getIntegrity();
+  if (_oSt.date !== _todayStr()) _saveIntegrity({ date: _todayStr(), confirmed: [], barVisible: false });
   var modal = document.getElementById('sonarModal');
   if (!modal) return;
   modal.style.display = 'flex';
@@ -10808,6 +10830,15 @@ function _openSonar() {
         }
         delete _confirmMap[raw];
         _sonarScanned.add(raw);
+        // Update integrity confirmed list immediately (no need to click "Done" to see results)
+        (function() {
+          var _iSt = _getIntegrity();
+          var _iDay = _todayStr();
+          if (_iSt.date === _iDay && _iSt.confirmed.indexOf(raw) === -1) {
+            _iSt.confirmed.push(raw);
+            _saveIntegrity(_iSt);
+          }
+        })();
         // Vault transcript: stamp lastSeen + scanCount on every confirmed scan.
         // Never create a scanned_unknown entry for items already known via products list.
         (function() {
@@ -11001,6 +11032,24 @@ function _sonarBeepUnknown() {
       osc.start(t); osc.stop(t + 0.13);
     });
   } catch(_){}
+}
+
+function _sonarDone() {
+  var today = _todayStr();
+  var state = _getIntegrity();
+  if (state.date !== today) state = { date: today, confirmed: [], barVisible: true };
+  else state.barVisible = true;
+  _sonarScanned.forEach(function(code){ if (state.confirmed.indexOf(code) === -1) state.confirmed.push(code); });
+  _saveIntegrity(state);
+  _closeSonar();
+  navigateTo('products');
+  setTimeout(function() {
+    if (typeof switchProdTab === 'function') switchProdTab('imei');
+    renderIMEIVault();
+    _updateIntegrityBar();
+    var intBar = document.getElementById('integrityBar');
+    if (intBar) { intBar.style.display = 'flex'; intBar.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  }, 200);
 }
 
 function _sonarFinishScan() {

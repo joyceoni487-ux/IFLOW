@@ -9689,6 +9689,7 @@ var _imeiScanStream = null;
 var _imeiScanMode   = 'lookup';
 var _imeiScanValue  = '';
 var _imeiScanRAF    = null;
+var _imeiScanZXing  = null;
 
 function _openCameraScanner(mode) {
   _imeiScanMode  = mode || 'lookup';
@@ -9722,24 +9723,25 @@ function _openCameraScanner(mode) {
       if (noticeEl) { noticeEl.style.display = 'none'; }
 
       if (typeof ZXing !== 'undefined' && ZXing.BrowserMultiFormatReader) {
-        // ZXing universal barcode detection
-        var _czReader = new ZXing.BrowserMultiFormatReader(null, 80);
-        var _czScan = function() {
-          if (!_imeiScanStream) return;
-          _czReader.decodeFromVideoElement(video).then(function(result) {
+        try {
+          var _czHints = new Map();
+          if (ZXing.DecodeHintType) _czHints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+          var _czReader = new ZXing.BrowserMultiFormatReader(_czHints, 40);
+          _imeiScanZXing = _czReader;
+          _czReader.decodeFromVideoElementContinuously(video, function(result, err) {
             if (!_imeiScanStream) return;
-            var raw = result.getText().trim();
-            if (raw) { _processIMEIValue(raw, true); }
-            _imeiScanRAF = setTimeout(_czScan, 80);
-          }).catch(function() {
-            _runOcrOnFrame(video, function(codes) {
-              if (!_imeiScanStream) return;
-              codes.forEach(function(c) { _processIMEIValue(c, true); });
-            }, _scanFb);
-            _imeiScanRAF = setTimeout(_czScan, 200);
+            if (result) {
+              var raw = result.getText ? result.getText().trim() : '';
+              if (raw) { _processIMEIValue(raw, true); }
+            } else {
+              // No barcode found — try OCR for on-screen text
+              _runOcrOnFrame(video, function(codes) {
+                if (!_imeiScanStream) return;
+                codes.forEach(function(c) { _processIMEIValue(c, true); });
+              }, _scanFb);
+            }
           });
-        };
-        _imeiScanRAF = setTimeout(_czScan, 300);
+        } catch(e) { _imeiScanZXing = null; }
       } else if ('BarcodeDetector' in window) {
         var _allFormats = ['code_128','code_39','ean_13','ean_8','qr_code','itf','pdf_417','aztec','data_matrix','codabar','upc_a','upc_e'];
         var detector = new window.BarcodeDetector({ formats: _allFormats });
@@ -9780,6 +9782,7 @@ function _openCameraScanner(mode) {
 }
 
 function _closeIMEIScan() {
+  if (_imeiScanZXing) { try { _imeiScanZXing.reset(); } catch(e){} _imeiScanZXing = null; }
   if (_imeiScanRAF) { clearTimeout(_imeiScanRAF); cancelAnimationFrame(_imeiScanRAF); _imeiScanRAF = null; }
   if (_imeiScanStream) { _imeiScanStream.getTracks().forEach(function(t){ t.stop(); }); _imeiScanStream = null; }
   var video = document.getElementById('imeiScanVideo');

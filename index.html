@@ -1782,7 +1782,7 @@
   @keyframes sonar-rotate { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
   @keyframes sonar-ping { 0%{width:0;height:0;opacity:.8} 100%{width:260px;height:260px;opacity:0} }
   @keyframes sonar-hit { 0%{box-shadow:0 0 0 rgba(255,30,30,.8)} 50%{box-shadow:0 0 20px 6px rgba(255,30,30,.6)} 100%{box-shadow:0 0 0 rgba(255,30,30,0)} }
-  @keyframes sonar-scan-line { 0%{left:8%;opacity:0} 10%{opacity:1} 90%{opacity:1} 100%{left:92%;opacity:0} }
+  @keyframes sonar-scan-line { 0%{transform:translateX(8vw);opacity:0} 10%{opacity:1} 90%{opacity:1} 100%{transform:translateX(84vw);opacity:0} }
   /* Track-type radio pills */
   .track-radio-lbl { display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:.82rem;background:var(--surface2);transition:border-color .15s,background .15s }
   .track-radio-lbl:has(input:checked) { border-color:var(--accent);background:rgba(79,142,247,.09) }
@@ -3554,7 +3554,7 @@
       <video id="sonarVideo" autoplay playsinline muted style="width:100%;max-height:260px;object-fit:cover;display:block"></video>
       <div style="position:absolute;inset:0;pointer-events:none">
         <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:72%;height:52px;border:2px solid rgba(255,50,50,.85);border-radius:6px;box-shadow:0 0 0 2000px rgba(0,0,0,.22)"></div>
-        <div style="position:absolute;top:0;left:0;width:2px;height:100%;background:linear-gradient(transparent,rgba(255,50,50,.8),transparent);animation:sonar-scan-line 2s ease-in-out infinite"></div>
+        <div style="position:absolute;top:0;left:0;width:2px;height:100%;background:linear-gradient(transparent,rgba(255,50,50,.8),transparent);animation:sonar-scan-line 2s ease-in-out infinite;will-change:transform"></div>
         <div style="position:absolute;top:50%;left:14%;transform:translateY(-50%);width:14px;height:14px;border-left:3px solid #ff3333;border-top:3px solid #ff3333;border-radius:2px 0 0 0"></div>
         <div style="position:absolute;top:50%;right:14%;transform:translateY(-50%) translateY(-14px);width:14px;height:14px;border-right:3px solid #ff3333;border-top:3px solid #ff3333;border-radius:0 2px 0 0"></div>
       </div>
@@ -3590,6 +3590,7 @@
           <option value="sold">Recently sold matches</option>
         </select>
         <button onclick="_sonarRescan()" style="padding:6px 14px;background:linear-gradient(135deg,#e53e3e,#991b1b);color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer">↺ Re-scan</button>
+        <button onclick="_sonarReset()" style="padding:6px 12px;background:var(--surface2);color:#e53e3e;border:1px solid rgba(239,68,68,.3);border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer" title="Wipe all scan results and integrity data">🗑 Reset</button>
         <button onclick="_closeSonar()" style="padding:6px 12px;background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:8px;font-size:.78rem;cursor:pointer">Close</button>
       </div>
     </div>
@@ -9355,12 +9356,12 @@ function renderIMEIVault() {
     // Integrity overrides audit when active
     var isIntOK   = _intBarVisible && !isSold && _intConfirmed.indexOf(r.imei) !== -1;
     var isIntNG   = _intBarVisible && !isSold && _intConfirmed.indexOf(r.imei) === -1;
-    var rowBg     = isIntOK  ? 'rgba(34,197,94,.14)'
-                  : isIntNG  ? 'rgba(239,68,68,.14)'
+    var rowBg     = isIntOK  ? 'rgba(37,99,235,.13)'
+                  : isIntNG  ? 'rgba(147,197,253,.07)'
                   : isAuditOK ? 'rgba(34,197,94,.09)' : (isAuditNG ? 'rgba(245,158,11,.09)' : '');
     var badge     = isSold  ? '<span style="background:rgba(100,116,139,.15);color:#64748b;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">SOLD</span>'
-                  : isIntOK ? '<span style="background:rgba(34,197,94,.15);color:#16a34a;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">✅ CONFIRMED</span>'
-                  : isIntNG ? '<span style="background:rgba(239,68,68,.15);color:#e53e3e;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">🔴 UNCONFIRMED</span>'
+                  : isIntOK ? '<span style="background:rgba(37,99,235,.18);color:#3b82f6;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">✅ CONFIRMED</span>'
+                  : isIntNG ? '<span style="background:rgba(147,197,253,.15);color:#93c5fd;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">○ UNSCANNED</span>'
                   : isAuditNG ? '<span style="background:rgba(245,158,11,.15);color:#d97706;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">⚠ NOT SCANNED</span>'
                   : '<span style="background:rgba(34,197,94,.15);color:#16a34a;padding:3px 9px;border-radius:20px;font-size:.71rem;font-weight:700">IN STOCK</span>';
     html += '<tr id="imei-row-' + _imeiEsc(r.imei) + '" style="transition:background .35s;background:' + rowBg + '">'
@@ -10286,7 +10287,7 @@ function _openSonar() {
   _initOcrWorker();
   var video = document.getElementById('sonarVideo');
   if (!video) return;
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920, min: 640 }, height: { ideal: 1080, min: 480 } } })
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280, min: 480 }, height: { ideal: 720, min: 360 } } })
     .catch(function(){ return navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); })
     .then(function(stream) {
       _sonarStream = stream;
@@ -10295,53 +10296,58 @@ function _openSonar() {
       var statusEl  = document.getElementById('sonarStatusTxt');
       var videoStat = document.getElementById('sonarVideoStatus');
       if (statusEl) statusEl.textContent = 'SCANNING';
-      var _lastDetected = '', _pauseUntil = 0;
-      var _onCodeFound = function(raw) {
+      var _lastDetected = '', _pauseUntil = 0, _confirmMap = {};
+      var _onCodeFound = function(raw, fromOcr) {
         if (!raw || !_sonarStream) return;
         raw = raw.trim();
+        if (raw.length < 4) return;
         var numOnly = raw.replace(/\D/g,'');
-        var _prods  = typeof _getProds === 'function' ? _getProds() : [];
-        var _vault  = typeof _getIMEI  === 'function' ? _getIMEI()  : [];
-        var inStore = _prods.some(function(p){ return p.code===raw||p.serialCode===raw; }) ||
-                      _vault.some(function(v){ return v.imei===raw; });
-        var isCode  = numOnly.length >= 6 || (raw.length >= 6 && /[0-9]/.test(raw)) || inStore;
+        var vault   = typeof _getIMEI  === 'function' ? _getIMEI()  : [];
+        var prods   = typeof _getProds === 'function' ? _getProds() : [];
+        var inVault = vault.some(function(v){ return v.imei === raw; });
+        var inStore = inVault || prods.some(function(p){ return p.code===raw||p.serialCode===raw; });
+        var isCode  = numOnly.length >= 8 || (raw.length >= 8 && /[0-9]/.test(raw)) || inStore;
+        if (!isCode) return;
+        // Visual flash on first sight of a new code
         if (raw !== _lastDetected) {
           _lastDetected = raw;
+          _confirmMap = {};
           var fl = document.getElementById('sonarFlash');
-          if (fl) { fl.style.opacity='1'; setTimeout(function(){ if(fl) fl.style.opacity='0'; },160); }
+          if (fl) { fl.style.opacity='0.5'; setTimeout(function(){ if(fl) fl.style.opacity='0'; },100); }
           if (videoStat) videoStat.textContent = '⚡ Detected: ' + (raw.length > 20 ? raw.slice(0,18)+'…' : raw);
         }
-        if (isCode && !_sonarScanned.has(raw)) {
-          _sonarScanned.add(raw); _sonarBeep(); _sonarUpdateUI();
-          if (videoStat) videoStat.textContent = '✅ Added: ' + raw.slice(0,12) + (raw.length > 12 ? '…' : '');
-          var mode = (document.getElementById('sonarMode') || {}).value || 'multi';
-          if (mode === 'individual') { _pauseUntil = Date.now() + 2000; }
+        if (_sonarScanned.has(raw)) return;
+        // Debounce camera reads: require 2 consecutive detections to filter partial/noise reads
+        // OCR detections are accepted immediately (slower, more deliberate)
+        if (!fromOcr) {
+          _confirmMap[raw] = (_confirmMap[raw] || 0) + 1;
+          if (_confirmMap[raw] < 2) return;
         }
+        delete _confirmMap[raw];
+        _sonarScanned.add(raw);
+        if (inVault) { _sonarBeep(); } else { _sonarBeepUnknown(); }
+        _sonarUpdateUI();
+        if (videoStat) videoStat.textContent = '✅ Added: ' + raw.slice(0,12) + (raw.length > 12 ? '…' : '');
+        var mode = (document.getElementById('sonarMode') || {}).value || 'multi';
+        if (mode === 'individual') { _pauseUntil = Date.now() + 2000; }
       };
       // ZXing — pure-JS, works in all browsers, handles screen & physical barcodes
       if (window.ZXing && window.ZXing.BrowserMultiFormatReader) {
         try {
           var hints = new Map();
           if (ZXing.DecodeHintType) hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-          var _zxReader = new ZXing.BrowserMultiFormatReader(hints, 200);
+          var _zxReader = new ZXing.BrowserMultiFormatReader(hints, 100);
           _sonarZXing = _zxReader;
           _zxReader.decodeFromVideoElementContinuously(video, function(result, err) {
             if (!_sonarStream) return;
-            var now = Date.now();
-            if (now < _pauseUntil) return;
+            if (Date.now() < _pauseUntil) return;
             if (result) {
-              _onCodeFound(result.getText ? result.getText() : result.text);
+              _onCodeFound(result.getText ? result.getText() : result.text, false);
             } else {
               _lastDetected = '';
               _runOcrOnFrame(video, function(ocrCodes) {
                 if (!_sonarStream) return;
-                ocrCodes.forEach(function(c) {
-                  if (_sonarScanned.has(c)) return;
-                  _sonarScanned.add(c); _sonarBeep(); _sonarUpdateUI();
-                  var fl = document.getElementById('sonarFlash');
-                  if (fl) { fl.style.opacity='1'; setTimeout(function(){ if(fl) fl.style.opacity='0'; },180); }
-                  if (videoStat) videoStat.textContent = '✅ Text: ' + c.slice(0,12) + (c.length > 12 ? '…' : '');
-                });
+                ocrCodes.forEach(function(c) { _onCodeFound(c, true); });
               }, videoStat);
             }
           });
@@ -10350,32 +10356,25 @@ function _openSonar() {
       }
       // Fallback: native BarcodeDetector (Chrome/Edge desktop only)
       if ('BarcodeDetector' in window) {
-        var det = new window.BarcodeDetector({ formats: ['code_128','code_39','ean_13','ean_8','qr_code','itf','pdf_417','aztec','data_matrix','codabar','upc_a','upc_e','code_93'] });
+        var det = new window.BarcodeDetector({ formats: ['code_128','code_39','ean_13','ean_8','qr_code','upc_a','upc_e','itf'] });
         var scan = function() {
           if (!_sonarStream) return;
-          var now = Date.now();
-          if (now < _pauseUntil) { _sonarRAF = setTimeout(scan, 150); return; }
+          if (Date.now() < _pauseUntil) { _sonarRAF = setTimeout(scan, 100); return; }
           det.detect(video).then(function(codes) {
             if (!_sonarStream) return;
             if (codes.length) {
-              _onCodeFound(codes[0].rawValue);
+              _onCodeFound(codes[0].rawValue, false);
             } else {
               _lastDetected = '';
               _runOcrOnFrame(video, function(ocrCodes) {
                 if (!_sonarStream) return;
-                ocrCodes.forEach(function(c) {
-                  if (_sonarScanned.has(c)) return;
-                  _sonarScanned.add(c); _sonarBeep(); _sonarUpdateUI();
-                  var fl = document.getElementById('sonarFlash');
-                  if (fl) { fl.style.opacity='1'; setTimeout(function(){ if(fl) fl.style.opacity='0'; },180); }
-                  if (videoStat) videoStat.textContent = '✅ Text: ' + c.slice(0,12) + (c.length > 12 ? '…' : '');
-                });
+                ocrCodes.forEach(function(c) { _onCodeFound(c, true); });
               }, videoStat);
             }
-            _sonarRAF = setTimeout(scan, 200);
-          }).catch(function(){ _sonarRAF = setTimeout(scan, 300); });
+            _sonarRAF = setTimeout(scan, 150);
+          }).catch(function(){ _sonarRAF = setTimeout(scan, 200); });
         };
-        _sonarRAF = setTimeout(scan, 300);
+        _sonarRAF = setTimeout(scan, 200);
         return;
       }
       // Last resort: OCR-only
@@ -10385,11 +10384,7 @@ function _openSonar() {
         if (!_sonarStream) return;
         _runOcrOnFrame(video, function(ocrCodes) {
           if (!_sonarStream) return;
-          ocrCodes.forEach(function(code) {
-            if (_sonarScanned.has(code)) return;
-            _sonarScanned.add(code); _sonarBeep(); _sonarUpdateUI();
-            if (videoStat) videoStat.textContent = '✅ Text: ' + code.slice(0,12);
-          });
+          ocrCodes.forEach(function(code) { _onCodeFound(code, true); });
         }, videoStat);
         _sonarRAF = setTimeout(ocrLoop, 1000);
       };
@@ -10408,9 +10403,10 @@ function _sonarAddManual() {
   if (!inp) return;
   var val = inp.value.replace(/[^0-9a-zA-Z\-]/g,'').trim();
   if (!val || val.length < 4) { inp.focus(); return; }
-  var isNew = !_sonarScanned.has(val);
+  var isNew   = !_sonarScanned.has(val);
+  var inVault = (typeof _getIMEI === 'function' ? _getIMEI() : []).some(function(v){ return v.imei === val; });
   _sonarScanned.add(val);
-  if (isNew) _sonarBeep();
+  if (isNew) { if (inVault) _sonarBeep(); else _sonarBeepUnknown(); }
   _sonarUpdateUI();
   inp.value = ''; inp.focus();
   showToast(isNew ? '✅ Added: ' + val.slice(0,10) : 'Already in list');
@@ -10426,7 +10422,7 @@ function _sonarUpdateUI() {
   _sonarScanned.forEach(function(code) {
     var rec   = imeis.find(function(r){ return r.imei === code || r.imei.replace(/-/g,'') === code.replace(/-/g,''); });
     var known = !!rec;
-    var color = known ? '#16a34a' : '#d97706';
+    var color = known ? '#3b82f6' : '#93c5fd';
     var label = known ? (rec.productName || 'Known') : 'Unknown';
     html += '<div style="display:flex;justify-content:space-between;padding:4px 10px;background:rgba(255,30,30,.08);border:1px solid rgba(255,30,30,.15);border-radius:7px;font-size:.75rem">'
       + '<span style="font-family:monospace;color:#ffaaaa">' + _imeiEsc(code.length > 12 ? code.slice(0,10)+'…' : code) + '</span>'
@@ -10446,6 +10442,21 @@ function _sonarBeep() {
     g.gain.setValueAtTime(0.2, ctx.currentTime);
     g.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.12);
     osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.14);
+  } catch(_){}
+}
+function _sonarBeepUnknown() {
+  try {
+    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+    // Two descending tones — "wrong / not found" sound
+    [380, 260].forEach(function(freq, i) {
+      var osc = ctx.createOscillator(); var g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.frequency.value = freq; osc.type = 'square';
+      var t = ctx.currentTime + i * 0.13;
+      g.gain.setValueAtTime(0.15, t);
+      g.gain.linearRampToValueAtTime(0, t + 0.11);
+      osc.start(t); osc.stop(t + 0.13);
+    });
   } catch(_){}
 }
 
@@ -10567,6 +10578,16 @@ function _sonarRescan() {
   _openSonar();
 }
 
+function _sonarReset() {
+  if (!confirm('Wipe all scan results and integrity data?')) return;
+  _closeSonar();
+  _sonarScanned.clear();
+  localStorage.removeItem('iflow_integrity');
+  var bar = document.getElementById('integrityBar');
+  if (bar) bar.style.display = 'none';
+  renderIMEIVault();
+  showToast('Integrity data cleared');
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Settings — Custom Form Fields

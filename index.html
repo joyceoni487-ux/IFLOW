@@ -5393,16 +5393,14 @@
             _scheduleWipe(i, tr);
             return;
           }
-          // Validate IMEI against vault
+          // Check IMEI against vault (warn only — don't block the sale)
           const vaultArr = _getIMEI();
           const vaultRec = vaultArr.find(v => v.imei === imei);
           if (!vaultRec) {
             const suggestions = _closestIMEIs(imei).slice(0,3).map(r => r.imei.slice(0,8)+'… ('+r.productName+')').join(', ');
-            showWarning(`⚠️ IMEI "${imei.slice(0,10)}…" not found in inventory.${suggestions ? ' Closest: '+suggestions : ''}`);
-            _scheduleWipe40(i, tr); // 40-second timeout for invalid IMEI
-            return;
+            showToast('⚠ IMEI not in vault — sale recorded' + (suggestions ? '. Closest: ' + suggestions : ''));
           }
-          // All required fields present — commit the sale
+          // Commit the sale
           const ts = Date.now();
           sales[i] = {
             customer: customer || '',
@@ -5413,7 +5411,7 @@
             timestamp: ts
           };
           deductStock(product, quantity);
-          // Mark IMEI as sold in vault
+          // Mark IMEI as sold in vault if found
           if (vaultRec) { _markIMEISold(imei, customer || ''); }
           persist();
           SheetsAPI.withToken(() => SheetsAPI.updateRow(i, sales[i]));
@@ -9844,10 +9842,11 @@ function _processIMEIValue(val, fromCamera) {
     return;
   }
 
-  // ── Sale mode: fill IMEI into the sale row ────────────────────────────────────
+  // ── Sale mode: fill IMEI + auto-fill product/price from vault ────────────────
   if (_imeiScanMode === 'sale') {
     _closeIMEIScan();
-    var _saleInp = document.querySelector('[data-field="imei"][data-index="' + _imeiSaleRowIdx + '"]');
+    var _rowIdx  = _imeiSaleRowIdx;
+    var _saleInp = document.querySelector('[data-field="imei"][data-index="' + _rowIdx + '"]');
     var _saleTr  = _saleInp ? _saleInp.closest('tr') : null;
     if (_saleInp) {
       var _existing = _saleInp.value.trim();
@@ -9855,9 +9854,29 @@ function _processIMEIValue(val, fromCamera) {
         showToast('⚠ Scanner overrides previous IMEI "' + _existing.slice(0,8) + '…"');
       }
       _saleInp.value = val;
-      if (!_draftRows[_imeiSaleRowIdx]) _draftRows[_imeiSaleRowIdx] = {};
-      _draftRows[_imeiSaleRowIdx].imei = val;
-      _validateSaleIMEI(val, _imeiSaleRowIdx, _saleTr, false);
+      if (!_draftRows[_rowIdx]) _draftRows[_rowIdx] = {};
+      _draftRows[_rowIdx].imei = val;
+
+      // Auto-fill product name and price from vault record
+      var _vaultAll = _getIMEI();
+      var _vRec = _vaultAll.find(function(v){ return v.imei === val; });
+      if (_vRec && _vRec.productName) {
+        var _prodInp = document.querySelector('[data-field="product"][data-index="' + _rowIdx + '"]');
+        if (_prodInp && !_prodInp.value.trim()) {
+          _prodInp.value = _vRec.productName;
+          _draftRows[_rowIdx].product = _vRec.productName;
+        }
+        var _stockProd = typeof findStockProduct === 'function' ? findStockProduct(_vRec.productName) : null;
+        if (_stockProd) {
+          var _priceInp = document.querySelector('[data-field="price"][data-index="' + _rowIdx + '"]');
+          if (_priceInp && !_priceInp.value.trim()) {
+            _priceInp.value = _stockProd.unitPrice;
+            _draftRows[_rowIdx].price = _stockProd.unitPrice;
+          }
+        }
+      }
+
+      _validateSaleIMEI(val, _rowIdx, _saleTr, false);
     }
     _imeiSaleRowIdx = -1;
     return;

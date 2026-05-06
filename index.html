@@ -10722,7 +10722,7 @@ function _openSonar() {
         }
         delete _confirmMap[raw];
         _sonarScanned.add(raw);
-        if (inVault) { _sonarBeep(); } else { _sonarBeepUnknown(); }
+        if (inStore) { _sonarBeep(); } else { _sonarBeepUnknown(); }
         _sonarUpdateUI();
         if (videoStat) videoStat.textContent = '✅ ' + raw;
         var mode = (document.getElementById('sonarMode') || {}).value || 'multi';
@@ -10815,14 +10815,20 @@ function _sonarUpdateUI() {
   var list = document.getElementById('sonarScanList');
   if (!list || !_sonarScanned.size) return;
   var imeis = _getIMEI();
+  var prods = typeof _getProds === 'function' ? _getProds() : [];
   var html  = '';
   _sonarScanned.forEach(function(code) {
-    var rec   = imeis.find(function(r){ return r.imei === code || r.imei.replace(/-/g,'') === code.replace(/-/g,''); });
-    var known = !!rec;
+    var normCode = code.replace(/[\s\-]/g,'');
+    var vRec  = imeis.find(function(r){ return (r.imei||'').replace(/[\s\-]/g,'') === normCode; });
+    var pRec  = !vRec && prods.find(function(p){
+      return (p.code||'').replace(/[\s\-]/g,'') === normCode
+          || (p.serialCode||'').replace(/[\s\-]/g,'') === normCode;
+    });
+    var known = !!(vRec || pRec);
+    var label = vRec ? (vRec.productName || 'In Vault') : (pRec ? (pRec.name || 'In Products') : 'Unknown');
     var color = known ? '#3b82f6' : '#d97706';
-    var label = known ? (rec.productName || 'Known') : 'Unknown';
-    html += '<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 10px;background:rgba(255,30,30,.08);border:1px solid rgba(255,30,30,.15);border-radius:7px;font-size:.75rem">'
-      + '<span style="font-family:monospace;color:#ffaaaa;word-break:break-all">' + _imeiEsc(code) + '</span>'
+    html += '<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 10px;background:' + (known ? 'rgba(59,130,246,.06)' : 'rgba(217,119,6,.06)') + ';border:1px solid ' + (known ? 'rgba(59,130,246,.2)' : 'rgba(217,119,6,.2)') + ';border-radius:7px;font-size:.75rem">'
+      + '<span style="font-family:monospace;color:var(--text);word-break:break-all">' + _imeiEsc(code) + '</span>'
       + '<span style="color:' + color + ';font-weight:600;white-space:nowrap">' + _imeiEsc(label) + '</span>'
       + '</div>';
   });
@@ -10976,14 +10982,15 @@ function _sonarRescan() {
 }
 
 function _sonarReset() {
-  if (!confirm('Wipe all scan results and integrity data?')) return;
   _closeSonar();
   _sonarScanned.clear();
   localStorage.removeItem('iflow_integrity');
   var bar = document.getElementById('integrityBar');
   if (bar) bar.style.display = 'none';
-  renderIMEIVault();
-  showToast('Integrity data cleared');
+  if (typeof renderIMEIVault === 'function') renderIMEIVault();
+  showToast('Scan results cleared');
+  // Re-open fresh
+  setTimeout(_openSonar, 150);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

@@ -10788,8 +10788,14 @@ function renderCustomers() {
     if (s.warranty) c.warranties.push(s.warranty);
     c.purchases.push({ product: s.product, imei: s.imei || '', date: s.timestamp, price: price, qty: qty, warranty: s.warranty || '' });
     var _pNameLow = (s.product || '').toLowerCase();
+    // Try exact name match first, then category match for variants
     var prod = prods.find(function(p){ return (p.name || '').toLowerCase() === _pNameLow; });
-    if (prod && prod.costPrice != null && prod.costPrice !== '') c.profit += (price - Number(prod.costPrice)) * qty;
+    if (!prod) prod = prods.find(function(p){ return (p.category || '').toLowerCase() === _pNameLow; });
+    if (!prod) prod = prods.find(function(p){ return _pNameLow.indexOf((p.category || p.name || '').toLowerCase()) === 0; });
+    if (prod && prod.costPrice != null && prod.costPrice !== '' && prod.costPrice !== undefined) {
+      c.profit += (price - Number(prod.costPrice)) * qty;
+      c.profitKnown = true;
+    }
   });
 
   var customers = Object.values(map);
@@ -10808,7 +10814,8 @@ function renderCustomers() {
 
   var html = '';
   customers.forEach(function(c, i) {
-    var profitColor = c.profit > 0 ? '#16a34a' : (c.profit < 0 ? '#e53e3e' : 'var(--muted)');
+    var profitColor = c.profit > 0 ? '#16a34a' : (c.profit < 0 ? '#e53e3e' : (c.profitKnown ? 'var(--muted)' : '#555'));
+    var profitDisplay = c.profitKnown ? (cur + fmtC(Math.abs(c.profit))) : '<span title="Set cost prices on products to track profit" style="cursor:help;border-bottom:1px dashed #555">— ⓘ</span>';
     var lastDate = c.lastTs ? new Date(c.lastTs).toLocaleDateString() : '—';
     var isReseller = c.type === 'reseller';
     var typeBadge = isReseller
@@ -10823,7 +10830,7 @@ function renderCustomers() {
       + '<td>' + typeBadge + '</td>'
       + '<td style="text-align:center">' + c.orders + '</td>'
       + '<td>' + cur + fmtC(c.spent) + '</td>'
-      + '<td style="color:' + profitColor + ';font-weight:600">' + (c.profit !== 0 ? (cur + fmtC(Math.abs(c.profit))) : '—') + '</td>'
+      + '<td style="color:' + profitColor + ';font-weight:600">' + profitDisplay + '</td>'
       + '<td style="font-size:.79rem;color:var(--muted)">' + _imeiEsc(activeWarranty) + '</td>'
       + '<td style="font-size:.8rem;color:var(--muted)">' + lastDate + '</td>'
       + '<td><button onclick="_openCustomerDetail(decodeURIComponent(\'' + safeKey + '\'))" style="padding:4px 10px;font-size:.71rem;background:rgba(99,102,241,.1);color:#818cf8;border:1px solid rgba(99,102,241,.25);border-radius:8px;cursor:pointer">More Info</button></td>'
@@ -10846,6 +10853,7 @@ function _openCustomerDetail(name) {
 
   var isReseller = c.type === 'reseller';
   var profitColor = c.profit > 0 ? '#16a34a' : (c.profit < 0 ? '#e53e3e' : 'var(--muted)');
+  var profitVal = c.profitKnown ? (cur + fmtC(Math.abs(c.profit)) + (c.profit < 0 ? ' (loss)' : '')) : '— (set cost prices on products to track)';
   var lastProduct = c.purchases.length ? c.purchases[c.purchases.length - 1] : null;
   var activeWarranties = [...new Set(c.purchases.filter(function(p){ return p.warranty; }).map(function(p){ return p.warranty; }))];
 
@@ -10853,7 +10861,7 @@ function _openCustomerDetail(name) {
     { label: 'Type', value: isReseller ? '🏪 Reseller' : '👤 Individual' },
     { label: 'Total Orders', value: c.orders },
     { label: 'Total Spent', value: cur + fmtC(c.spent) },
-    { label: 'Profit Generated', value: c.profit !== 0 ? cur + fmtC(Math.abs(c.profit)) : '—', color: profitColor },
+    { label: 'Profit Generated', value: profitVal, color: c.profitKnown ? profitColor : '#555' },
     { label: 'Last Purchase', value: c.lastTs ? new Date(c.lastTs).toLocaleDateString() : '—' },
     { label: 'Last Product', value: lastProduct ? lastProduct.product : '—' },
     { label: 'Active Warranties', value: activeWarranties.length ? activeWarranties.join(', ') : 'None' },

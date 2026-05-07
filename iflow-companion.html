@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>iFlow Mobile Scanner</title>
+  <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    body{background:#080a12;color:#e8eaf0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;display:flex;flex-direction:column;overflow:hidden}
+    .hdr{background:rgba(0,0,0,.55);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,50,50,.18);flex-shrink:0}
+    .hdr-left{display:flex;align-items:center;gap:9px}
+    .dot{width:9px;height:9px;border-radius:50%;background:#444;flex-shrink:0;transition:background .3s,box-shadow .3s}
+    .dot.wait{background:#f59e0b;box-shadow:0 0 7px #f59e0b;animation:pulse 1s ease-in-out infinite}
+    .dot.ok{background:#22c55e;box-shadow:0 0 7px #22c55e;animation:pulse 2s ease-in-out infinite}
+    .dot.err{background:#ef4444;box-shadow:0 0 7px #ef4444}
+    #statusTxt{font-size:.72rem;font-weight:700;letter-spacing:.9px;text-transform:uppercase;color:#666;transition:color .3s}
+    #statusTxt.wait{color:#f59e0b}
+    #statusTxt.ok{color:#22c55e}
+    #statusTxt.err{color:#ef4444}
+    .brand{font-size:.7rem;color:#333;font-weight:700;letter-spacing:.5px}
+
+    .main{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:14px}
+
+    /* Connect screen */
+    #connectScreen{display:flex;flex-direction:column;gap:14px}
+    .card{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:16px}
+    .card-ttl{font-size:.85rem;font-weight:700;color:#4f8ef7;margin-bottom:10px;display:flex;align-items:center;gap:7px}
+    .card-hint{font-size:.73rem;color:#555;line-height:1.65;margin-bottom:12px}
+    label{display:block;font-size:.73rem;font-weight:600;color:#777;margin-bottom:5px;letter-spacing:.3px}
+    input[type=text]{width:100%;padding:11px 13px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.13);border-radius:11px;color:#fff;font-size:.9rem;font-family:monospace;letter-spacing:.8px;outline:none;-webkit-appearance:none}
+    input[type=text]:focus{border-color:#4f8ef7;box-shadow:0 0 0 3px rgba(79,142,247,.14)}
+    .mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+    .mode-btn{padding:10px 6px;background:rgba(255,255,255,.04);border:1.5px solid rgba(255,255,255,.1);border-radius:11px;color:#888;font-size:.75rem;font-weight:600;cursor:pointer;text-align:center;display:flex;flex-direction:column;align-items:center;gap:5px;transition:all .18s}
+    .mode-btn .ic{font-size:1.3rem}
+    .mode-btn.on{background:rgba(79,142,247,.14);border-color:#4f8ef7;color:#4f8ef7}
+    .mode-btn.full{grid-column:1/-1}
+    .btn-main{width:100%;padding:13px;background:linear-gradient(135deg,#4f8ef7,#3668d0);color:#fff;border:none;border-radius:13px;font-size:.9rem;font-weight:700;cursor:pointer;letter-spacing:.3px;transition:opacity .18s}
+    .btn-main:disabled{opacity:.38;cursor:not-allowed}
+
+    /* Scanner screen */
+    #scanScreen{display:none;flex-direction:column;gap:11px;height:calc(100vh - 48px);overflow:hidden}
+    #scanScreen.on{display:flex}
+    .mode-strip{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;flex-shrink:0}
+    .mbadge{display:inline-flex;align-items:center;gap:5px;padding:5px 13px;border-radius:18px;font-size:.72rem;font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+    .mbadge.imei{background:rgba(79,142,247,.18);border:1px solid rgba(79,142,247,.4);color:#4f8ef7}
+    .mbadge.integ{background:rgba(239,68,68,.14);border:1px solid rgba(239,68,68,.3);color:#ef4444}
+    .mbadge.look{background:rgba(34,197,94,.11);border:1px solid rgba(34,197,94,.3);color:#22c55e}
+    .peer-lbl{font-size:.68rem;color:#333;font-family:monospace}
+    .peer-lbl span{color:#4f8ef7}
+
+    .vid-wrap{position:relative;border-radius:14px;overflow:hidden;background:#000;flex-shrink:0}
+    video{width:100%;max-height:48vmax;object-fit:cover;display:block}
+    .v-overlay{position:absolute;inset:0;pointer-events:none}
+    .scan-ln{position:absolute;top:0;left:0;width:2px;height:100%;background:linear-gradient(transparent,rgba(255,50,50,.9),transparent);animation:scanln 2s ease-in-out infinite}
+    .scan-fr{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:76%;height:72px;border:2px solid rgba(255,50,50,.85);border-radius:7px;box-shadow:0 0 0 2000px rgba(0,0,0,.3)}
+    .c{position:absolute;width:13px;height:13px}
+    .c.tl{top:-2px;left:-2px;border-top:3px solid #ff3333;border-left:3px solid #ff3333}
+    .c.tr{top:-2px;right:-2px;border-top:3px solid #ff3333;border-right:3px solid #ff3333}
+    .c.bl{bottom:-2px;left:-2px;border-bottom:3px solid #ff3333;border-left:3px solid #ff3333}
+    .c.br{bottom:-2px;right:-2px;border-bottom:3px solid #ff3333;border-right:3px solid #ff3333}
+    .flash{position:absolute;inset:0;background:rgba(50,255,50,.35);opacity:0;pointer-events:none;border-radius:14px;transition:opacity .1s}
+    .vcap{position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:.68rem;color:rgba(255,255,255,.7);text-shadow:0 1px 4px rgba(0,0,0,.9)}
+
+    .manual-row{display:flex;gap:7px;flex-shrink:0}
+    .manual-row input{flex:1}
+    .btn-send{padding:11px 14px;background:rgba(255,50,50,.2);border:1px solid rgba(255,50,50,.38);color:#ff7777;border-radius:11px;font-size:.78rem;font-weight:600;cursor:pointer;white-space:nowrap}
+
+    .sent-wrap{flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0}
+    .sent-ttl{font-size:.75rem;font-weight:600;color:#555;margin-bottom:6px;flex-shrink:0}
+    .sent-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:5px;padding:2px}
+    .sent-item{display:flex;align-items:center;gap:7px;padding:7px 10px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.18);border-radius:9px;font-size:.74rem;font-family:monospace;color:#ccc;flex-shrink:0}
+    .sent-item .ck{color:#22c55e;font-size:.8rem}
+    .sent-empty{text-align:center;color:#333;font-size:.72rem;padding:10px 0}
+
+    .btn-disc{width:100%;padding:11px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.35);color:#ef4444;border-radius:11px;font-size:.82rem;font-weight:600;cursor:pointer;flex-shrink:0}
+
+    .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(34,197,94,.92);color:#fff;padding:9px 20px;border-radius:18px;font-size:.78rem;font-weight:600;pointer-events:none;opacity:0;transition:opacity .2s;z-index:999;white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis}
+    .toast.show{opacity:1}
+    .toast.err{background:rgba(239,68,68,.92)}
+
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+    @keyframes scanln{0%{transform:translateX(0)}50%{transform:translateX(calc(100vw - 4px))}100%{transform:translateX(0)}}
+  </style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-left">
+    <div class="dot" id="dot"></div>
+    <span id="statusTxt">Not Connected</span>
+  </div>
+  <span class="brand">iFLOW SCANNER</span>
+</div>
+
+<div class="main" id="mainArea">
+
+  <!-- Connect Screen -->
+  <div id="connectScreen">
+    <div class="card">
+      <div class="card-ttl">📡 Connect to Desktop</div>
+      <p class="card-hint">Open iFlow on your laptop, click <strong style="color:#e8eaf0">📱 Phone</strong> inside any scanner (IMEI Add or Integrity). A 6-character code will appear — type it below.</p>
+      <label>Desktop Connection Code</label>
+      <input type="text" id="peerIn" placeholder="e.g. AB12CD" maxlength="20"
+        style="text-transform:uppercase;margin-bottom:14px"
+        oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')" />
+    </div>
+
+    <div class="card">
+      <div class="card-ttl">📷 Scan Mode</div>
+      <div class="mode-grid">
+        <button class="mode-btn on" id="mImei" onclick="_setMode('imei_add')">
+          <span class="ic">🔢</span>IMEI Add
+        </button>
+        <button class="mode-btn" id="mInteg" onclick="_setMode('integrity')">
+          <span class="ic">🔍</span>Integrity
+        </button>
+        <button class="mode-btn full" id="mLook" onclick="_setMode('lookup')">
+          <span class="ic">📦</span>Product Lookup
+        </button>
+      </div>
+    </div>
+
+    <button class="btn-main" id="connBtn" onclick="_connect()">Connect to Desktop</button>
+  </div>
+
+  <!-- Scanner Screen -->
+  <div id="scanScreen">
+    <div class="mode-strip">
+      <div class="mbadge imei" id="modeBadge">🔢 IMEI Add</div>
+      <span class="peer-lbl">Desktop: <span id="deskId"></span></span>
+    </div>
+
+    <div class="vid-wrap">
+      <video id="vid" autoplay playsinline muted></video>
+      <div class="v-overlay">
+        <div class="scan-ln"></div>
+        <div class="scan-fr">
+          <div class="c tl"></div><div class="c tr"></div>
+          <div class="c bl"></div><div class="c br"></div>
+        </div>
+      </div>
+      <div class="flash" id="flash"></div>
+      <div class="vcap" id="vcap">Point at barcode — hold steady</div>
+    </div>
+
+    <div class="manual-row">
+      <input type="text" id="manIn" inputmode="numeric" placeholder="Type IMEI/serial manually…"
+        onkeydown="if(event.key==='Enter')_sendManual()" />
+      <button class="btn-send" onclick="_sendManual()">Send</button>
+    </div>
+
+    <div class="sent-wrap">
+      <div class="sent-ttl">Sent this session</div>
+      <div class="sent-list" id="sentList">
+        <div class="sent-empty">Nothing sent yet</div>
+      </div>
+    </div>
+
+    <button class="btn-disc" onclick="_disconnect()">✕ Disconnect</button>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var _peer=null,_conn=null,_mode='imei_add',_reader=null,_scanning=false,_lastSent='',_cool=false,_sent=[];
+
+function _setMode(m){
+  _mode=m;
+  document.getElementById('mImei').className='mode-btn'+(m==='imei_add'?' on':'');
+  document.getElementById('mInteg').className='mode-btn'+(m==='integrity'?' on':'');
+  document.getElementById('mLook').className='mode-btn full'+(m==='lookup'?' on':'');
+}
+
+function _connect(){
+  var id=document.getElementById('peerIn').value.trim().toLowerCase();
+  if(!id){_toast('Enter the desktop connection code',1);return;}
+  var btn=document.getElementById('connBtn');
+  btn.disabled=true;btn.textContent='Connecting…';
+  _setStatus('wait');
+  _peer=new Peer();
+  _peer.on('open',function(){
+    _conn=_peer.connect(id);
+    _conn.on('open',function(){
+      _conn.send({type:'hello',mode:_mode});
+      _setStatus('ok');
+      _showScanner(id);
+    });
+    _conn.on('error',function(){
+      _toast('Connection failed — check the code',1);
+      _setStatus('');
+      btn.disabled=false;btn.textContent='Connect to Desktop';
+    });
+    _conn.on('close',function(){_setStatus('');_showConnect();_toast('Disconnected from desktop',1);});
+    _conn.on('data',function(d){
+      if(d&&d.type==='mode_change'){_setMode(d.mode);_updateBadge();}
+    });
+  });
+  _peer.on('error',function(e){
+    _toast('Error: '+e.type,1);
+    _setStatus('err');
+    btn.disabled=false;btn.textContent='Connect to Desktop';
+  });
+}
+
+function _showScanner(deskId){
+  document.getElementById('connectScreen').style.display='none';
+  var ss=document.getElementById('scanScreen');
+  ss.classList.add('on');
+  document.getElementById('deskId').textContent=deskId.toUpperCase();
+  _updateBadge();
+  _startCam();
+}
+
+function _showConnect(){
+  document.getElementById('connectScreen').style.display='';
+  document.getElementById('scanScreen').classList.remove('on');
+  var btn=document.getElementById('connBtn');
+  btn.disabled=false;btn.textContent='Connect to Desktop';
+  _stopCam();
+}
+
+function _updateBadge(){
+  var b=document.getElementById('modeBadge');
+  if(!b)return;
+  var labels={imei_add:'🔢 IMEI Add',integrity:'🔍 Integrity Scan',lookup:'📦 Product Lookup'};
+  var cls={imei_add:'imei',integrity:'integ',lookup:'look'};
+  b.textContent=labels[_mode]||_mode;
+  b.className='mbadge '+(cls[_mode]||'imei');
+}
+
+function _startCam(){
+  if(_scanning)return;
+  _scanning=true;
+  try{
+    _reader=new ZXing.BrowserMultiFormatReader();
+    _reader.decodeFromVideoDevice(null,'vid',function(res){
+      if(res){
+        var v=res.getText();
+        if(v&&v!==_lastSent&&!_cool){
+          _cool=true;_lastSent=v;
+          _flashScan();
+          _sendVal(v);
+          setTimeout(function(){_cool=false;_lastSent='';},2500);
+        }
+      }
+    });
+    document.getElementById('vcap').textContent='Scanning…';
+  }catch(e){
+    _toast('Camera error: '+e.message,1);
+    document.getElementById('vcap').textContent='Camera unavailable — use manual entry';
+  }
+}
+
+function _stopCam(){
+  _scanning=false;
+  if(_reader){try{_reader.reset();}catch(e){}  _reader=null;}
+}
+
+function _sendManual(){
+  var v=document.getElementById('manIn').value.trim();
+  if(!v)return;
+  _sendVal(v);
+  document.getElementById('manIn').value='';
+}
+
+function _sendVal(v){
+  if(!_conn||!_conn.open){_toast('Not connected to desktop',1);return;}
+  _conn.send({type:'scan',mode:_mode,value:v});
+  _addSent(v);
+  _toast('✓ Sent: '+v.substring(0,22)+(v.length>22?'…':''));
+}
+
+function _flashScan(){
+  var f=document.getElementById('flash');
+  f.style.opacity='1';
+  setTimeout(function(){f.style.opacity='0';},120);
+}
+
+function _addSent(v){
+  _sent.unshift(v);
+  if(_sent.length>30)_sent.pop();
+  var list=document.getElementById('sentList');
+  list.innerHTML=_sent.map(function(s){
+    return '<div class="sent-item"><span class="ck">✓</span><span>'+_esc(s)+'</span></div>';
+  }).join('');
+}
+
+function _disconnect(){
+  if(_conn){try{_conn.close();}catch(e){}}
+  if(_peer){try{_peer.destroy();}catch(e){}}
+  _conn=null;_peer=null;
+  _showConnect();
+  _setStatus('');
+}
+
+function _setStatus(s){
+  var dot=document.getElementById('dot'),txt=document.getElementById('statusTxt');
+  dot.className='dot'+(s?' '+s:'');
+  if(s==='ok'){txt.textContent='Connected';txt.className='status-txt ok';}
+  else if(s==='wait'){txt.textContent='Connecting…';txt.className='status-txt wait';}
+  else if(s==='err'){txt.textContent='Error';txt.className='status-txt err';}
+  else{txt.textContent='Not Connected';txt.className='status-txt';}
+  // Fix: id="statusTxt" not class
+  document.getElementById('statusTxt').className=s?s:'';
+}
+
+var _toastT;
+function _toast(msg,isErr){
+  var el=document.getElementById('toast');
+  el.textContent=msg;
+  el.className='toast show'+(isErr?' err':'');
+  clearTimeout(_toastT);
+  _toastT=setTimeout(function(){el.className='toast';},2800);
+}
+
+function _esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+</script>
+</body>
+</html>

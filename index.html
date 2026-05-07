@@ -2891,6 +2891,38 @@
         </div>
       </div>
 
+      <!-- Mobile Scanner Companion -->
+      <div class="settings-section">
+        <div class="settings-section-title">
+          <span class="settings-icon" style="font-size:1.3rem;width:38px;height:38px;display:flex;align-items:center;justify-content:center">📱</span>
+          <div>
+            <h3>Mobile Scanner Companion</h3>
+            <p>Use your phone camera to scan barcodes & IMEI codes wirelessly</p>
+          </div>
+        </div>
+        <div class="settings-fields">
+          <div style="background:rgba(79,142,247,.07);border:1px solid rgba(79,142,247,.22);border-radius:12px;padding:14px 16px;font-size:.78rem;color:var(--muted);line-height:1.8">
+            <p style="font-size:.82rem;font-weight:700;color:#4f8ef7;margin-bottom:10px">How to use</p>
+            <ol style="padding-left:18px;margin:0">
+              <li>Download the companion app below to your phone</li>
+              <li>Open the file in your phone's browser (Chrome recommended)</li>
+              <li>In iFlow on your laptop, click <strong style="color:var(--text)">📱 Phone</strong> inside any scanner</li>
+              <li>A 6-character code appears on your laptop — type it on the phone</li>
+              <li>Phone camera opens; scans are sent instantly to iFlow</li>
+            </ol>
+          </div>
+          <div style="background:rgba(255,200,0,.06);border:1px solid rgba(255,200,0,.2);border-radius:10px;padding:10px 14px;font-size:.74rem;color:var(--muted)">
+            <strong style="color:#e6b800">ℹ️ Requirements:</strong> Both devices must be on the same Wi-Fi network, or use a mobile hotspot. Works on Android Chrome and iOS Safari.
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <button onclick="_downloadCompanion()" style="padding:10px 20px;background:linear-gradient(135deg,#4f8ef7,#3668d0);color:#fff;border:none;border-radius:11px;font-size:.85rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:7px">
+              ⬇ Download Mobile Scanner App
+            </button>
+            <span style="font-size:.73rem;color:var(--muted)">Saves as <code style="background:var(--surface2);padding:1px 6px;border-radius:4px">iflow-companion.html</code></span>
+          </div>
+        </div>
+      </div>
+
       <!-- 4. Notifications -->
       <div class="settings-section">
         <div class="settings-section-title">
@@ -3423,6 +3455,7 @@
       <div style="width:10px;height:10px;border-radius:50%;background:#ff3333;box-shadow:0 0 8px #ff3333;animation:nova-ring 1s ease-out infinite;flex-shrink:0"></div>
       <span id="imeiScanTitle" style="font-size:.82rem;font-weight:700;color:#ff5555;text-transform:uppercase;letter-spacing:1.2px">📷 Scan Barcode</span>
     </div>
+    <button onclick="_startPhoneMode('imei')" id="imeiPhoneBtn" style="padding:5px 12px;background:rgba(79,142,247,.15);border:1px solid rgba(79,142,247,.38);border-radius:9px;color:#4f8ef7;font-size:.75rem;font-weight:600;cursor:pointer;white-space:nowrap">📱 Phone</button>
     <button onclick="_closeIMEIScan()" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:50%;width:32px;height:32px;cursor:pointer;color:rgba(255,255,255,.6);font-size:1rem;display:flex;align-items:center;justify-content:center">✕</button>
   </div>
   <!-- Video area: fills remaining screen space -->
@@ -3630,6 +3663,7 @@
     </div>
     <div style="display:flex;gap:8px;align-items:center">
       <span id="sonarScanCount" style="color:rgba(255,80,80,.9);font-size:.85rem;font-weight:700">0 scanned</span>
+      <button onclick="_startPhoneMode('sonar')" id="sonarPhoneBtn" style="padding:6px 13px;background:rgba(79,142,247,.15);border:1px solid rgba(79,142,247,.38);border-radius:9px;color:#4f8ef7;font-size:.75rem;font-weight:600;cursor:pointer;white-space:nowrap">📱 Phone</button>
       <button onclick="_sonarDone()" style="padding:8px 18px;background:rgba(34,197,94,.2);border:1px solid rgba(34,197,94,.5);color:#22c55e;border-radius:10px;font-size:.82rem;font-weight:700;cursor:pointer">Done ✓</button>
       <button onclick="_closeSonar()" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:50%;width:32px;height:32px;cursor:pointer;color:rgba(255,255,255,.6);font-size:1rem;display:flex;align-items:center;justify-content:center">✕</button>
     </div>
@@ -7909,6 +7943,29 @@
   </div>
 </div>
 
+<!-- Mobile Scanner Connect Overlay -->
+<div id="mobileConnectPanel" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9920;flex-direction:column;align-items:center;justify-content:center;padding:28px 20px;gap:20px">
+  <div style="text-align:center">
+    <div style="font-size:2.2rem;margin-bottom:6px">📱</div>
+    <div style="font-size:1rem;font-weight:700;color:#fff;margin-bottom:6px">Mobile Scanner</div>
+    <div style="font-size:.78rem;color:#555;max-width:290px;line-height:1.65" id="mobileConnectHint">
+      Open <strong style="color:#4f8ef7">iflow-companion.html</strong> on your phone then enter the code below.
+    </div>
+  </div>
+  <div style="background:rgba(79,142,247,.09);border:2px dashed rgba(79,142,247,.38);border-radius:16px;padding:18px 30px;text-align:center">
+    <div style="font-size:.68rem;color:#555;margin-bottom:8px;letter-spacing:1.2px;text-transform:uppercase">Connection Code</div>
+    <div id="mobilePeerId" style="font-size:2.2rem;font-weight:900;color:#4f8ef7;letter-spacing:8px;font-family:monospace;min-width:180px">------</div>
+    <div style="font-size:.68rem;color:#444;margin-top:7px">Type this code on your phone to connect</div>
+  </div>
+  <div id="mobileConnectStatus" style="display:flex;align-items:center;gap:10px">
+    <div id="mobileDot" style="width:10px;height:10px;border-radius:50%;background:#f59e0b;box-shadow:0 0 8px #f59e0b;animation:nova-ring 1s ease-out infinite"></div>
+    <span id="mobileTxt" style="font-size:.82rem;color:#f59e0b;font-weight:600">Waiting for phone to connect…</span>
+  </div>
+  <div id="mobileModeBadge" style="padding:5px 16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:18px;font-size:.73rem;color:#888;font-weight:600"></div>
+  <button onclick="_stopPhoneMode()" style="padding:10px 22px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.13);border-radius:11px;color:#888;font-size:.82rem;cursor:pointer;margin-top:4px">← Back to Laptop Camera</button>
+  <div style="font-size:.7rem;color:#333;text-align:center">Don't have the app? Go to <strong style="color:#555">Settings → Mobile Scanner Companion</strong> to download it.</div>
+</div>
+
 <div id="saveToast"></div>
 
 <!-- Number Tooltip -->
@@ -11899,6 +11956,137 @@ document.addEventListener('DOMContentLoaded', function() {
     _injectCustomFields();
   }, 600);
 });
+
+/* ─── Mobile Scanner Companion ─────────────────────────────────────── */
+var _mobilePeer = null;
+var _mobileConn = null;
+var _mobileScanMode = null; // 'imei' | 'sonar'
+
+function _loadPeerJS(cb) {
+  if (window.Peer) { cb(); return; }
+  var s = document.createElement('script');
+  s.src = 'https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js';
+  s.onload = cb;
+  s.onerror = function() { showToast('Failed to load PeerJS — check internet connection'); };
+  document.head.appendChild(s);
+}
+
+function _startPhoneMode(scanMode) {
+  _mobileScanMode = scanMode;
+  var panel = document.getElementById('mobileConnectPanel');
+  if (!panel) return;
+
+  var labels = { imei: '🔢 IMEI Add Mode', sonar: '🔍 Integrity Scan Mode' };
+  var badge = document.getElementById('mobileModeBadge');
+  if (badge) badge.textContent = labels[scanMode] || scanMode;
+
+  var peerIdEl = document.getElementById('mobilePeerId');
+  if (peerIdEl) peerIdEl.textContent = '······';
+  _setMobileConnStatus('wait');
+  panel.style.display = 'flex';
+
+  _loadPeerJS(function() {
+    var shortId = Math.random().toString(36).substr(2, 6);
+    try {
+      _mobilePeer = new Peer(shortId, {
+        config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+      });
+    } catch(e) {
+      showToast('PeerJS init error: ' + e.message);
+      return;
+    }
+
+    _mobilePeer.on('open', function(id) {
+      if (peerIdEl) peerIdEl.textContent = id.toUpperCase();
+    });
+
+    _mobilePeer.on('connection', function(conn) {
+      _mobileConn = conn;
+      conn.on('open', function() {
+        _setMobileConnStatus('ok');
+        showToast('📱 Phone connected — scanning via phone camera!');
+      });
+      conn.on('data', function(data) {
+        if (!data) return;
+        if (data.type === 'hello') _setMobileConnStatus('ok');
+        if (data.type === 'scan' && data.value) _onMobileScan(data.value);
+      });
+      conn.on('close', function() {
+        showToast('📱 Phone disconnected');
+        _setMobileConnStatus('wait');
+        _mobileConn = null;
+        if (peerIdEl) peerIdEl.textContent = '······';
+        // Regenerate new code so they can reconnect
+        _startPhoneMode(_mobileScanMode);
+      });
+      conn.on('error', function() { _mobileConn = null; });
+    });
+
+    _mobilePeer.on('error', function(e) {
+      showToast('📱 Peer error: ' + e.type);
+      if (peerIdEl) peerIdEl.textContent = 'ERROR';
+    });
+  });
+}
+
+function _setMobileConnStatus(state) {
+  var dot = document.getElementById('mobileDot');
+  var txt = document.getElementById('mobileTxt');
+  if (state === 'ok') {
+    if (dot) { dot.style.background = '#22c55e'; dot.style.boxShadow = '0 0 8px #22c55e'; }
+    if (txt) { txt.textContent = '📱 Phone connected — ready to scan'; txt.style.color = '#22c55e'; }
+  } else {
+    if (dot) { dot.style.background = '#f59e0b'; dot.style.boxShadow = '0 0 8px #f59e0b'; }
+    if (txt) { txt.textContent = 'Waiting for phone to connect…'; txt.style.color = '#f59e0b'; }
+  }
+}
+
+function _onMobileScan(value) {
+  if (!value) return;
+  showToast('📱 ' + value.substring(0, 22) + (value.length > 22 ? '…' : ''));
+  // Brief full-screen flash feedback
+  var fl = document.createElement('div');
+  fl.style.cssText = 'position:fixed;inset:0;background:rgba(50,255,50,.12);pointer-events:none;z-index:9000;transition:opacity .4s';
+  document.body.appendChild(fl);
+  setTimeout(function() { fl.style.opacity = '0'; }, 80);
+  setTimeout(function() { fl.parentNode && fl.parentNode.removeChild(fl); }, 500);
+
+  if (_mobileScanMode === 'imei') {
+    _processIMEIValue(value);
+  } else if (_mobileScanMode === 'sonar') {
+    var inp = document.getElementById('sonarManualInput');
+    if (inp) { inp.value = value; _sonarAddManual(); }
+  }
+}
+
+function _stopPhoneMode() {
+  if (_mobileConn) { try { _mobileConn.close(); } catch(e){} _mobileConn = null; }
+  if (_mobilePeer) { try { _mobilePeer.destroy(); } catch(e){} _mobilePeer = null; }
+  _mobileScanMode = null;
+  var panel = document.getElementById('mobileConnectPanel');
+  if (panel) panel.style.display = 'none';
+}
+
+function _downloadCompanion() {
+  fetch('iflow-companion.html')
+    .then(function(r) {
+      if (!r.ok) throw new Error('not found');
+      return r.blob();
+    })
+    .then(function(blob) {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'iflow-companion.html';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+      showToast('⬇ Companion app downloaded!');
+    })
+    .catch(function() {
+      showToast('⚠ companion file not found — ensure iflow-companion.html is in the same folder as iflow');
+    });
+}
 </script>
 </body>
 </html>

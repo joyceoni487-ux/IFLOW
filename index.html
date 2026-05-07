@@ -1953,25 +1953,27 @@
       </div>
 
     <p class="inventory-heading">Inventory</p>
-    <div class="table-wrap" id="salesTableWrap">
-      <table>
+    <div class="table-wrap" id="salesTableWrap" style="overflow-x:auto">
+      <table style="min-width:1050px">
         <thead>
           <tr>
             <th>#</th>
             <th>Date</th>
             <th>Time</th>
             <th>Customer</th>
+            <th style="min-width:110px">Type</th>
             <th>Product</th>
             <th>IMEI / Serial</th>
             <th>Qty</th>
             <th>Unit Price</th>
+            <th style="min-width:120px">Warranty</th>
             <th>Subtotal</th>
             <th></th>
           </tr>
         </thead>
         <tbody id="salesBody">
           <tr id="emptyRow">
-            <td colspan="10">
+            <td colspan="12">
               <div class="empty-state">
                 <div class="icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:.4"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></div>
                 No sales recorded yet. Add your first sale above.
@@ -2325,10 +2327,22 @@
 
     <!-- IMEI Vault -->
     <div id="prodViewIMEI" style="display:none">
-      <div style="display:flex;gap:10px;padding:4px 0 16px;flex-wrap:wrap;align-items:center">
+      <div style="display:flex;gap:10px;padding:4px 0 10px;flex-wrap:wrap;align-items:center">
         <input id="imeiSearch" type="text" class="orders-search" placeholder="Search IMEI, serial or product…" style="flex:1;min-width:180px" oninput="renderIMEIVault()" />
+        <select id="imeiCategoryFilter" style="padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);font-size:.82rem;cursor:pointer" onchange="renderIMEIVault()">
+          <option value="">All Categories</option>
+        </select>
         <button onclick="_openCameraScanner('add')" style="padding:8px 16px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:600;cursor:pointer">+ IMEI Add</button>
         <button onclick="_openSonar()" id="integritySearchBtn" style="padding:8px 18px;background:linear-gradient(135deg,#e53e3e,#991b1b);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:700;cursor:pointer;box-shadow:0 2px 12px rgba(229,62,62,.35)">Integrity Search</button>
+      </div>
+      <!-- Status filter chips + count pills -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:0 0 12px">
+        <span id="imeiChipAll"     class="imei-chip imei-chip-active" onclick="_imeiSetChip('all')"     style="padding:5px 12px;border-radius:20px;font-size:.75rem;font-weight:700;cursor:pointer;border:1px solid rgba(99,102,241,.4);background:rgba(99,102,241,.15);color:#818cf8">All <span id="imeiCountAll">0</span></span>
+        <span id="imeiChipStock"   class="imei-chip" onclick="_imeiSetChip('in_stock')"  style="padding:5px 12px;border-radius:20px;font-size:.75rem;font-weight:700;cursor:pointer;border:1px solid rgba(34,197,94,.3);background:rgba(34,197,94,.08);color:#16a34a">In Stock <span id="imeiCountStock">0</span></span>
+        <span id="imeiChipFound"   class="imei-chip" onclick="_imeiSetChip('found')"     style="padding:5px 12px;border-radius:20px;font-size:.75rem;font-weight:700;cursor:pointer;border:1px solid rgba(59,130,246,.3);background:rgba(59,130,246,.08);color:#3b82f6">Found <span id="imeiCountFound">0</span></span>
+        <span id="imeiChipMissing" class="imei-chip" onclick="_imeiSetChip('missing')"   style="padding:5px 12px;border-radius:20px;font-size:.75rem;font-weight:700;cursor:pointer;border:1px solid rgba(217,119,6,.3);background:rgba(217,119,6,.07);color:#d97706">Missing <span id="imeiCountMissing">0</span></span>
+        <span id="imeiChipUnknown" class="imei-chip" onclick="_imeiSetChip('unknown')"   style="padding:5px 12px;border-radius:20px;font-size:.75rem;font-weight:700;cursor:pointer;border:1px solid rgba(217,119,6,.25);background:rgba(217,119,6,.05);color:#d97706">Unknown <span id="imeiCountUnknown">0</span></span>
+        <span id="imeiChipSold"    class="imei-chip" onclick="_imeiSetChip('sold')"      style="padding:5px 12px;border-radius:20px;font-size:.75rem;font-weight:700;cursor:pointer;border:1px solid rgba(100,116,139,.25);background:rgba(100,116,139,.08);color:#64748b">Sold <span id="imeiCountSold">0</span></span>
       </div>
       <!-- Integrity status bar (restored when active today) -->
       <div id="integrityBar" style="display:none;flex-direction:column;gap:8px;background:rgba(37,99,235,.05);border:1px solid rgba(37,99,235,.2);border-radius:10px;padding:10px 14px;margin-bottom:12px">
@@ -2474,20 +2488,23 @@
         <button class="settings-btn-solid" onclick="saveToDrive()">☁️ Save to Drive</button>
       </div>
     </div>
-    <div class="sheets-tabs" style="display:flex;align-items:center;justify-content:space-between">
+    <div class="sheets-tabs" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
       <div style="display:flex;gap:0">
         <button class="sheets-tab active" id="sheetsTabSales"     onclick="switchSheetsTab('sales')">Sales</button>
         <button class="sheets-tab"        id="sheetsTabProducts" onclick="switchSheetsTab('products')">🗃️ Products</button>
         <button class="sheets-tab"        id="sheetsTabCustomers" onclick="switchSheetsTab('customers')">👥 Customers</button>
       </div>
-      <button id="sheetsClearBtn" onclick="clearCurrentSheet()" style="background:none;border:1px solid var(--border2);color:var(--muted);border-radius:7px;padding:5px 13px;font-size:0.78rem;cursor:pointer;margin-bottom:2px;transition:color .2s,border-color .2s" onmouseover="this.style.color='#e53e3e';this.style.borderColor='#e53e3e'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border2)'">Clear All</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button onclick="_exportCurrentSheet()" style="padding:5px 14px;border:1px solid var(--border2);color:var(--muted);border-radius:7px;font-size:0.78rem;cursor:pointer;background:none" title="Export this sheet as CSV">⬇ Export Sheet</button>
+        <button id="sheetsClearBtn" onclick="clearCurrentSheet()" style="background:none;border:1px solid var(--border2);color:var(--muted);border-radius:7px;padding:5px 13px;font-size:0.78rem;cursor:pointer;margin-bottom:2px;transition:color .2s,border-color .2s" onmouseover="this.style.color='#e53e3e';this.style.borderColor='#e53e3e'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border2)'">Clear All</button>
+      </div>
     </div>
-    <div id="sheetsViewSales" class="sheets-table-wrap">
-      <table class="sheets-table">
+    <div id="sheetsViewSales" class="sheets-table-wrap" style="overflow-x:auto">
+      <table class="sheets-table" style="min-width:780px">
         <thead><tr>
           <th class="sheets-rownum">#</th>
           <th>Date</th><th>Time</th><th>Product</th>
-          <th>Qty</th><th>Unit Price</th><th>Subtotal</th><th>Customer</th>
+          <th>Qty</th><th>Unit Price</th><th>Subtotal</th><th>Customer</th><th>IMEI</th><th>Warranty</th>
         </tr></thead>
         <tbody id="sheetsSalesTbody"></tbody>
       </table>
@@ -2503,13 +2520,24 @@
       </table>
     </div>
     <div id="sheetsViewCustomers" class="sheets-table-wrap" style="display:none">
-      <table class="sheets-table">
-        <thead><tr>
-          <th class="sheets-rownum">#</th>
-          <th>Customer</th><th>Orders</th><th>Total Spent</th><th>Profit Generated</th><th>Last Purchase</th>
-        </tr></thead>
-        <tbody id="sheetsCustomersTbody"></tbody>
-      </table>
+      <!-- Filter chips -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;padding:0 0 12px">
+        <span class="cust-fchip cust-fchip-active" id="cfAll"       onclick="_setCustFilter('all')"       style="padding:5px 12px;border-radius:20px;font-size:.75rem;font-weight:700;cursor:pointer;border:1px solid rgba(99,102,241,.4);background:rgba(99,102,241,.15);color:#818cf8">All</span>
+        <span class="cust-fchip" id="cfIndividual" onclick="_setCustFilter('individual')" style="padding:5px 12px;border-radius:20px;font-size:.75rem;font-weight:700;cursor:pointer;border:1px solid rgba(34,197,94,.3);background:rgba(34,197,94,.08);color:#16a34a">Individual</span>
+        <span class="cust-fchip" id="cfReseller"   onclick="_setCustFilter('reseller')"   style="padding:5px 12px;border-radius:20px;font-size:.75rem;font-weight:700;cursor:pointer;border:1px solid rgba(245,158,11,.3);background:rgba(245,158,11,.08);color:#d97706">Resellers</span>
+        <span class="cust-fchip" id="cfProfit"     onclick="_setCustFilter('profit')"     style="padding:5px 12px;border-radius:20px;font-size:.75rem;font-weight:700;cursor:pointer;border:1px solid rgba(59,130,246,.3);background:rgba(59,130,246,.08);color:#3b82f6">Most Profit</span>
+        <span class="cust-fchip" id="cfOrders"     onclick="_setCustFilter('orders')"     style="padding:5px 12px;border-radius:20px;font-size:.75rem;font-weight:700;cursor:pointer;border:1px solid rgba(100,116,139,.3);background:rgba(100,116,139,.08);color:#64748b">Most Orders</span>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="sheets-table" style="min-width:860px">
+          <thead><tr>
+            <th class="sheets-rownum">#</th>
+            <th>Customer</th><th>Type</th><th>Orders</th><th>Total Spent</th>
+            <th>Profit Generated</th><th>Active Warranty</th><th>Last Purchase</th><th></th>
+          </tr></thead>
+          <tbody id="sheetsCustomersTbody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -2646,6 +2674,17 @@
             <div class="settings-field">
               <label>Low Stock Alert Threshold</label>
               <input type="number" id="settingsLowStock" min="1" placeholder="e.g. 5 (default)" />
+            </div>
+          </div>
+          <div class="settings-row" style="flex-direction:column;gap:10px">
+            <div class="settings-field" style="width:100%">
+              <label>Warranty Duration Options <span style="font-weight:400;color:var(--muted);font-size:.76rem">(shown as dropdown when recording a sale)</span></label>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px" id="warrantyOptionsList"></div>
+              <div style="display:flex;gap:8px">
+                <input type="text" id="warrantyOptionInput" placeholder="e.g. 2 Weeks, 6 Months, 1 Year" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);font-size:.84rem" onkeydown="if(event.key==='Enter'){_addWarrantyOption();event.preventDefault()}" />
+                <button class="settings-btn-outline" onclick="_addWarrantyOption()" style="white-space:nowrap">+ Add</button>
+              </div>
+              <span style="font-size:.72rem;color:var(--muted)">Press Enter or click Add. Click a badge to remove it.</span>
             </div>
           </div>
           <div class="settings-row">
@@ -3818,6 +3857,9 @@
         salesTbody.innerHTML = salesArr.map((s, i) => {
           const d = new Date(s.timestamp);
           const sub = (s.quantity * s.price).toFixed(2);
+          const tBadge = s.customerType === 'reseller'
+            ? '<span style="background:rgba(245,158,11,.15);color:#d97706;padding:1px 7px;border-radius:10px;font-size:.68rem;font-weight:700">RESELLER</span>'
+            : '<span style="background:rgba(34,197,94,.1);color:#16a34a;padding:1px 7px;border-radius:10px;font-size:.68rem;font-weight:700">IND</span>';
           return `<tr data-index="${i}">
             <td class="sheets-rownum">${i + 1}</td>
             <td>${d.toLocaleDateString()}</td>
@@ -3826,7 +3868,9 @@
             <td>${s.quantity}</td>
             <td>${cur}${fmtComma(s.price)}</td>
             <td>${cur}${fmtComma(parseFloat(sub))}</td>
-            <td>${s.customer || '—'}</td>
+            <td>${s.customer || '—'} ${tBadge}</td>
+            <td style="font-family:monospace;font-size:.74rem">${s.imei || '—'}</td>
+            <td style="font-size:.78rem;color:var(--muted)">${s.warranty || '—'}</td>
           </tr>`;
         }).join('');
       }
@@ -4355,6 +4399,43 @@
     _novaSyncProducts(false);
   }
 
+  // ── Warranty Options ────────────────────────────────────────────────────────
+  function _getWarrantyOptions() {
+    var s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    return Array.isArray(s.warrantyOptions) ? s.warrantyOptions : ['No Warranty', '2 Weeks', '1 Month', '3 Months', '6 Months', '1 Year'];
+  }
+  function _saveWarrantyOptions(arr) {
+    var s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+    s.warrantyOptions = arr;
+    localStorage.setItem('iflow_settings', JSON.stringify(s));
+  }
+  function _renderWarrantyOptionsList() {
+    var el = document.getElementById('warrantyOptionsList');
+    if (!el) return;
+    var opts = _getWarrantyOptions();
+    el.innerHTML = opts.map(function(o, i) {
+      return '<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3);border-radius:20px;font-size:.76rem;color:#818cf8;cursor:pointer" onclick="_removeWarrantyOption(' + i + ')" title="Click to remove">' + _imeiEsc(o) + ' ✕</span>';
+    }).join('');
+  }
+  function _addWarrantyOption() {
+    var inp = document.getElementById('warrantyOptionInput');
+    if (!inp) return;
+    var val = inp.value.trim();
+    if (!val) return;
+    var opts = _getWarrantyOptions();
+    if (opts.indexOf(val) === -1) opts.push(val);
+    _saveWarrantyOptions(opts);
+    _renderWarrantyOptionsList();
+    inp.value = '';
+    showToast('Warranty option added ✓');
+  }
+  function _removeWarrantyOption(i) {
+    var opts = _getWarrantyOptions();
+    opts.splice(i, 1);
+    _saveWarrantyOptions(opts);
+    _renderWarrantyOptionsList();
+  }
+
   // ── Vercel Blob Auto-Sync ──────────────────────────────────────────────────
   // Push the current product list + payment info to /api/products (Vercel Blob)
   var _novaSyncDebounce = null;
@@ -4798,10 +4879,10 @@
   function exportCSV() {
     const dateStr = new Date().toISOString().slice(0, 10);
     const salesArr = JSON.parse(localStorage.getItem('iflow_sales') || '[]');
-    const salesRows = [['Date','Time','Product','Quantity','Unit Price','Subtotal','Customer']];
+    const salesRows = [['Date','Time','Product','Quantity','Unit Price','Subtotal','Customer','Type','IMEI','Warranty']];
     salesArr.forEach(s => {
       const d = new Date(s.timestamp);
-      salesRows.push([d.toLocaleDateString(), d.toLocaleTimeString(), s.product, s.quantity, s.price, (s.quantity * s.price).toFixed(2), s.customer || '']);
+      salesRows.push([d.toLocaleDateString(), d.toLocaleTimeString(), s.product, s.quantity, s.price, (s.quantity * s.price).toFixed(2), s.customer || '', s.customerType || 'individual', s.imei || '', s.warranty || '']);
     });
     const salesCsv = salesRows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
     const prodsArr = JSON.parse(localStorage.getItem('iflow_products') || '[]');
@@ -4814,6 +4895,42 @@
       a.download = `iflow-${name}-${dateStr}.csv`; a.click(); URL.revokeObjectURL(a.href);
     });
     showToast('CSV files downloaded');
+  }
+
+  function _exportCurrentSheet() {
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const tab = typeof _currentSheetsTab !== 'undefined' ? _currentSheetsTab : 'sales';
+    let rows, name;
+    if (tab === 'sales') {
+      const cur = getCurrency();
+      const salesArr = JSON.parse(localStorage.getItem('iflow_sales') || '[]');
+      rows = [['Date','Time','Product','Qty','Unit Price','Subtotal','Customer','Type','IMEI','Warranty']];
+      salesArr.forEach(s => {
+        const d = new Date(s.timestamp);
+        rows.push([d.toLocaleDateString(), d.toLocaleTimeString(), s.product||'', s.quantity||1, s.price||0, ((s.quantity||1)*(s.price||0)).toFixed(2), s.customer||'', s.customerType||'individual', s.imei||'', s.warranty||'']);
+      });
+      name = 'sales';
+    } else if (tab === 'products') {
+      const prodsArr = JSON.parse(localStorage.getItem('iflow_products') || '[]');
+      rows = [['Code','Product Name','Type','Stock Qty','Unit Price','Cost Price','Low Stock At','Date Added']];
+      prodsArr.forEach(p => rows.push([p.code||'', p.name||'', p.type||'', p.stockQty||0, p.unitPrice||0, p.costPrice||0, p.lowStockThreshold||5, p.dateAdded||'']));
+      name = 'products';
+    } else {
+      // customers
+      const map = window._custMap || {};
+      rows = [['Customer','Type','Orders','Total Spent','Profit','Last Warranty','Last Purchase','Last IMEI']];
+      Object.values(map).forEach(c => {
+        const lastP = c.purchases.length ? c.purchases[c.purchases.length-1] : null;
+        const lastW = c.warranties.length ? c.warranties[c.warranties.length-1] : '';
+        rows.push([c.name, c.type||'individual', c.orders, c.spent.toFixed(2), c.profit.toFixed(2), lastW, c.lastTs ? new Date(c.lastTs).toLocaleDateString() : '', lastP ? (lastP.imei||'') : '']);
+      });
+      name = 'customers';
+    }
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `iflow-${name}-${dateStr}.csv`; a.click(); URL.revokeObjectURL(a.href);
+    showToast(name.charAt(0).toUpperCase() + name.slice(1) + ' sheet exported ✓');
   }
   async function _sendViaGmail(to, subject, body) {
     const s = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
@@ -5241,21 +5358,25 @@
         return toks.every(t => hay.includes(t));
       });
       if (matched.length === 0) {
-        body.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:28px;color:var(--muted);font-size:0.88rem;">No results for "${escHtml(query)}"</td></tr>`;
+        body.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:28px;color:var(--muted);font-size:0.88rem;">No results for "${escHtml(query)}"</td></tr>`;
       } else {
         matched.forEach(({ s, i }) => {
           const sub = s.quantity * s.price;
+          const wOpts = typeof _getWarrantyOptions === 'function' ? _getWarrantyOptions() : [];
+          const wSel  = wOpts.map(w => `<option value="${escAttr(w)}" ${s.warranty===w?'selected':''}>${escHtml(w)}</option>`).join('');
           const tr = document.createElement('tr');
           tr.dataset.index = i;
           tr.innerHTML = `
             <td class="row-num">${i + 1}</td>
             <td class="cell-datetime">${fmtDate(s.timestamp)}</td>
             <td class="cell-datetime">${fmtTime(s.timestamp)}</td>
-            <td><input class="cell-input" value="${escAttr(s.customer)}" data-field="customer" data-index="${i}" /></td>
+            <td style="position:relative"><input class="cell-input" value="${escAttr(s.customer)}" data-field="customer" data-index="${i}" autocomplete="off" onfocus="_showCustAC(this,${i})" oninput="_showCustAC(this,${i})" /></td>
+            <td><select class="cell-input" data-field="customerType" data-index="${i}" style="font-size:.78rem"><option value="individual" ${(s.customerType||'individual')==='individual'?'selected':''}>Individual</option><option value="reseller" ${s.customerType==='reseller'?'selected':''}>Reseller</option></select></td>
             <td><input class="cell-input product" value="${escAttr(s.product)}" data-field="product" data-index="${i}" data-prev-product="${escAttr(s.product)}" list="productsList" /></td>
             <td style="position:relative;min-width:130px"><input class="cell-input" value="${escAttr(s.imei||'')}" data-field="imei" data-index="${i}" placeholder="IMEI…" style="padding-right:24px;font-family:monospace;font-size:.78rem" /><button onclick="_scanSaleIMEI(${i})" style="position:absolute;right:3px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:.8rem;padding:0" title="Scan">📷</button></td>
             <td><input class="cell-input" type="number" min="1" value="${s.quantity}" data-field="quantity" data-index="${i}" data-val="${s.quantity}" data-committed-qty="${s.quantity}" /></td>
             <td><input class="cell-input" type="number" min="0" step="0.01" value="${s.price}" data-field="price" data-index="${i}" data-val="${s.price}" /></td>
+            <td><select class="cell-input" data-field="warranty" data-index="${i}" style="font-size:.78rem"><option value="">— Warranty —</option>${wSel}</select></td>
             <td class="cell-subtotal" data-val="${sub}">${getCurrency()}${fmtComma(sub)}</td>
             <td class="cell-action"><button class="btn-terminate" onclick="confirmDeleteRow(${i})" title="Delete row">&#9632;</button><button onclick="_printSaleReceipt(${i})" style="background:none;border:none;cursor:pointer;font-size:.82rem;padding:2px 3px" title="Print Receipt">🧾</button><button onclick="_reverseSale(${i})" style="background:none;border:none;cursor:pointer;font-size:.8rem;padding:2px 3px;color:#d97706" title="Reverse Sale">↩</button></td>
           `;
@@ -5278,15 +5399,19 @@
       const tr = document.createElement('tr');
       tr.dataset.index = i;
       if (isEntry) tr.classList.add('entry-row');
+      const wOpts2 = typeof _getWarrantyOptions === 'function' ? _getWarrantyOptions() : [];
+      const wSel2  = wOpts2.map(w => `<option value="${escAttr(w)}" ${s&&s.warranty===w?'selected':''}>${escHtml(w)}</option>`).join('');
       tr.innerHTML = `
         <td class="row-num">${i + 1}</td>
         <td class="cell-datetime">${s ? fmtDate(s.timestamp) : ''}</td>
         <td class="cell-datetime">${s ? fmtTime(s.timestamp) : ''}</td>
-        <td><input class="cell-input" value="${s ? escAttr(s.customer) : ''}" placeholder="${isEntry ? 'Customer name…' : ''}" data-field="customer" data-index="${i}" /></td>
+        <td style="position:relative"><input class="cell-input" value="${s ? escAttr(s.customer) : ''}" placeholder="${isEntry ? 'Customer name…' : ''}" data-field="customer" data-index="${i}" autocomplete="off" onfocus="_showCustAC(this,${i})" oninput="_showCustAC(this,${i})" /></td>
+        <td><select class="cell-input" data-field="customerType" data-index="${i}" style="font-size:.78rem"><option value="individual" ${!s||( s.customerType||'individual')==='individual'?'selected':''}>Individual</option><option value="reseller" ${s&&s.customerType==='reseller'?'selected':''}>Reseller</option></select></td>
         <td><input class="cell-input product" value="${s ? escAttr(s.product) : ''}" placeholder="${isEntry ? 'Product name…' : ''}" data-field="product" data-index="${i}" data-prev-product="${s ? escAttr(s.product) : ''}" list="productsList" /></td>
         <td style="position:relative;min-width:130px"><input class="cell-input" value="${s ? escAttr(s.imei||'') : ''}" placeholder="${isEntry ? 'IMEI / Serial…' : ''}" data-field="imei" data-index="${i}" style="padding-right:24px;font-family:monospace;font-size:.78rem" /><button onclick="_scanSaleIMEI(${i})" style="position:absolute;right:3px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:.8rem;padding:0" title="Scan IMEI">📷</button></td>
         <td><input class="cell-input" type="number" min="1" value="${s ? s.quantity : ''}" placeholder="${isEntry ? 'Qty' : ''}" data-field="quantity" data-index="${i}" data-val="${s ? s.quantity : ''}" data-committed-qty="${s ? s.quantity : '0'}" /></td>
         <td><input class="cell-input" type="number" min="0" step="0.01" value="${s ? s.price : ''}" placeholder="${isEntry ? 'Price' : ''}" data-field="price" data-index="${i}" data-val="${s ? s.price : ''}" /></td>
+        <td><select class="cell-input" data-field="warranty" data-index="${i}" style="font-size:.78rem"><option value="">— Warranty —</option>${wSel2}</select></td>
         <td class="cell-subtotal" data-val="${sub !== null ? sub : ''}">${sub !== null ? getCurrency() + fmtComma(sub) : ''}</td>
         <td class="cell-action">${s ? `<button class="btn-terminate" onclick="confirmDeleteRow(${s ? i : i})" title="Delete row">&#9632;</button><button onclick="_printSaleReceipt(${i})" style="background:none;border:none;cursor:pointer;font-size:.82rem;padding:2px 3px" title="Print Receipt">🧾</button><button onclick="_reverseSale(${i})" style="background:none;border:none;cursor:pointer;font-size:.8rem;padding:2px 3px;color:#d97706" title="Reverse Sale">↩</button>` : ''}</td>
       `;
@@ -5324,6 +5449,13 @@
         persist();
         if (imeiVal.length >= 6) _validateSaleIMEI(imeiVal, i, inp.closest('tr'), true);
       }
+      return;
+    }
+
+    // Handle select-based fields (customerType, warranty) for committed rows
+    if (field === 'customerType' || field === 'warranty') {
+      if (sales[i]) { sales[i][field] = val; persist(); }
+      else { if (!_draftRows[i]) _draftRows[i] = {}; _draftRows[i][field] = val; }
       return;
     }
 
@@ -5417,12 +5549,14 @@
 
         if (!hasAnyInput) return; // blank row, ignore
 
-        const product  = draft.product;
-        const quantity = draft.quantity !== undefined ? draft.quantity : parseFloat(tr?.querySelector('[data-field="quantity"]')?.value) || 0;
-        const price    = draft.price    !== undefined ? draft.price    : parseFloat(tr?.querySelector('[data-field="price"]')?.value);
-        const customer = draft.customer !== undefined ? draft.customer : (tr?.querySelector('[data-field="customer"]')?.value.trim() || '');
-        const imei     = draft.imei     !== undefined ? draft.imei     : (tr?.querySelector('[data-field="imei"]')?.value.trim() || '');
-        const match    = product ? findStockProduct(product) : null;
+        const product      = draft.product;
+        const quantity     = draft.quantity !== undefined ? draft.quantity : parseFloat(tr?.querySelector('[data-field="quantity"]')?.value) || 0;
+        const price        = draft.price    !== undefined ? draft.price    : parseFloat(tr?.querySelector('[data-field="price"]')?.value);
+        const customer     = draft.customer !== undefined ? draft.customer : (tr?.querySelector('[data-field="customer"]')?.value.trim() || '');
+        const imei         = draft.imei     !== undefined ? draft.imei     : (tr?.querySelector('[data-field="imei"]')?.value.trim() || '');
+        const customerType = draft.customerType !== undefined ? draft.customerType : (tr?.querySelector('[data-field="customerType"]')?.value || 'individual');
+        const warranty     = draft.warranty     !== undefined ? draft.warranty     : (tr?.querySelector('[data-field="warranty"]')?.value || '');
+        const match        = product ? findStockProduct(product) : null;
 
         // Check stock before committing
         if (product && match && quantity > 0) {
@@ -5441,12 +5575,16 @@
           const ts = Date.now();
           sales[i] = {
             customer: customer || '',
+            customerType: customerType || 'individual',
+            warranty: warranty || '',
             product,
             imei,
             quantity,
             price: isNaN(price) ? match.unitPrice : price,
             timestamp: ts
           };
+          // Save new customer to iflow_customers if not already present
+          _saveCustomerRecord(customer || '', customerType || 'individual');
           deductStock(product, quantity);
           // If this IMEI happens to be in the vault scan log, mark it sold
           const _vaultArr = _getIMEI();
@@ -5552,7 +5690,10 @@
     var qty = 1;
     if (qty > match.stockQty) { showWarning('Only ' + match.stockQty + ' in stock for "' + match.name + '"'); return; }
     pushUndo('sales');
-    sales[i] = { customer: customerName, product: normName, quantity: qty, price: match.unitPrice, timestamp: Date.now() };
+    const _cType = (tr ? tr.querySelector('[data-field="customerType"]')?.value : '') || (_draftRows[i]?.customerType) || 'individual';
+    const _cWar  = (tr ? tr.querySelector('[data-field="warranty"]')?.value : '') || (_draftRows[i]?.warranty) || '';
+    sales[i] = { customer: customerName, customerType: _cType, warranty: _cWar, product: normName, quantity: qty, price: match.unitPrice, timestamp: Date.now() };
+    _saveCustomerRecord(customerName, _cType);
     deductStock(normName, qty);
     persist();
     if (typeof SheetsAPI !== 'undefined') SheetsAPI.withToken(function(){ SheetsAPI.updateRow(i, sales[i]); });
@@ -5640,6 +5781,66 @@
     _openCameraScanner('sale');
   }
 
+  // ── Customer autocomplete ──────────────────────────────────────────────────
+  function _getAllKnownCustomers() {
+    var fromSales = (JSON.parse(localStorage.getItem('iflow_sales') || '[]')).map(s => (s.customer || '').trim()).filter(Boolean);
+    var fromStore = JSON.parse(localStorage.getItem('iflow_customers') || '[]').map(c => c.name || '');
+    return [...new Set([...fromStore, ...fromSales])].filter(Boolean).sort();
+  }
+  function _saveCustomerRecord(name, type) {
+    if (!name || name === 'Anonymous') return;
+    var cust = JSON.parse(localStorage.getItem('iflow_customers') || '[]');
+    var existing = cust.find(c => c.name.toLowerCase() === name.toLowerCase());
+    if (!existing) {
+      cust.push({ name: name, type: type || 'individual', addedAt: new Date().toISOString() });
+      localStorage.setItem('iflow_customers', JSON.stringify(cust));
+      showToast('New customer saved: ' + name);
+    } else if (type && existing.type !== type) {
+      existing.type = type;
+      localStorage.setItem('iflow_customers', JSON.stringify(cust));
+    }
+  }
+  var _custACTimer = null;
+  function _showCustAC(inp, rowIdx) {
+    _hideCustAC();
+    var val = inp.value.trim().toLowerCase();
+    var names = _getAllKnownCustomers().filter(n => !val || n.toLowerCase().indexOf(val) !== -1);
+    if (!names.length) return;
+    var rect = inp.getBoundingClientRect();
+    var drop = document.createElement('div');
+    drop.id = 'custAcDrop';
+    drop.style.cssText = 'position:fixed;z-index:99999;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.25);max-height:180px;overflow-y:auto;min-width:' + (rect.width + 4) + 'px;left:' + (rect.left - 2) + 'px;top:' + (rect.bottom + 2) + 'px';
+    names.slice(0, 12).forEach(function(n) {
+      var item = document.createElement('div');
+      item.textContent = n;
+      item.style.cssText = 'padding:9px 14px;cursor:pointer;font-size:.84rem;color:var(--text);transition:background .15s';
+      item.onmouseenter = function(){ item.style.background = 'rgba(99,102,241,.1)'; };
+      item.onmouseleave = function(){ item.style.background = ''; };
+      item.onmousedown = function(e) {
+        e.preventDefault();
+        inp.value = n;
+        // Update draft / committed row
+        var i = parseInt(inp.dataset.index);
+        if (sales[i]) { sales[i].customer = n; persist(); }
+        else { if (!_draftRows[i]) _draftRows[i] = {}; _draftRows[i].customer = n; }
+        _hideCustAC();
+        inp.focus();
+      };
+      drop.appendChild(item);
+    });
+    document.body.appendChild(drop);
+    clearTimeout(_custACTimer);
+    _custACTimer = setTimeout(_hideCustAC, 8000);
+  }
+  function _hideCustAC() {
+    var d = document.getElementById('custAcDrop');
+    if (d) d.remove();
+    clearTimeout(_custACTimer);
+  }
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('#custAcDrop') && !(e.target.dataset && e.target.dataset.field === 'customer')) _hideCustAC();
+  });
+
   function _printSaleReceipt(i) {
     var s = sales[i];
     if (!s) { showToast('Sale record not found'); return; }
@@ -5667,6 +5868,7 @@
       + '<div class="row"><span class="label">Date:</span><span>' + dt.toLocaleDateString() + '</span></div>'
       + '<div class="row"><span class="label">Time:</span><span>' + dt.toLocaleTimeString() + '</span></div>'
       + '<div class="row"><span class="label">Customer:</span><span>' + (s.customer || '—') + '</span></div>'
+      + (s.customerType ? '<div class="row"><span class="label">Type:</span><span style="text-transform:capitalize">' + s.customerType + '</span></div>' : '')
       + '<hr class="sep">'
       + '<div class="row"><span class="label">Product:</span><span>' + (s.product || '—') + '</span></div>'
       + '<div class="row imei"><span class="label">IMEI / Serial:</span><span>' + (s.imei || '—') + '</span></div>'
@@ -5674,6 +5876,7 @@
       + '<div class="row"><span class="label">Unit Price:</span><span>' + cur + fmtC(s.price || 0) + '</span></div>'
       + '<hr class="sep">'
       + '<div class="row total"><span>TOTAL:</span><span>' + cur + fmtC(subtotal) + '</span></div>'
+      + (s.warranty ? '<div class="row" style="margin-top:6px"><span class="label">Warranty:</span><span style="font-weight:600">' + s.warranty + '</span></div>' : '')
       + '<div class="footer">Thank you for your purchase</div>'
       + '</body></html>');
     w.document.close();
@@ -6046,6 +6249,7 @@
     if (s.phone)     document.getElementById('settingsPhone').value     = s.phone;
     if (s.currency)           document.getElementById('settingsCurrency').value  = s.currency;
     if (s.lowStockThreshold) document.getElementById('settingsLowStock').value   = s.lowStockThreshold;
+    _renderWarrantyOptionsList();
     const eaEl = document.getElementById('settingsEmailAlerts');
     if (eaEl) eaEl.value = s.emailAlertsEnabled ? '1' : '0';
     if (s.emailjsServiceId)  { const el = document.getElementById('settingsEjsService');  if (el) el.value = s.emailjsServiceId; }
@@ -7625,6 +7829,20 @@
 </div>
 
 <!-- Save Toast -->
+<!-- Customer Detail Modal -->
+<div id="customerDetailModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9900;align-items:flex-start;justify-content:center;overflow-y:auto;padding:24px 12px">
+  <div style="background:var(--surface);border-radius:18px;padding:24px;max-width:600px;width:100%;box-shadow:0 12px 48px rgba(0,0,0,.4);position:relative;margin:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <h3 id="custDetailName" style="margin:0;font-size:1.1rem;font-weight:700;color:var(--text)">Customer</h3>
+      <button onclick="document.getElementById('customerDetailModal').style.display='none'" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted)">✕</button>
+    </div>
+    <div id="custDetailInfo" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px"></div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:0 0 16px">
+    <p style="font-size:.82rem;font-weight:700;color:var(--muted);margin:0 0 10px;text-transform:uppercase;letter-spacing:.05em">Purchase History</p>
+    <div id="custDetailHistory" style="display:flex;flex-direction:column;gap:8px"></div>
+  </div>
+</div>
+
 <div id="saveToast"></div>
 
 <!-- Number Tooltip -->
@@ -8743,7 +8961,8 @@ function _buildStoreContext() {
     ' AllTime:' + allSales.length + ' sales rev ' + totalRev +
     '\nTopSellers:' + (top.join(',')||'N/A') + ' LowStock(≤'+threshold+'):' + (low.join(',')||'None') +
     (customerLines.length ? '\nRecent WhatsApp customers (name | phone | status):\n' + customerLines.join('\n') : '')
-    + (typeof _novaIMEIContext === 'function' ? _novaIMEIContext() : '');
+    + (typeof _novaIMEIContext  === 'function' ? _novaIMEIContext()  : '')
+    + (typeof _novaSalesContext === 'function' ? _novaSalesContext() : '');
 }
 
 // ── Action Executor ───────────────────────────────────────────────────────────
@@ -9511,25 +9730,54 @@ function _endAudit() {
 }
 
 // ── Render IMEI Vault ─────────────────────────────────────────────────────────
+var _imeiStatusChip = 'all';
+function _imeiSetChip(chip) {
+  _imeiStatusChip = chip;
+  ['all','stock','found','missing','unknown','sold'].forEach(function(c) {
+    var el = document.getElementById('imeiChip' + c.charAt(0).toUpperCase() + c.slice(1));
+    if (el) {
+      var isActive = (chip === c) || (chip === 'in_stock' && c === 'stock');
+      el.style.opacity = isActive ? '1' : '0.5';
+      el.style.fontWeight = isActive ? '800' : '700';
+    }
+  });
+  renderIMEIVault();
+}
+function _imeiPopulateCategoryFilter(imeis) {
+  var sel = document.getElementById('imeiCategoryFilter');
+  if (!sel) return;
+  var prods = typeof _getProds === 'function' ? _getProds() : [];
+  var cats = new Set();
+  imeis.forEach(function(r) {
+    if (r.productName) {
+      var p = prods.find(function(p){ return p.name === r.productName; });
+      if (p && p.type) cats.add(p.type);
+      else {
+        // Infer category from product name (first word or brand-like prefix)
+        var m = (r.productName || '').match(/^([A-Za-z]+)/);
+        if (m) cats.add(m[1]);
+      }
+    }
+  });
+  var cur = sel.value;
+  var opts = '<option value="">All Categories</option>';
+  Array.from(cats).sort().forEach(function(c){ opts += '<option value="' + _imeiEsc(c) + '">' + _imeiEsc(c) + '</option>'; });
+  sel.innerHTML = opts;
+  if (cur) sel.value = cur;
+}
 function renderIMEIVault() {
   var tbody = document.getElementById('imeiVaultBody');
   if (!tbody) return;
   var imeis   = _getIMEI();
   var query   = (document.getElementById('imeiSearch') || {}).value || '';
   query = query.toLowerCase().trim();
-  var filtered = query ? imeis.filter(function(r){
-    return (r.imei + ' ' + (r.productName||'') + ' ' + (r.productCode||'')).toLowerCase().indexOf(query) !== -1;
-  }) : imeis;
+  var catFilter = (document.getElementById('imeiCategoryFilter') || {}).value || '';
+  var prods = typeof _getProds === 'function' ? _getProds() : [];
 
-  if (!filtered.length) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted);font-size:.88rem">'
-      + (imeis.length ? '🔍 No results for "' + _imeiEsc(query) + '"' : '📱 No IMEI records yet — press <strong>Scan</strong> or <strong>+ Add IMEI</strong>.')
-      + '</td></tr>';
-    return;
-  }
-  var cur = typeof getCurrency === 'function' ? getCurrency() : '₦';
+  // Populate category dropdown
+  _imeiPopulateCategoryFilter(imeis);
 
-  // Integrity mode state (restore bar if active today)
+  // Compute integrity/audit states for ALL records (for accurate counts)
   var _intState   = _getIntegrity();
   var _intToday   = _todayStr();
   if (_intState.date === _intToday && _intState.barVisible) {
@@ -9543,6 +9791,60 @@ function renderIMEIVault() {
   var _intBarVisible = (function(){ var el = document.getElementById('integrityBar'); return el && el.style.display === 'flex'; })();
   var _intConfirmed  = (_intState.date === _intToday && _intBarVisible) ? (_intState.confirmed || []) : [];
 
+  // Count for filter chips
+  var cAll=0, cStock=0, cFound=0, cMissing=0, cUnknown=0, cSold=0;
+  imeis.forEach(function(r) {
+    cAll++;
+    if (r.status === 'sold')           { cSold++; return; }
+    if (r.status === 'scanned_unknown'){ cUnknown++; return; }
+    if (_intBarVisible) {
+      if (_intConfirmed.indexOf(r.imei) !== -1) cFound++;
+      else cMissing++;
+    } else {
+      if (r.status === 'in_stock') cStock++;
+    }
+  });
+  if (!_intBarVisible) { cFound = 0; cMissing = 0; }
+  var _setCount = function(id, n) { var e = document.getElementById(id); if (e) e.textContent = n; };
+  _setCount('imeiCountAll', cAll);
+  _setCount('imeiCountStock', cStock);
+  _setCount('imeiCountFound', cFound);
+  _setCount('imeiCountMissing', cMissing);
+  _setCount('imeiCountUnknown', cUnknown);
+  _setCount('imeiCountSold', cSold);
+
+  // Text search filter
+  var filtered = imeis.filter(function(r){
+    if (query && (r.imei + ' ' + (r.productName||'') + ' ' + (r.productCode||'')).toLowerCase().indexOf(query) === -1) return false;
+    // Category filter
+    if (catFilter) {
+      var p = prods.find(function(p){ return p.name === r.productName; });
+      var cat = (p && p.type) ? p.type : ((r.productName||'').match(/^([A-Za-z]+)/) || ['',''])[1];
+      if (cat !== catFilter) return false;
+    }
+    // Status chip filter
+    if (_imeiStatusChip !== 'all') {
+      var isSold = r.status === 'sold';
+      var isUnknown = r.status === 'scanned_unknown';
+      var isFound   = _intBarVisible && !isSold && !isUnknown && _intConfirmed.indexOf(r.imei) !== -1;
+      var isMissing = _intBarVisible && !isSold && !isUnknown && _intConfirmed.indexOf(r.imei) === -1;
+      var isStock   = !_intBarVisible && r.status === 'in_stock';
+      if (_imeiStatusChip === 'sold'    && !isSold)    return false;
+      if (_imeiStatusChip === 'unknown' && !isUnknown) return false;
+      if (_imeiStatusChip === 'found'   && !isFound)   return false;
+      if (_imeiStatusChip === 'missing' && !isMissing) return false;
+      if (_imeiStatusChip === 'in_stock'&& !isStock)   return false;
+    }
+    return true;
+  });
+
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted);font-size:.88rem">'
+      + (imeis.length ? '🔍 No results' : '📱 No IMEI records yet — press <strong>Scan</strong> or <strong>+ Add IMEI</strong>.')
+      + '</td></tr>';
+    return;
+  }
+  var cur = typeof getCurrency === 'function' ? getCurrency() : '₦';
   var html = '';
   filtered.forEach(function(r, i) {
     var isSold           = r.status === 'sold';
@@ -10249,68 +10551,185 @@ function _confirmIMEINewProduct() {
 }
 
 // ── Customer Database ─────────────────────────────────────────────────────────
+var _custFilter = 'all';
+function _setCustFilter(f) {
+  _custFilter = f;
+  ['all','individual','reseller','profit','orders'].forEach(function(k) {
+    var el = document.getElementById('cf' + k.charAt(0).toUpperCase() + k.slice(1));
+    if (el) { el.style.opacity = (f === k) ? '1' : '0.5'; el.style.fontWeight = (f === k) ? '800' : '700'; }
+  });
+  renderCustomers();
+}
+
 function renderCustomers() {
   var tbody = document.getElementById('sheetsCustomersTbody');
   if (!tbody) return;
-  var sales = JSON.parse(localStorage.getItem('iflow_sales') || '[]');
+  var salesArr = JSON.parse(localStorage.getItem('iflow_sales') || '[]');
+  var custStore = JSON.parse(localStorage.getItem('iflow_customers') || '[]');
   var prods = typeof _getProds === 'function' ? _getProds() : [];
   var cur   = typeof getCurrency === 'function' ? getCurrency() : '₦';
   var fmtC  = typeof fmtComma === 'function' ? fmtComma : function(n){ return n; };
 
-  if (!sales.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted);font-size:.88rem">👥 No customer data yet — sales will appear here.</td></tr>';
+  if (!salesArr.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--muted);font-size:.88rem">👥 No customer data yet — sales will appear here.</td></tr>';
     return;
   }
 
   var map = {};
-  sales.forEach(function(s) {
+  salesArr.forEach(function(s) {
     var name = (s.customer || 'Anonymous').trim() || 'Anonymous';
-    if (!map[name]) map[name] = { name: name, orders: 0, spent: 0, profit: 0, lastTs: 0 };
-    var c    = map[name];
-    var qty  = Number(s.quantity) || 1;
+    if (!map[name]) {
+      var stored = custStore.find(function(c){ return c.name.toLowerCase() === name.toLowerCase(); });
+      map[name] = { name: name, type: s.customerType || (stored ? stored.type : 'individual'), orders: 0, spent: 0, profit: 0, lastTs: 0, warranties: [], purchases: [] };
+    }
+    var c     = map[name];
+    var qty   = Number(s.quantity) || 1;
     var price = Number(s.price)  || 0;
     var total = qty * price;
     c.orders++;
     c.spent += total;
+    if (s.customerType && !c.type) c.type = s.customerType;
     if (s.timestamp && s.timestamp > c.lastTs) c.lastTs = s.timestamp;
-    // Profit — match product by name
+    if (s.warranty) c.warranties.push(s.warranty);
+    c.purchases.push({ product: s.product, imei: s.imei || '', date: s.timestamp, price: price, qty: qty, warranty: s.warranty || '' });
     var prod = prods.find(function(p){ return p.name === s.product; });
     if (prod && prod.costPrice) c.profit += (price - prod.costPrice) * qty;
   });
 
-  var customers = Object.values(map).sort(function(a,b){ return b.spent - a.spent; });
+  var customers = Object.values(map);
+  // Apply filter
+  if (_custFilter === 'individual') customers = customers.filter(function(c){ return c.type !== 'reseller'; });
+  else if (_custFilter === 'reseller') customers = customers.filter(function(c){ return c.type === 'reseller'; });
+  // Sort
+  if (_custFilter === 'profit' || _custFilter === 'all') customers.sort(function(a,b){ return b.profit - a.profit; });
+  else if (_custFilter === 'orders') customers.sort(function(a,b){ return b.orders - a.orders; });
+  else customers.sort(function(a,b){ return b.spent - a.spent; });
+
+  if (!customers.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--muted);font-size:.88rem">No customers match this filter.</td></tr>';
+    return;
+  }
+
   var html = '';
   customers.forEach(function(c, i) {
     var profitColor = c.profit > 0 ? '#16a34a' : (c.profit < 0 ? '#e53e3e' : 'var(--muted)');
     var lastDate = c.lastTs ? new Date(c.lastTs).toLocaleDateString() : '—';
+    var isReseller = c.type === 'reseller';
+    var typeBadge = isReseller
+      ? '<span style="background:rgba(245,158,11,.15);color:#d97706;padding:2px 8px;border-radius:12px;font-size:.7rem;font-weight:700">RESELLER</span>'
+      : '<span style="background:rgba(34,197,94,.12);color:#16a34a;padding:2px 8px;border-radius:12px;font-size:.7rem;font-weight:700">INDIVIDUAL</span>';
+    var activeWarranty = c.warranties.length ? c.warranties[c.warranties.length - 1] : '—';
+    var encName = _imeiEsc(c.name);
     html += '<tr>'
       + '<td class="sheets-rownum">' + (i+1) + '</td>'
-      + '<td style="font-weight:600;color:var(--text)">' + _imeiEsc(c.name) + '</td>'
+      + '<td style="font-weight:600;color:var(--text)">' + encName + '</td>'
+      + '<td>' + typeBadge + '</td>'
       + '<td style="text-align:center">' + c.orders + '</td>'
       + '<td>' + cur + fmtC(c.spent) + '</td>'
       + '<td style="color:' + profitColor + ';font-weight:600">' + (c.profit !== 0 ? (cur + fmtC(Math.abs(c.profit))) : '—') + '</td>'
+      + '<td style="font-size:.79rem;color:var(--muted)">' + _imeiEsc(activeWarranty) + '</td>'
       + '<td style="font-size:.8rem;color:var(--muted)">' + lastDate + '</td>'
+      + '<td><button onclick="_openCustomerDetail(' + JSON.stringify(encName) + ')" style="padding:4px 10px;font-size:.71rem;background:rgba(99,102,241,.1);color:#818cf8;border:1px solid rgba(99,102,241,.25);border-radius:8px;cursor:pointer">More Info</button></td>'
       + '</tr>';
   });
   tbody.innerHTML = html;
+  // Store map for detail lookup
+  window._custMap = map;
 }
 
-// ── Nova in-app: add IMEI context to system prompt builder ────────────────────
-// Called by the Nova context builder — augments product awareness with IMEI data
+function _openCustomerDetail(name) {
+  var map = window._custMap || {};
+  var c = map[name];
+  if (!c) return;
+  var cur  = typeof getCurrency === 'function' ? getCurrency() : '₦';
+  var fmtC = typeof fmtComma === 'function' ? fmtComma : function(n){ return n; };
+  var prods = typeof _getProds === 'function' ? _getProds() : [];
+
+  document.getElementById('custDetailName').textContent = c.name;
+
+  var isReseller = c.type === 'reseller';
+  var profitColor = c.profit > 0 ? '#16a34a' : (c.profit < 0 ? '#e53e3e' : 'var(--muted)');
+  var lastProduct = c.purchases.length ? c.purchases[c.purchases.length - 1] : null;
+  var activeWarranties = [...new Set(c.purchases.filter(function(p){ return p.warranty; }).map(function(p){ return p.warranty; }))];
+
+  var infoHtml = [
+    { label: 'Type', value: isReseller ? '🏪 Reseller' : '👤 Individual' },
+    { label: 'Total Orders', value: c.orders },
+    { label: 'Total Spent', value: cur + fmtC(c.spent) },
+    { label: 'Profit Generated', value: c.profit !== 0 ? cur + fmtC(Math.abs(c.profit)) : '—', color: profitColor },
+    { label: 'Last Purchase', value: c.lastTs ? new Date(c.lastTs).toLocaleDateString() : '—' },
+    { label: 'Last Product', value: lastProduct ? lastProduct.product : '—' },
+    { label: 'Active Warranties', value: activeWarranties.length ? activeWarranties.join(', ') : 'None' },
+    { label: 'Last IMEI', value: lastProduct && lastProduct.imei ? lastProduct.imei : '—' }
+  ].map(function(r) {
+    return '<div style="background:var(--surface2);border-radius:10px;padding:10px 13px">'
+      + '<div style="font-size:.72rem;color:var(--muted);font-weight:600;margin-bottom:3px">' + r.label + '</div>'
+      + '<div style="font-size:.9rem;font-weight:700;color:' + (r.color || 'var(--text)') + '">' + _imeiEsc(String(r.value)) + '</div>'
+      + '</div>';
+  }).join('');
+  document.getElementById('custDetailInfo').innerHTML = infoHtml;
+
+  var histHtml = c.purchases.slice().reverse().map(function(p) {
+    return '<div style="background:var(--surface2);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
+      + '<div>'
+      + '<div style="font-weight:600;font-size:.85rem;color:var(--text)">' + _imeiEsc(p.product || '—') + '</div>'
+      + (p.imei ? '<div style="font-family:monospace;font-size:.73rem;color:var(--muted)">IMEI: ' + _imeiEsc(p.imei) + '</div>' : '')
+      + (p.warranty ? '<div style="font-size:.73rem;color:#d97706">Warranty: ' + _imeiEsc(p.warranty) + '</div>' : '')
+      + '</div>'
+      + '<div style="text-align:right">'
+      + '<div style="font-size:.82rem;font-weight:700;color:var(--text)">' + cur + fmtC(p.price * p.qty) + '</div>'
+      + '<div style="font-size:.72rem;color:var(--muted)">' + (p.date ? new Date(p.date).toLocaleDateString() : '') + '</div>'
+      + '</div>'
+      + '</div>';
+  }).join('') || '<p style="color:var(--muted);font-size:.85rem">No purchase history.</p>';
+  document.getElementById('custDetailHistory').innerHTML = histHtml;
+
+  var modal = document.getElementById('customerDetailModal');
+  modal.style.display = 'flex';
+}
+
+// ── Nova context: product stock awareness (IMEI tracking status, not raw vault) ──
 function _novaIMEIContext() {
-  var imeis = _getIMEI();
-  if (!imeis.length) return '';
-  var inStock = imeis.filter(function(r){ return r.status === 'in_stock'; });
-  var sold    = imeis.filter(function(r){ return r.status === 'sold'; });
-  var lines   = imeis.slice(0, 60).map(function(r) {
-    return '  ' + (r.imei || '?') + ' -> ' + (r.productName || 'Unknown')
-      + ' [' + (r.status || 'unknown') + ']'
-      + (r.customerName ? ' sold-to:' + r.customerName : '')
-      + (r.lastSeen ? ' last-seen:' + r.lastSeen.slice(0,10) : '');
+  var prods = typeof _getProds === 'function' ? _getProds() : [];
+  var imeiTracked = prods.filter(function(p){ return p.isIMEITracked || p.trackType === 'imei'; });
+  if (!imeiTracked.length) return '';
+  var vault = _getIMEI();
+  var inStock = vault.filter(function(r){ return r.status === 'in_stock'; }).length;
+  var sold    = vault.filter(function(r){ return r.status === 'sold'; }).length;
+  var lines = imeiTracked.map(function(p) {
+    return '  ' + (p.name||'?') + ' [stock:' + (p.stockQty||0) + ', price:' + (p.unitPrice||0) + ']';
   });
-  return '\nIMEI Vault (' + inStock.length + ' in-stock, ' + sold.length + ' sold):\n'
-    + lines.join('\n')
-    + '\nUse action {"type":"findIMEI","imei":"..."} to navigate to an IMEI in the vault.';
+  return '\nIMEI-tracked products (' + inStock + ' units in vault, ' + sold + ' sold):\n' + lines.join('\n')
+    + '\nUse action {"type":"findIMEI","imei":"..."} to look up a specific IMEI.';
+}
+
+// ── Nova: customer purchase history lookup (IMEI → who bought it) ─────────────
+function _novaSalesContext() {
+  var salesArr = JSON.parse(localStorage.getItem('iflow_sales') || '[]');
+  if (!salesArr.length) return '';
+  // Build customer map: name → [{product, imei, date, price, warranty, customerType}]
+  var map = {};
+  salesArr.forEach(function(s) {
+    var name = (s.customer || 'Anonymous').trim() || 'Anonymous';
+    if (!map[name]) map[name] = [];
+    map[name].push({
+      product: s.product || '',
+      imei: s.imei || '',
+      date: s.timestamp ? new Date(s.timestamp).toLocaleDateString() : '',
+      price: s.price || 0,
+      qty: s.quantity || 1,
+      warranty: s.warranty || '',
+      type: s.customerType || 'individual'
+    });
+  });
+  var lines = Object.keys(map).slice(0, 40).map(function(name) {
+    var purchases = map[name];
+    var summary = purchases.slice(0, 5).map(function(p) {
+      return p.product + (p.imei ? '[IMEI:' + p.imei + ']' : '') + (p.warranty ? ' w:' + p.warranty : '') + ' on ' + p.date;
+    }).join('; ');
+    return '  ' + name + ' (' + (purchases[0].type||'individual') + ', ' + purchases.length + ' orders): ' + summary;
+  });
+  return '\nCustomer purchase history (for IMEI/warranty lookups):\n' + lines.join('\n');
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

@@ -2334,6 +2334,8 @@
         </select>
         <button onclick="_openCameraScanner('add')" style="padding:8px 16px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:600;cursor:pointer">+ IMEI Add</button>
         <button onclick="_openSonar()" id="integritySearchBtn" style="padding:8px 18px;background:linear-gradient(135deg,#e53e3e,#991b1b);color:#fff;border:none;border-radius:10px;font-size:.83rem;font-weight:700;cursor:pointer;box-shadow:0 2px 12px rgba(229,62,62,.35)">Integrity Search</button>
+        <button onclick="_exportVaultCSV()" style="padding:8px 14px;background:none;border:1px solid var(--border);border-radius:9px;font-size:.8rem;color:var(--muted);cursor:pointer" title="Export IMEI vault as CSV">⬇ Export</button>
+        <button onclick="_resetVaultScan()" style="padding:8px 14px;background:none;border:1px solid rgba(239,68,68,.3);border-radius:9px;font-size:.8rem;color:#e53e3e;cursor:pointer" title="Reset scan session status (does not delete vault records)">↺ Reset Scan</button>
       </div>
       <!-- Status filter chips + count pills -->
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:0 0 12px">
@@ -2509,12 +2511,12 @@
         <tbody id="sheetsSalesTbody"></tbody>
       </table>
     </div>
-    <div id="sheetsViewProducts" class="sheets-table-wrap" style="display:none">
-      <table class="sheets-table">
+    <div id="sheetsViewProducts" class="sheets-table-wrap" style="display:none;overflow-x:auto">
+      <table class="sheets-table" style="min-width:900px">
         <thead><tr>
           <th class="sheets-rownum">#</th>
           <th>Code</th><th>Product Name</th><th>Type</th>
-          <th>Stock Qty</th><th>Unit Price</th><th>Low Stock Threshold</th><th>Date Added</th>
+          <th>Stock Qty</th><th>Unit Price</th><th>Cost Price</th><th>IMEI / Serials</th><th>Low Stock At</th><th>Date Added</th>
         </tr></thead>
         <tbody id="sheetsProductsTbody"></tbody>
       </table>
@@ -3881,8 +3883,13 @@
       if (!prodsArr.length) {
         prodTbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--muted)">No products added yet</td></tr>';
       } else {
-        prodTbody.innerHTML = prodsArr.map((p, i) => {
+        const _vaultAll = typeof _getIMEI === 'function' ? _getIMEI() : [];
+      prodTbody.innerHTML = prodsArr.map((p, i) => {
           const isLow = p.stockQty <= (p.lowStockThreshold || 5);
+          const linkedImeis = _vaultAll.filter(v => v.productName === p.name && v.status !== 'scanned_unknown').map(v => v.imei).filter(Boolean);
+          const imeiCell = linkedImeis.length
+            ? `<span style="font-family:monospace;font-size:.72rem">${linkedImeis.slice(0,5).join(', ')}${linkedImeis.length > 5 ? ' …+' + (linkedImeis.length-5) + ' more' : ''}</span>`
+            : '—';
           return `<tr data-index="${i}">
             <td class="sheets-rownum">${i + 1}</td>
             <td>${p.code || '—'}</td>
@@ -3890,6 +3897,8 @@
             <td>${p.type || '—'}</td>
             <td class="${isLow ? 'sheets-low' : ''}">${p.stockQty}${isLow ? ' ⚠️' : ''}</td>
             <td>${cur}${fmtComma(p.unitPrice)}</td>
+            <td>${p.costPrice != null ? cur + fmtComma(p.costPrice) : '—'}</td>
+            <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis">${imeiCell}</td>
             <td>${p.lowStockThreshold || 5}</td>
             <td>${p.dateAdded || '—'}</td>
           </tr>`;
@@ -5269,6 +5278,7 @@
     if (isNaN(num)) return '0.00';
     return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
+  window.fmtComma = fmtComma; // expose globally for functions outside this IIFE
 
   function numToWords(num) {
     const n = Math.abs(Math.floor(Number(num)));
@@ -5354,7 +5364,7 @@
       // Search mode: tokenized match, read-only display, keep real indices
       const toks = query.split(/\s+/).filter(Boolean);
       const matched = sales.map((s, i) => ({ s, i })).filter(({ s }) => {
-        const hay = [s.product, s.customer, fmtDate(s.timestamp), fmtTime(s.timestamp), s.quantity, s.price].join(' ').toLowerCase();
+        const hay = [s.product, s.customer, s.imei||'', fmtDate(s.timestamp), fmtTime(s.timestamp), s.quantity, s.price].join(' ').toLowerCase();
         return toks.every(t => hay.includes(t));
       });
       if (matched.length === 0) {
@@ -5571,25 +5581,37 @@
             _scheduleWipe(i, tr);
             return;
           }
-          // Commit the sale — IMEI is recorded as-is
+          // Final IMEI-product cross-check: ensure we use vault's product if mismatch
+          let finalProduct = product;
+          let finalPrice   = isNaN(price) ? match.unitPrice : price;
+          if (imei) {
+            const _vChk = _getIMEI().find(v => (v.imei||'').replace(/[\s\-]/g,'') === imei.replace(/[\s\-]/g,''));
+            if (_vChk && _vChk.productName && _vChk.productName.toLowerCase() !== product.toLowerCase()) {
+              finalProduct = _vChk.productName;
+              const _mChk = findStockProduct(finalProduct);
+              if (_mChk) finalPrice = isNaN(price) ? _mChk.unitPrice : price;
+            }
+          }
+          // Commit the sale
           const ts = Date.now();
           sales[i] = {
             customer: customer || '',
             customerType: customerType || 'individual',
             warranty: warranty || '',
-            product,
+            product: finalProduct,
             imei,
             quantity,
-            price: isNaN(price) ? match.unitPrice : price,
+            price: finalPrice,
             timestamp: ts
           };
           // Save new customer to iflow_customers if not already present
           _saveCustomerRecord(customer || '', customerType || 'individual');
-          deductStock(product, quantity);
-          // If this IMEI happens to be in the vault scan log, mark it sold
+          deductStock(finalProduct, quantity); // always deduct from correct product
+          // Mark IMEI as sold in vault (normalized match)
+          const _normSaleImei = (imei||'').replace(/[\s\-]/g,'');
           const _vaultArr = _getIMEI();
-          const _vaultRec = _vaultArr.find(v => v.imei === imei);
-          if (_vaultRec) { _markIMEISold(imei, customer || ''); }
+          const _vaultRec = _vaultArr.find(v => (v.imei||'').replace(/[\s\-]/g,'') === _normSaleImei);
+          if (_vaultRec) { _markIMEISold(_vaultRec.imei, customer || ''); }
           persist();
           SheetsAPI.withToken(() => SheetsAPI.updateRow(i, sales[i]));
           updateOrdersBadge();
@@ -5758,19 +5780,61 @@
 
   function _validateSaleIMEI(imei, rowIdx, tr, isTyped) {
     if (!imei) return;
+    var normImei = imei.replace(/[\s\-]/g, '');
     var vault = _getIMEI();
-    var rec = vault.find(v => v.imei === imei);
+    var rec = vault.find(v => (v.imei || '').replace(/[\s\-]/g, '') === normImei);
     var cell = tr ? tr.querySelector('[data-field="imei"]') : null;
     if (!cell) return;
     if (rec) {
-      cell.style.outline = '2px solid #22c55e';
-      cell.title = (rec.status === 'in_stock' ? 'In stock' : 'Already sold') + ': ' + (rec.productName || '');
+      var vaultProduct = (rec.productName || '').trim();
+      var enteredProductInp = tr ? tr.querySelector('[data-field="product"]') : null;
+      var enteredProduct = enteredProductInp ? enteredProductInp.value.trim() : '';
+      // Mismatch: IMEI belongs to a different product
+      if (vaultProduct && enteredProduct && vaultProduct.toLowerCase() !== enteredProduct.toLowerCase()) {
+        cell.style.outline = '2px solid #f59e0b';
+        cell.title = 'IMEI belongs to "' + vaultProduct + '"';
+        showWarning('⚠️ IMEI is assigned to "' + vaultProduct + '", not "' + enteredProduct + '" — correcting product.');
+        // Auto-correct the product field
+        if (enteredProductInp) {
+          enteredProductInp.value = vaultProduct;
+          enteredProductInp.dataset.prevProduct = vaultProduct;
+        }
+        // Update draft or committed row
+        if (sales[rowIdx]) {
+          sales[rowIdx].product = vaultProduct;
+          // Re-price to vault product's price if available
+          var match = findStockProduct(vaultProduct);
+          if (match) {
+            var priceInp = tr.querySelector('[data-field="price"]');
+            if (priceInp && !priceInp.value) { priceInp.value = match.unitPrice; sales[rowIdx].price = match.unitPrice; }
+          }
+          persist();
+        } else {
+          if (!_draftRows[rowIdx]) _draftRows[rowIdx] = {};
+          _draftRows[rowIdx].product = vaultProduct;
+          var match2 = findStockProduct(vaultProduct);
+          if (match2 && _draftRows[rowIdx].price === undefined) {
+            _draftRows[rowIdx].price = match2.unitPrice;
+            var priceInp2 = tr ? tr.querySelector('[data-field="price"]') : null;
+            if (priceInp2) priceInp2.value = match2.unitPrice;
+          }
+        }
+        cell.style.outline = '2px solid #22c55e';
+        cell.title = 'IMEI matched to "' + vaultProduct + '" ✓';
+      } else if (rec.status === 'sold') {
+        cell.style.outline = '2px solid #e53e3e';
+        cell.title = 'IMEI already sold — was linked to "' + vaultProduct + '"';
+        showWarning('⚠️ IMEI ' + imei.slice(0, 8) + '… was already sold.');
+      } else {
+        cell.style.outline = '2px solid #22c55e';
+        cell.title = 'In stock: ' + vaultProduct;
+      }
     } else {
       cell.style.outline = '2px solid #d97706';
       if (isTyped) {
         var closest = _closestIMEIs(imei)[0];
         cell.title = closest
-          ? 'Not found. Closest: ' + closest.imei.slice(0, 8) + '… (' + closest.productName + ')'
+          ? 'Not in vault. Closest: ' + closest.imei.slice(0, 8) + '… (' + closest.productName + ')'
           : 'IMEI not found in vault';
       }
     }
@@ -6346,7 +6410,7 @@
     const toks = query.split(/\s+/).filter(Boolean);
     const filtered = sales.filter(s => {
       if (!toks.length) return true;
-      const hay = [s.product, s.customer, fmtDate(s.timestamp), fmtTime(s.timestamp), String(s.quantity), String(s.price)].join(' ').toLowerCase();
+      const hay = [s.product, s.customer, s.imei||'', fmtDate(s.timestamp), fmtTime(s.timestamp), String(s.quantity), String(s.price)].join(' ').toLowerCase();
       return toks.every(t => hay.includes(t));
     });
     const totalRevenue = filtered.reduce((s, o) => s + o.quantity * o.price, 0);
@@ -7483,7 +7547,9 @@
     var _tokens = _query ? _query.split(/\s+/).filter(Boolean) : [];
     var _filtered = _prods.filter(function(p) {
       if (!_tokens.length) return true;
-      var hay = ((p.name||'') + ' ' + (p.code||'') + ' ' + (p.type||'') + ' ' + (p.category||'') + ' ' + (p.variant||'')).toLowerCase();
+      // Include IMEI/serial numbers from vault for this product in the haystack
+      var _vaultImeis = _getIMEI().filter(function(v){ return v.productName === p.name; }).map(function(v){ return v.imei || ''; }).join(' ');
+      var hay = ((p.name||'') + ' ' + (p.code||'') + ' ' + (p.type||'') + ' ' + (p.category||'') + ' ' + (p.variant||'') + ' ' + _vaultImeis + ' ' + (p.serialCode||'')).toLowerCase();
       return _tokens.every(function(t) { return hay.indexOf(t) !== -1; });
     });
 
@@ -8928,22 +8994,40 @@ function _buildStoreContext() {
   var cfg      = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
   var prods    = JSON.parse(localStorage.getItem('iflow_products') || '[]');
   var allSales = JSON.parse(localStorage.getItem('iflow_sales')    || '[]');
+  var vault    = _getIMEI();
   var today    = new Date().toDateString();
   var threshold = cfg.lowStockThreshold || 5;
 
+  // For IMEI-tracked products, actual available stock = vault in_stock count, NOT stockQty
+  var imeiInStock  = vault.filter(function(r){ return r.status === 'in_stock'; });
+  var imeiSold     = vault.filter(function(r){ return r.status === 'sold'; });
+  var imeiByProd   = {};
+  imeiInStock.forEach(function(r){ if (r.productName) { imeiByProd[r.productName] = (imeiByProd[r.productName] || []); imeiByProd[r.productName].push(r.imei); } });
+
   var prodLines = prods.map(function(p) {
     var l   = p.name;
-    var qty = p.stockQty !== undefined ? p.stockQty : (p.qty !== undefined ? p.qty : undefined);
+    var isImeiTracked = p.isIMEITracked || p.trackType === 'imei';
+    // For IMEI-tracked products, show real vault count; for others, use stockQty
+    var qty = isImeiTracked
+      ? (imeiByProd[p.name] ? imeiByProd[p.name].length : 0)
+      : (p.stockQty !== undefined ? p.stockQty : (p.qty !== undefined ? p.qty : undefined));
     var pri = p.unitPrice !== undefined ? p.unitPrice : (p.price !== undefined ? p.price : undefined);
-    if (qty !== undefined) l += ', qty:'   + qty;
+    if (qty !== undefined) l += ', qty:' + qty + (isImeiTracked ? '(IMEI-tracked)' : '');
     if (pri !== undefined) l += ', price:' + pri;
     if (p.costPrice !== undefined) l += ', cost:' + p.costPrice;
-    if (p.condition) l += ', condition:' + p.condition;
+    if (p.condition) l += ', cond:' + p.condition;
+    if (isImeiTracked && imeiByProd[p.name]) l += ', IMEIs:[' + imeiByProd[p.name].slice(0, 5).join(',') + (imeiByProd[p.name].length > 5 ? '…' : '') + ']';
     return l;
   });
   var todaySales = allSales.filter(function(s){ return new Date(s.timestamp||s.date||s.ts).toDateString()===today; });
   var todayRev   = todaySales.reduce(function(n,s){ return n+((s.price||0)*(s.quantity||1)); }, 0);
   var totalRev   = allSales.reduce(function(n,s){   return n+((s.price||0)*(s.quantity||1)); }, 0);
+  // Profit calc
+  var totalProfit = allSales.reduce(function(n,s){
+    var p2 = prods.find(function(p){ return (p.name||'').toLowerCase() === (s.product||'').toLowerCase(); });
+    if (p2 && p2.costPrice != null) return n + (((s.price||0) - Number(p2.costPrice)) * (s.quantity||1));
+    return n;
+  }, 0);
   var byP = {}; allSales.forEach(function(s){ if(s.product) byP[s.product]=(byP[s.product]||0)+(s.quantity||1); });
   var top = Object.keys(byP).sort(function(a,b){return byP[b]-byP[a];}).slice(0,5).map(function(n){return n+'('+byP[n]+')';});
   var low = prods.filter(function(p){ var q=p.stockQty!==undefined?p.stockQty:(p.qty||0); return q<=threshold; }).map(function(p){ var q=p.stockQty!==undefined?p.stockQty:(p.qty||0); return p.name+'('+q+')'; });
@@ -8955,14 +9039,33 @@ function _buildStoreContext() {
     return (o.customer||'') + (phone ? ' | phone:' + phone : '') + ' | status:' + (o.status||'?');
   });
 
+  // Customer summary from iflow_customers + sales aggregation
+  var custStore = JSON.parse(localStorage.getItem('iflow_customers') || '[]');
+  var custMap2 = {};
+  allSales.forEach(function(s) {
+    var n = (s.customer||'Anonymous').trim() || 'Anonymous';
+    if (!custMap2[n]) custMap2[n] = { orders:0, spent:0, type: s.customerType||'individual', warranties:[] };
+    custMap2[n].orders++;
+    custMap2[n].spent += (s.price||0)*(s.quantity||1);
+    if (s.warranty) custMap2[n].warranties.push(s.warranty);
+  });
+  var custLines2 = Object.keys(custMap2).slice(0, 30).map(function(n) {
+    var c = custMap2[n];
+    return '  ' + n + ' [' + c.type + ', orders:' + c.orders + ', spent:' + c.spent.toFixed(0)
+      + (c.warranties.length ? ', warranty:' + c.warranties[c.warranties.length-1] : '') + ']';
+  });
+
   return 'Store:' + (cfg.storeName||'Unnamed') + ' Currency:' + (cfg.currency||'NGN') + ' Owner:' + (cfg.ownerName||'N/A') +
     '\nProducts(' + prods.length + '):\n' + (prodLines.join('\n')||'None') +
-    '\nToday:' + todaySales.length + ' sales rev ' + todayRev +
-    ' AllTime:' + allSales.length + ' sales rev ' + totalRev +
+    '\nVault: ' + imeiInStock.length + ' IMEI units in stock, ' + imeiSold.length + ' sold' +
+    '\nToday:' + todaySales.length + ' sales rev:' + todayRev.toFixed(0) +
+    ' AllTime:' + allSales.length + ' sales rev:' + totalRev.toFixed(0) + ' profit:' + totalProfit.toFixed(0) +
     '\nTopSellers:' + (top.join(',')||'N/A') + ' LowStock(≤'+threshold+'):' + (low.join(',')||'None') +
-    (customerLines.length ? '\nRecent WhatsApp customers (name | phone | status):\n' + customerLines.join('\n') : '')
+    (custLines2.length ? '\nCustomers:\n' + custLines2.join('\n') : '') +
+    (customerLines.length ? '\nRecent WhatsApp customers:\n' + customerLines.join('\n') : '')
     + (typeof _novaIMEIContext  === 'function' ? _novaIMEIContext()  : '')
-    + (typeof _novaSalesContext === 'function' ? _novaSalesContext() : '');
+    + (typeof _novaSalesContext === 'function' ? _novaSalesContext() : '') +
+    '\nActions Nova can perform: navigate, addProduct, addProducts, recordSale, findIMEI, openCustomer, showVault, showCustomers, showSales, showProducts, showSettings';
 }
 
 // ── Action Executor ───────────────────────────────────────────────────────────
@@ -9032,19 +9135,54 @@ function _novaExecuteAction(actionStr) {
       showToast('Stock updated by Nova ✓'); return;
     }
     if (a.type === 'findIMEI') {
-      var imei = String(a.imei || '').replace(/\D/g,'');
-      if (!imei) { showToast('Nova: no IMEI specified'); return; }
-      var records = _getIMEI ? _getIMEI() : [];
-      var rec = records.find(function(r){ return r.imei === imei; });
-      if (rec) {
+      var imeiQ = String(a.imei || '').replace(/[\s\-]/g,'');
+      if (!imeiQ) { showToast('Nova: no IMEI specified'); return; }
+      var records2 = _getIMEI ? _getIMEI() : [];
+      var rec2 = records2.find(function(r){ return (r.imei||'').replace(/[\s\-]/g,'') === imeiQ; });
+      if (rec2) {
         navigateTo('products');
-        setTimeout(function(){ switchProdTab('imei'); renderIMEIVault(); _highlightIMEIRow(imei); }, 350);
-        showToast('📱 IMEI ' + imei.slice(0,6) + '… → ' + (rec.productName || 'found'));
+        setTimeout(function(){ switchProdTab('imei'); renderIMEIVault(); _highlightIMEIRow(rec2.imei); }, 350);
+        showToast('📱 IMEI ' + imeiQ.slice(0,6) + '… → ' + (rec2.productName || 'found'));
       } else {
         navigateTo('products');
-        setTimeout(function(){ switchProdTab('imei'); }, 350);
-        showToast('IMEI ' + imei + ' not found in vault');
+        setTimeout(function(){ switchProdTab('imei'); var s2=document.getElementById('imeiSearch'); if(s2){s2.value=imeiQ; renderIMEIVault();} }, 350);
+        showToast('IMEI ' + imeiQ + ' not found in vault — searching…');
       }
+      return;
+    }
+    if (a.type === 'showVault') {
+      navigateTo('products');
+      setTimeout(function(){ switchProdTab('imei'); renderIMEIVault(); }, 300);
+      return;
+    }
+    if (a.type === 'showSales') {
+      navigateTo('orders'); return;
+    }
+    if (a.type === 'showProducts') {
+      navigateTo('products'); return;
+    }
+    if (a.type === 'showSettings') {
+      navigateTo('settings'); return;
+    }
+    if (a.type === 'showCustomers') {
+      navigateTo('sheets');
+      setTimeout(function(){ if(typeof switchSheetsTab==='function') switchSheetsTab('customers'); }, 300);
+      return;
+    }
+    if (a.type === 'openCustomer') {
+      var cName = a.name || '';
+      navigateTo('sheets');
+      setTimeout(function(){
+        if (typeof switchSheetsTab === 'function') switchSheetsTab('customers');
+        setTimeout(function(){
+          if (typeof renderCustomers === 'function') renderCustomers();
+          var cMap = window._custMap || {};
+          // Case-insensitive lookup
+          var cKey = Object.keys(cMap).find(function(k){ return k.toLowerCase() === cName.toLowerCase(); });
+          if (cKey && typeof _openCustomerDetail === 'function') _openCustomerDetail(cKey);
+          else showToast('Customer "' + cName + '" not found');
+        }, 200);
+      }, 300);
       return;
     }
     if (a.type === 'highlightProduct') {
@@ -10592,8 +10730,9 @@ function renderCustomers() {
     if (s.timestamp && s.timestamp > c.lastTs) c.lastTs = s.timestamp;
     if (s.warranty) c.warranties.push(s.warranty);
     c.purchases.push({ product: s.product, imei: s.imei || '', date: s.timestamp, price: price, qty: qty, warranty: s.warranty || '' });
-    var prod = prods.find(function(p){ return p.name === s.product; });
-    if (prod && prod.costPrice) c.profit += (price - prod.costPrice) * qty;
+    var _pNameLow = (s.product || '').toLowerCase();
+    var prod = prods.find(function(p){ return (p.name || '').toLowerCase() === _pNameLow; });
+    if (prod && prod.costPrice != null && prod.costPrice !== '') c.profit += (price - Number(prod.costPrice)) * qty;
   });
 
   var customers = Object.values(map);
@@ -10620,6 +10759,7 @@ function renderCustomers() {
       : '<span style="background:rgba(34,197,94,.12);color:#16a34a;padding:2px 8px;border-radius:12px;font-size:.7rem;font-weight:700">INDIVIDUAL</span>';
     var activeWarranty = c.warranties.length ? c.warranties[c.warranties.length - 1] : '—';
     var encName = _imeiEsc(c.name);
+    var safeKey = encodeURIComponent(c.name);
     html += '<tr>'
       + '<td class="sheets-rownum">' + (i+1) + '</td>'
       + '<td style="font-weight:600;color:var(--text)">' + encName + '</td>'
@@ -10629,7 +10769,7 @@ function renderCustomers() {
       + '<td style="color:' + profitColor + ';font-weight:600">' + (c.profit !== 0 ? (cur + fmtC(Math.abs(c.profit))) : '—') + '</td>'
       + '<td style="font-size:.79rem;color:var(--muted)">' + _imeiEsc(activeWarranty) + '</td>'
       + '<td style="font-size:.8rem;color:var(--muted)">' + lastDate + '</td>'
-      + '<td><button onclick="_openCustomerDetail(' + JSON.stringify(encName) + ')" style="padding:4px 10px;font-size:.71rem;background:rgba(99,102,241,.1);color:#818cf8;border:1px solid rgba(99,102,241,.25);border-radius:8px;cursor:pointer">More Info</button></td>'
+      + '<td><button onclick="_openCustomerDetail(decodeURIComponent(\'' + safeKey + '\'))" style="padding:4px 10px;font-size:.71rem;background:rgba(99,102,241,.1);color:#818cf8;border:1px solid rgba(99,102,241,.25);border-radius:8px;cursor:pointer">More Info</button></td>'
       + '</tr>';
   });
   tbody.innerHTML = html;
@@ -10688,19 +10828,25 @@ function _openCustomerDetail(name) {
   modal.style.display = 'flex';
 }
 
-// ── Nova context: product stock awareness (IMEI tracking status, not raw vault) ──
+// ── Nova context: full IMEI vault awareness ──────────────────────────────────
 function _novaIMEIContext() {
-  var prods = typeof _getProds === 'function' ? _getProds() : [];
-  var imeiTracked = prods.filter(function(p){ return p.isIMEITracked || p.trackType === 'imei'; });
-  if (!imeiTracked.length) return '';
   var vault = _getIMEI();
-  var inStock = vault.filter(function(r){ return r.status === 'in_stock'; }).length;
-  var sold    = vault.filter(function(r){ return r.status === 'sold'; }).length;
-  var lines = imeiTracked.map(function(p) {
-    return '  ' + (p.name||'?') + ' [stock:' + (p.stockQty||0) + ', price:' + (p.unitPrice||0) + ']';
+  if (!vault.length) return '';
+  var inStock = vault.filter(function(r){ return r.status === 'in_stock'; });
+  var sold    = vault.filter(function(r){ return r.status === 'sold'; });
+  var unknown = vault.filter(function(r){ return r.status === 'scanned_unknown'; });
+  // Full listing of in-stock IMEIs (up to 80)
+  var lines = inStock.slice(0, 80).map(function(r) {
+    return '  ' + (r.imei||'?') + ' → ' + (r.productName||'Unknown')
+      + (r.lastSeen ? ' (seen:' + r.lastSeen.slice(0,10) + ')' : '');
   });
-  return '\nIMEI-tracked products (' + inStock + ' units in vault, ' + sold + ' sold):\n' + lines.join('\n')
-    + '\nUse action {"type":"findIMEI","imei":"..."} to look up a specific IMEI.';
+  var soldLines = sold.slice(0, 40).map(function(r) {
+    return '  ' + (r.imei||'?') + ' → ' + (r.productName||'?') + ' sold-to:' + (r.customerName||'?');
+  });
+  return '\nIMEI Vault — In-stock(' + inStock.length + '), Sold(' + sold.length + '), Unknown(' + unknown.length + '):'
+    + '\nIn-stock:\n' + (lines.join('\n') || '  none')
+    + '\nSold:\n' + (soldLines.join('\n') || '  none')
+    + '\nActions: {"type":"findIMEI","imei":"..."} {"type":"showVault"}';
 }
 
 // ── Nova: customer purchase history lookup (IMEI → who bought it) ─────────────
@@ -10800,6 +10946,47 @@ function _updateIntegrityBar() {
   if (fEl) fEl.textContent = found;
   if (mEl) mEl.textContent = missing;
   if (uEl) uEl.textContent = unknown;
+}
+
+function _exportVaultCSV() {
+  var imeis = _getIMEI();
+  var dateStr = new Date().toISOString().slice(0, 10);
+  var rows = [['IMEI / Serial', 'Product', 'Status', 'Added', 'Last Seen', 'Scan Count', 'Sold To']];
+  imeis.forEach(function(r) {
+    rows.push([
+      r.imei || '',
+      r.productName || '',
+      r.status || '',
+      r.addedAt ? new Date(r.addedAt).toLocaleDateString() : '',
+      r.lastSeen ? new Date(r.lastSeen).toLocaleDateString() : '',
+      r.scanCount || 0,
+      r.customerName || ''
+    ]);
+  });
+  var csv = rows.map(function(row){ return row.map(function(v){ return '"' + String(v).replace(/"/g,'""') + '"'; }).join(','); }).join('\n');
+  var blob = new Blob([csv], { type: 'text/csv' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'iflow-imei-vault-' + dateStr + '.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  if (typeof showToast === 'function') showToast('IMEI vault exported ✓');
+}
+
+function _resetVaultScan() {
+  if (!confirm('Reset scan session? This clears the Found/Missing/Unknown display.\nIMEI records themselves are NOT deleted.')) return;
+  // Reset integrity state
+  _saveIntegrity({ date: _todayStr(), confirmed: [], barVisible: false });
+  // Reset scanned_unknown entries (display only, remove from vault)
+  var imeis = _getIMEI().filter(function(r){ return r.status !== 'scanned_unknown'; });
+  _saveIMEI(imeis);
+  // Hide integrity bar
+  var bar = document.getElementById('integrityBar');
+  if (bar) bar.style.display = 'none';
+  // Reset chip filter
+  _imeiStatusChip = 'all';
+  renderIMEIVault();
+  if (typeof showToast === 'function') showToast('Scan session reset ✓');
 }
 
 function _playConfirmSound() {

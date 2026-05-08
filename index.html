@@ -2535,7 +2535,8 @@
           <thead><tr>
             <th class="sheets-rownum">#</th>
             <th>Customer</th><th>Type</th><th>Orders</th><th>Total Spent</th>
-            <th>Profit Generated</th><th>Active Warranty</th><th>Last Purchase</th><th></th>
+            <th>Profit Generated</th><th>Active Warranty</th><th>Last Purchase</th>
+            <th style="position:sticky;right:0;background:var(--surface2);z-index:2;min-width:80px"></th>
           </tr></thead>
           <tbody id="sheetsCustomersTbody"></tbody>
         </table>
@@ -5863,6 +5864,13 @@
         cell.style.outline = '2px solid #22c55e';
         cell.title = 'In stock: ' + vaultProduct;
       }
+      // IMEI products are unique — enforce qty=1
+      var _qtyInp = tr ? tr.querySelector('[data-field="quantity"]') : null;
+      if (_qtyInp && _qtyInp.value !== '1') {
+        _qtyInp.value = '1';
+        if (sales[rowIdx]) sales[rowIdx].quantity = 1;
+        else { if (!_draftRows[rowIdx]) _draftRows[rowIdx] = {}; _draftRows[rowIdx].quantity = 1; }
+      }
     } else {
       cell.style.outline = '2px solid #d97706';
       if (isTyped) {
@@ -5987,7 +5995,8 @@
     openPwGate('↩ Reverse Sale', 'Enter your password to reverse this sale and return the IMEI to stock.', function() {
       if (s.imei) {
         var vault = _getIMEI();
-        var vRec = vault.find(v => v.imei === s.imei);
+        var _normRevImei = (s.imei||'').replace(/[\s\-]/g,'');
+        var vRec = vault.find(v => (v.imei||'').replace(/[\s\-]/g,'') === _normRevImei);
         if (vRec) { vRec.status = 'in_stock'; delete vRec.customerName; _saveIMEI(vault); }
       }
       if (s.product && s.quantity) { deductStock(s.product, -s.quantity); }
@@ -6002,8 +6011,15 @@
 
   function wipeRow(i, tr, prevProduct, toastMsg) {
     if (sales[i]) {
-      // Restore stock for the last committed valid product
       const qty = sales[i].quantity || 1;
+      // Restore IMEI vault to in_stock if this sale had an IMEI
+      var _wImei = (sales[i].imei || '').replace(/[\s\-]/g, '');
+      if (_wImei) {
+        var _wVault = _getIMEI();
+        var _wRec = _wVault.find(function(v){ return (v.imei||'').replace(/[\s\-]/g,'') === _wImei; });
+        if (_wRec && _wRec.status === 'sold') { _wRec.status = 'in_stock'; delete _wRec.customerName; _saveIMEI(_wVault); }
+      }
+      // Restore stock for the last committed valid product
       if (prevProduct) deductStock(prevProduct, -qty);
       sales.splice(i, 1);
       persist();
@@ -10017,8 +10033,8 @@ function renderIMEIVault() {
       var cat = (p && p.type) ? p.type : ((r.productName||'').match(/^([A-Za-z]+)/) || ['',''])[1];
       if (cat !== catFilter) return false;
     }
-    // Status chip filter
-    if (_imeiStatusChip !== 'all') {
+    // Status chip filter — bypassed when text search is active so searching always shows matches
+    if (_imeiStatusChip !== 'all' && !query) {
       var isSold = r.status === 'sold';
       var isUnknown = r.status === 'scanned_unknown';
       var isFound   = _intBarVisible && !isSold && !isUnknown && _intConfirmed.indexOf(r.imei) !== -1;
@@ -10788,10 +10804,8 @@ function renderCustomers() {
     if (s.warranty) c.warranties.push(s.warranty);
     c.purchases.push({ product: s.product, imei: s.imei || '', date: s.timestamp, price: price, qty: qty, warranty: s.warranty || '' });
     var _pNameLow = (s.product || '').toLowerCase();
-    // Try exact name match first, then category match for variants
     var prod = prods.find(function(p){ return (p.name || '').toLowerCase() === _pNameLow; });
-    if (!prod) prod = prods.find(function(p){ return (p.category || '').toLowerCase() === _pNameLow; });
-    if (!prod) prod = prods.find(function(p){ return _pNameLow.indexOf((p.category || p.name || '').toLowerCase()) === 0; });
+    if (!prod && _pNameLow) prod = prods.find(function(p){ var cat = (p.category || '').toLowerCase(); return cat.length > 2 && cat === _pNameLow; });
     if (prod && prod.costPrice != null && prod.costPrice !== '' && prod.costPrice !== undefined) {
       c.profit += (price - Number(prod.costPrice)) * qty;
       c.profitKnown = true;
@@ -10833,7 +10847,7 @@ function renderCustomers() {
       + '<td style="color:' + profitColor + ';font-weight:600">' + profitDisplay + '</td>'
       + '<td style="font-size:.79rem;color:var(--muted)">' + _imeiEsc(activeWarranty) + '</td>'
       + '<td style="font-size:.8rem;color:var(--muted)">' + lastDate + '</td>'
-      + '<td><button onclick="_openCustomerDetail(decodeURIComponent(\'' + safeKey + '\'))" style="padding:4px 10px;font-size:.71rem;background:rgba(99,102,241,.1);color:#818cf8;border:1px solid rgba(99,102,241,.25);border-radius:8px;cursor:pointer">More Info</button></td>'
+      + '<td style="position:sticky;right:0;background:var(--surface);box-shadow:-2px 0 6px rgba(0,0,0,.12);padding:6px 8px"><button onclick="_openCustomerDetail(decodeURIComponent(\'' + safeKey + '\'))" style="padding:4px 10px;font-size:.71rem;background:rgba(99,102,241,.1);color:#818cf8;border:1px solid rgba(99,102,241,.25);border-radius:8px;cursor:pointer;white-space:nowrap">More Info</button></td>'
       + '</tr>';
   });
   tbody.innerHTML = html;

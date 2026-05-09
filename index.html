@@ -2067,7 +2067,7 @@
           <thead>
             <tr>
               <th>#</th><th>Date</th><th>Time</th><th>Customer</th>
-              <th>Product</th><th>Qty</th><th>Unit Price</th><th>Subtotal</th><th></th>
+              <th>Product</th><th>IMEI / Serial</th><th>Qty</th><th>Unit Price</th><th>Subtotal</th><th></th>
             </tr>
           </thead>
           <tbody id="ordersBody"></tbody>
@@ -3912,8 +3912,7 @@
         }).join('');
       }
     }
-    // Only show products that still have stock — sold-out items are hidden
-    const prodsArr = (JSON.parse(localStorage.getItem('iflow_products') || '[]')).filter(p => (Number(p.stockQty) || 0) > 0);
+    const prodsArr = JSON.parse(localStorage.getItem('iflow_products') || '[]');
     const prodTbody = document.getElementById('sheetsProductsTbody');
     if (prodTbody) {
       if (!prodsArr.length) {
@@ -6136,6 +6135,13 @@
     var idx = _arr.findIndex(function(p) { return normalizeProductName((p.name || '').toLowerCase().trim()) === normName; });
     if (idx === -1) return;
     _arr[idx].stockQty = Math.max(0, (_arr[idx].stockQty || 0) - qty);
+    // Fully remove the product when stock hits zero (positive deduction = actual sale)
+    if (_arr[idx].stockQty <= 0 && qty > 0) {
+      _arr.splice(idx, 1);
+      _saveProds(_arr);
+      renderProducts();
+      return; // product is gone — no further checks needed
+    }
     _saveProds(_arr);         // write first, syncs products[] cache too
     renderProducts();
     SheetsAPI.withToken(function() { SheetsAPI.updateProduct(idx, _arr[idx]); });
@@ -6504,18 +6510,23 @@
     const tbody = document.getElementById('ordersBody');
     if (!tbody) return;
     if (filtered.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem;">No sales recorded yet.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--muted);font-size:0.88rem;">No sales recorded yet.</td></tr>`;
       return;
     }
     tbody.innerHTML = filtered.map((o, idx) => {
       const sub = o.quantity * o.price;
       const realIdx = sales.indexOf(o);
+      // IMEI cell — monospace, muted dash when absent
+      const imeiCell = o.imei
+        ? `<span style="font-family:monospace;font-size:.78rem">${escHtml(o.imei)}</span>`
+        : '<span style="color:var(--muted)">—</span>';
       return `<tr id="order-row-${realIdx}" style="transition:opacity .35s,background .35s">
         <td class="row-num">${idx + 1}</td>
         <td class="cell-datetime">${fmtDate(o.timestamp)}</td>
         <td class="cell-datetime">${fmtTime(o.timestamp)}</td>
         <td style="padding:10px 14px;color:var(--muted)">${escHtml(o.customer || '—')}</td>
         <td style="padding:10px 14px;font-weight:600;color:var(--text)">${escHtml(o.product || '')}</td>
+        <td class="cell-datetime">${imeiCell}</td>
         <td class="cell-datetime" style="text-align:center">${o.quantity}</td>
         <td class="cell-datetime">${cur}${fmtComma(o.price)}</td>
         <td class="cell-subtotal" data-val="${sub}">${cur}${fmtComma(sub)}</td>
@@ -7621,11 +7632,9 @@
       }
     } catch(_) {}
 
-    // Text search filter — only show products that still have stock (qty > 0)
+    // Text search filter
     var _tokens = _query ? _query.split(/\s+/).filter(Boolean) : [];
     var _filtered = _prods.filter(function(p) {
-      // Sold-out products are hidden from the stock view
-      if ((Number(p.stockQty) || 0) <= 0) return false;
       if (!_tokens.length) return true;
       // Include IMEI/serial numbers from vault for this product in the haystack
       var _vaultImeis = _getIMEI().filter(function(v){ return v.productName === p.name; }).map(function(v){ return v.imei || ''; }).join(' ');
@@ -11317,6 +11326,9 @@ function _onSerialInput(el) {
   if (!val) {
     if (badge)  badge.style.display = 'none';
     if (status) { status.textContent = 'Phones: dial *#06# for IMEI · Other items: any serial or reference code'; status.style.color = 'var(--muted)'; }
+    // Unlock qty when IMEI field is cleared
+    var _qtyElClr = document.getElementById('npQty');
+    if (_qtyElClr) { _qtyElClr.readOnly = false; _qtyElClr.title = ''; }
     return;
   }
   if (badge) badge.style.display = '';
@@ -11329,6 +11341,9 @@ function _onSerialInput(el) {
     } else if (n === 15) {
       badge.textContent = 'IMEI ✓';  badge.style.cssText += ';background:rgba(34,197,94,.15);color:#22c55e';
       if (status) { status.textContent = 'Valid 15-digit IMEI — will be saved to vault'; status.style.color = '#22c55e'; }
+      // IMEI = unique unit — force qty to 1 and lock it
+      var _qtyEl = document.getElementById('npQty');
+      if (_qtyEl) { _qtyEl.value = '1'; _qtyEl.readOnly = true; _qtyEl.title = 'IMEI products are unique — qty is always 1'; }
     } else {
       badge.textContent = n + ' digits';  badge.style.cssText += ';background:rgba(239,68,68,.15);color:#ef4444';
       if (status) { status.textContent = 'IMEI is exactly 15 digits — remove ' + (n-15) + ' digit' + (n-15>1?'s':''); status.style.color = '#ef4444'; }

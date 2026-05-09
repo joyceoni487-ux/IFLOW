@@ -7603,51 +7603,21 @@
     // Sync in-memory cache — inside try/catch so it can NEVER crash the render
     try { products.length = 0; _prods.forEach(function(p) { products.push(p); }); } catch(_) {}
 
-    // ── B. Nothing local → fetch from cloud ──────────────────────────────
+    // ── B. Empty state ────────────────────────────────────────────────────
     if (!_prods.length) {
       var _tbl = document.getElementById('productsBody');
-      if (!_tbl) return;
-
-      // 10-second debounce on timestamp — never gets permanently stuck
-      var _ms = Date.now();
-      if (_tbl._fetchAt && _ms - _tbl._fetchAt < 10000) return;
-      _tbl._fetchAt = _ms;
-
-      _tbl.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:44px 20px;color:var(--muted);font-size:.88rem">⏳ Loading products from cloud storage…</td></tr>';
-
-      fetch('/api/products')
-        .then(function(r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
-        .then(function(d) {
-          _tbl._fetchAt = 0;
-          // Handle both blob formats: root array [ ] or wrapped { products: [ ] }
-          var _loaded = Array.isArray(d) ? d
-                      : (Array.isArray(d && d.products) ? d.products : []);
-          if (_loaded.length) {
-            // Only write blob data if localStorage is STILL empty — user may have
-            // added products locally while the fetch was in flight (race condition guard)
-            if (!_getProds().length) {
-              _saveProds(_loaded);
-            }
-            renderProducts();       // re-render with whatever is in localStorage now
-          } else {
-            _tbl.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:40px 20px">'
-              + '<div style="color:var(--muted);font-size:.88rem;line-height:1.8">'
-              + '📦 No products in cloud storage.<br>'
-              + '<span style="font-size:.78rem;opacity:.75">If you added products on another device or browser, '
-              + 'open the app there to sync them to the cloud.</span></div><br>'
-              + '<button onclick="renderProducts()" style="padding:7px 20px;background:var(--accent);'
-              + 'color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.8rem">↻ Retry Sync</button>'
-              + '</td></tr>';
-          }
-        })
-        .catch(function() {
-          _tbl._fetchAt = 0;
-          _tbl.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:40px 20px">'
-            + '<div style="color:var(--muted);font-size:.88rem">⚠ Could not reach cloud storage.</div><br>'
-            + '<button onclick="renderProducts()" style="padding:7px 20px;background:var(--accent);'
-            + 'color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.8rem">↻ Retry</button>'
-            + '</td></tr>';
-        });
+      if (_tbl) {
+        _tbl.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:40px 20px;color:var(--muted);font-size:.88rem">'
+          + '📦 No products yet — use Quick Add above or click <strong>+ Add Product</strong> to get started.'
+          + '</td></tr>';
+      }
+      try {
+        var _sv = document.getElementById('statTotalProducts'); if (_sv) _sv.textContent = '0';
+        var _vv = document.getElementById('statStockValue');    if (_vv) _vv.textContent = (getCurrency ? getCurrency() : '$') + '0';
+        var _lv = document.getElementById('statLowStockCount'); if (_lv) _lv.textContent = '0';
+        var _bd = document.getElementById('lowStockBadge');     if (_bd) _bd.style.display = 'none';
+        _refreshProfitStat();
+      } catch(_) {}
       return;
     }
 

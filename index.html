@@ -5610,11 +5610,10 @@
             _scheduleWipe(i, tr);
             return;
           }
-          // IMEI is required only for IMEI-tracked products (phones, unique serials).
-          // Non-tracked products (accessories, cables, etc.) can be sold without IMEI.
-          var _isIMEIProduct = match && (match.isIMEITracked || match.trackType === 'imei');
-          if (_isIMEIProduct && !imei) {
-            showWarning('⚠️ This product is IMEI-tracked — IMEI / Serial is required to complete the sale.');
+          // IMEI / Serial is required for every sale. No digit-count restriction —
+          // phones use 15-digit IMEI, other products use whatever serial applies.
+          if (!imei) {
+            showWarning('⚠️ IMEI / Serial number is required for every sale.');
             _scheduleWipe(i, tr);
             return;
           }
@@ -5667,10 +5666,7 @@
           const missing = [];
           if (!product)      missing.push('product');
           if (!(quantity>0)) missing.push('quantity');
-          // Only flag missing IMEI for IMEI-tracked products
-          var _matchForWarn = product ? findStockProduct(product) : null;
-          var _isIMEIWarn = _matchForWarn && (_matchForWarn.isIMEITracked || _matchForWarn.trackType === 'imei');
-          if (_isIMEIWarn && !imei) missing.push('IMEI');
+          if (!imei) missing.push('IMEI / Serial');
           showWarning(`⚠️ Incomplete entry — missing: ${missing.join(', ')}. Row clears in 1 min.`);
           _scheduleWipe(i, tr);
         }

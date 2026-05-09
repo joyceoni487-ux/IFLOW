@@ -4024,10 +4024,14 @@
     _confirmCb = null;
   });
   function confirmDeleteProduct(realIdx) {
-    const _freshArr = _getProds();
-    const p = _freshArr[realIdx];
-    if (!p) return;
-    showConfirm('Delete Product', `Delete "${p.name}"?`, () => terminateProduct(realIdx));
+    var _freshArr;
+    try { _freshArr = _getProds(); } catch(_) { _freshArr = []; }
+    var p = _freshArr[realIdx];
+    // Fallback: if index is out of sync, find by data-index on the row
+    if (!p) {
+      showToast('Product not found — try refreshing the page'); return;
+    }
+    showConfirm('Delete Product', 'Delete "' + p.name + '"?', function() { terminateProduct(realIdx); });
   }
   function confirmDeleteRow(i) {
     showConfirm('Delete Sale Entry', 'Remove this sale entry?', () => terminateRow(i));
@@ -7474,96 +7478,134 @@
   }
 
   function addProduct() {
-    var rawNpName = ((document.getElementById('npName') || {}).value || '').trim();
-    var parsed    = parseProductName(rawNpName);
-    var name      = parsed.variant ? (parsed.category + ', ' + parsed.variant) : parsed.category;
-    if (parsed.variant) regroupSiblings(parsed.category);
-    var type      = ((document.getElementById('npType')      || {}).value || '').trim();
-    var stockQty  = parseFloat((document.getElementById('npQty')   || {}).value) || 0;
-    var unitPrice = parseFloat((document.getElementById('npPrice') || {}).value) || 0;
-    var cpEl      = document.getElementById('npCostPrice');
-    var costPrice = (cpEl && cpEl.value !== '') ? parseFloat(cpEl.value) : undefined;
-    var settings  = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-    var defThresh = parseInt(settings.lowStockThreshold) || 5;
-    var threshold = parseInt((document.getElementById('npThreshold') || {}).value) || defThresh;
-    var condEl    = document.getElementById('npCondition');
-    var condition = condEl ? condEl.value.trim() : '';
-    var condCode  = condition ? _conditionToCode(condition) : '';
-    var codeEl    = document.getElementById('npCode');
-    var code      = (codeEl && codeEl.value) ? codeEl.value : generateProductCode(type, rawNpName, condition);
-    var discountEl     = document.getElementById('npDiscount');
-    var discountTypeEl = document.getElementById('npDiscountType');
-    var discount       = discountEl ? (parseFloat(discountEl.value) || 0) : 0;
-    var discountType   = discountTypeEl ? discountTypeEl.value : 'pct';
-    // Tracking type (replaces old npIsIMEI checkbox)
-    var serialCode    = ((document.getElementById('npSerialCode') || {}).value || '').trim();
-    var _isIMEI       = /^\d{15}$/.test(serialCode);
-    // Allow any serial code format — only pure 15-digit numbers are treated as IMEI.
-    // Shorter numeric codes (barcodes, EAN-8/13, UPC, etc.) are valid unique serials.
-    var trackType     = _isIMEI ? 'imei' : (serialCode.length >= 3 ? 'unique' : 'none');
-    var isIMEITracked = _isIMEI;
-    if (!name) { showToast('Product name is required'); return; }
-
-    var _arr = _getProds();  // always fresh from localStorage
-    var existingIdx = _arr.findIndex(function(p) { return p.name === name; });
-    if (existingIdx !== -1) {
-      _arr[existingIdx].stockQty = (_arr[existingIdx].stockQty || 0) + stockQty;
-      _arr[existingIdx].unitPrice = unitPrice || _arr[existingIdx].unitPrice;
-      if (costPrice !== undefined) _arr[existingIdx].costPrice = costPrice;
-      _arr[existingIdx].type = type || _arr[existingIdx].type;
-      _arr[existingIdx].lowStockThreshold = threshold;
-      if (discount > 0) { _arr[existingIdx].discount = discount; _arr[existingIdx].discountType = discountType; }
-      if (!_arr[existingIdx].category) _arr[existingIdx].category = _arr[existingIdx].name;
-      if (_arr[existingIdx].variant === undefined) _arr[existingIdx].variant = '';
-      _saveProds(_arr);         // write first
-      renderProducts(); try { refreshProductsList(); } catch(_) {}
-      SheetsAPI.withToken(function() { SheetsAPI.updateProduct(existingIdx, _arr[existingIdx]); });
-      toggleAddProductForm();
-      showToast('"' + name + '" stock updated (+' + stockQty + ')');
-      try { checkLowStock(); } catch(_) {}
-      ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode','npCondition','npDiscount','npSerialCode'].forEach(function(id) { var el = document.getElementById(id); if (el) { el.value = ''; el.readOnly = false; el.title = ''; } });
-      var dtEl = document.getElementById('npDiscountType'); if (dtEl) dtEl.value = 'pct';
-      var badge1 = document.getElementById('npSerialBadge'); if (badge1) badge1.style.display = 'none';
-      var pv = document.getElementById('npConditionPreview'); if (pv) pv.style.display = 'none';
+    var rawNpName, parsed, name, type, stockQty, unitPrice, costPrice, threshold, condition, condCode, code;
+    var discount, discountType, serialCode, _isIMEI, trackType, isIMEITracked;
+    try {
+      rawNpName = ((document.getElementById('npName') || {}).value || '').trim();
+      if (!rawNpName) { showToast('Product name is required'); return; }
+      parsed    = parseProductName(rawNpName);
+      name      = parsed.variant ? (parsed.category + ', ' + parsed.variant) : parsed.category;
+      if (!name) { showToast('Product name is required'); return; }
+      if (parsed.variant) { try { regroupSiblings(parsed.category); } catch(_) {} }
+      type      = ((document.getElementById('npType')      || {}).value || '').trim();
+      // Read qty — works even if readOnly is set
+      var _qtyEl2 = document.getElementById('npQty');
+      stockQty  = _qtyEl2 ? (parseFloat(_qtyEl2.value) || 0) : 0;
+      unitPrice = parseFloat((document.getElementById('npPrice') || {}).value) || 0;
+      var cpEl      = document.getElementById('npCostPrice');
+      costPrice = (cpEl && cpEl.value !== '') ? parseFloat(cpEl.value) : undefined;
+      var settings  = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+      var defThresh = parseInt(settings.lowStockThreshold) || 5;
+      threshold = parseInt((document.getElementById('npThreshold') || {}).value) || defThresh;
+      var condEl    = document.getElementById('npCondition');
+      condition = condEl ? condEl.value.trim() : '';
+      condCode  = condition ? _conditionToCode(condition) : '';
+      var codeEl    = document.getElementById('npCode');
+      code      = (codeEl && codeEl.value) ? codeEl.value : generateProductCode(type, rawNpName, condition);
+      var discountEl     = document.getElementById('npDiscount');
+      var discountTypeEl = document.getElementById('npDiscountType');
+      discount       = discountEl ? (parseFloat(discountEl.value) || 0) : 0;
+      discountType   = discountTypeEl ? discountTypeEl.value : 'pct';
+      serialCode    = ((document.getElementById('npSerialCode') || {}).value || '').trim();
+      _isIMEI       = /^\d{15}$/.test(serialCode);
+      trackType     = _isIMEI ? 'imei' : (serialCode.length >= 3 ? 'unique' : 'none');
+      isIMEITracked = _isIMEI;
+    } catch(e) {
+      showToast('Could not read form fields: ' + e.message);
       return;
     }
 
-    pushUndo('products');
+    // ── IMEI duplicate guard: block adding a product whose IMEI is already in the system ──
+    if (serialCode) {
+      try {
+        var _vault = _getIMEI();
+        var _dup = _vault.find(function(r) { return (r.imei || '') === serialCode; });
+        if (_dup) {
+          var _dupStatus = _dup.status === 'sold' ? 'already sold' : 'already in stock';
+          showToast('⚠ IMEI "' + serialCode + '" is ' + _dupStatus + ' under "' + (_dup.productName || 'existing product') + '". Cannot add duplicate — use IMEI Add to link it.');
+          return;
+        }
+      } catch(_) {}
+    }
+
+    var _arr;
+    try { _arr = _getProds(); } catch(_) { _arr = []; }
+
+    var existingIdx = _arr.findIndex(function(p) { return p.name === name; });
+    if (existingIdx !== -1) {
+      // Update existing product
+      try {
+        _arr[existingIdx].stockQty = (_arr[existingIdx].stockQty || 0) + stockQty;
+        _arr[existingIdx].unitPrice = unitPrice || _arr[existingIdx].unitPrice;
+        if (costPrice !== undefined) _arr[existingIdx].costPrice = costPrice;
+        _arr[existingIdx].type = type || _arr[existingIdx].type;
+        _arr[existingIdx].lowStockThreshold = threshold;
+        if (discount > 0) { _arr[existingIdx].discount = discount; _arr[existingIdx].discountType = discountType; }
+        if (!_arr[existingIdx].category) _arr[existingIdx].category = _arr[existingIdx].name;
+        if (_arr[existingIdx].variant === undefined) _arr[existingIdx].variant = '';
+        _saveProds(_arr);
+        try { renderProducts(); } catch(_) {}
+        try { refreshProductsList(); } catch(_) {}
+        try { SheetsAPI.withToken(function() { SheetsAPI.updateProduct(existingIdx, _arr[existingIdx]); }); } catch(_) {}
+        showToast('"' + name + '" stock updated (+' + stockQty + ')');
+        try { checkLowStock(); } catch(_) {}
+      } catch(e) {
+        showToast('Error updating product: ' + e.message);
+      }
+      _resetAddProductForm();
+      toggleAddProductForm();
+      return;
+    }
+
+    // ── New product ──
+    try { pushUndo('products'); } catch(_) {}
     var p = { code: code, name: name, category: parsed.category, variant: parsed.variant, type: type, stockQty: stockQty, unitPrice: unitPrice, costPrice: costPrice, lowStockThreshold: threshold, dateAdded: new Date().toLocaleDateString(), condition: condition || undefined, conditionCode: condCode || undefined, discount: discount || undefined, discountType: discount ? discountType : undefined, isIMEITracked: isIMEITracked || undefined, trackType: trackType !== 'none' ? trackType : undefined, serialCode: serialCode || undefined };
     _arr.push(p);
-    sendEmailAlert('New Stock Added: ' + name, '"' + name + '" added to stock. Qty: ' + stockQty + '. Time: ' + new Date().toLocaleString());
-    _saveProds(_arr);           // write first
-    renderProducts(); try { refreshProductsList(); } catch(_) {}
-    SheetsAPI.withToken(function() { SheetsAPI.appendProduct(p); });
-    // Auto-add to vault if a serial/IMEI was provided
+    try { _saveProds(_arr); } catch(e) { showToast('Error saving product: ' + e.message); return; }
+    try { renderProducts(); } catch(_) {}
+    try { refreshProductsList(); } catch(_) {}
+    try { SheetsAPI.withToken(function() { SheetsAPI.appendProduct(p); }); } catch(_) {}
+    try { sendEmailAlert('New Stock Added: ' + name, '"' + name + '" added to stock. Qty: ' + stockQty + '. Time: ' + new Date().toLocaleString()); } catch(_) {}
+    // Auto-add IMEI/serial to vault
     if (serialCode) {
-      var vault = _getIMEI();
-      if (!vault.find(function(r){ return r.imei === serialCode; })) {
-        vault.push({ imei: serialCode, productCode: code, productName: name, status: 'in_stock', addedAt: new Date().toISOString(), isUnique: !_isIMEI });
-        _saveIMEI(vault);
-      }
+      try {
+        var _v = _getIMEI();
+        _v.push({ imei: serialCode, productCode: code, productName: name, status: 'in_stock', addedAt: new Date().toISOString(), isUnique: !_isIMEI });
+        _saveIMEI(_v);
+      } catch(_) {}
     }
-    toggleAddProductForm();
     showToast('"' + name + '" added to stock');
-    ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode','npCondition','npSerialCode'].forEach(function(id) { var el = document.getElementById(id); if (el) { el.value = ''; el.readOnly = false; el.title = ''; } });
-    var pv2 = document.getElementById('npConditionPreview'); if (pv2) pv2.style.display = 'none';
-    var badge2 = document.getElementById('npSerialBadge'); if (badge2) badge2.style.display = 'none';
-    var stat2  = document.getElementById('npSerialStatus'); if (stat2) { stat2.textContent = 'Phones: dial *#06# for IMEI · Other items: any serial or reference code'; stat2.style.color = 'var(--muted)'; }
-    _updateTrackFields();
+    _resetAddProductForm();
+    toggleAddProductForm();
     try { checkLowStock(); } catch(_) {}
   }
 
+  function _resetAddProductForm() {
+    try {
+      ['npName','npType','npQty','npPrice','npCostPrice','npThreshold','npCode','npCondition','npDiscount','npSerialCode'].forEach(function(id) {
+        var el = document.getElementById(id); if (el) { el.value = ''; el.readOnly = false; el.title = ''; }
+      });
+      var dtEl = document.getElementById('npDiscountType'); if (dtEl) dtEl.value = 'pct';
+      var badge1 = document.getElementById('npSerialBadge'); if (badge1) badge1.style.display = 'none';
+      var pv = document.getElementById('npConditionPreview'); if (pv) pv.style.display = 'none';
+      var stat2 = document.getElementById('npSerialStatus'); if (stat2) { stat2.textContent = 'Phones: dial *#06# for IMEI · Other items: any serial or reference code'; stat2.style.color = 'var(--muted)'; }
+    } catch(_) {}
+  }
+
   function terminateProduct(index) {
-    var _arr = _getProds();  // fresh read
-    if (_arr[index]) {
-      pushUndo('products');
-      moveToTrash('product', _arr[index], index);
+    try {
+      var _arr = _getProds();
+      if (!_arr[index]) { showToast('Product not found — page will refresh'); renderProducts(); return; }
+      try { pushUndo('products'); } catch(_) {}
+      try { moveToTrash('product', _arr[index], index); } catch(_) {}
       try { sendEmailAlert('Product Deleted: ' + _arr[index].name, '"' + _arr[index].name + '" deleted. Time: ' + new Date().toLocaleString()); } catch(_) {}
-      SheetsAPI.withToken(function() { SheetsAPI.deleteProduct(index); });
+      try { SheetsAPI.withToken(function() { SheetsAPI.deleteProduct(index); }); } catch(_) {}
       _arr.splice(index, 1);
-      _saveProds(_arr);       // write first
+      _saveProds(_arr);
+    } catch(e) {
+      showToast('Error deleting product: ' + e.message);
     }
-    renderProducts();
+    try { renderProducts(); } catch(_) {}
   }
 
   // ══════════════════════════════════════════════════════════════════════════

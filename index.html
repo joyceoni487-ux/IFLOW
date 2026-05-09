@@ -3912,11 +3912,12 @@
         }).join('');
       }
     }
-    const prodsArr = JSON.parse(localStorage.getItem('iflow_products') || '[]');
+    // Only show products that still have stock — sold-out items are hidden
+    const prodsArr = (JSON.parse(localStorage.getItem('iflow_products') || '[]')).filter(p => (Number(p.stockQty) || 0) > 0);
     const prodTbody = document.getElementById('sheetsProductsTbody');
     if (prodTbody) {
       if (!prodsArr.length) {
-        prodTbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--muted)">No products added yet</td></tr>';
+        prodTbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--muted)">No products in stock</td></tr>';
       } else {
         const _vaultAll = typeof _getIMEI === 'function' ? _getIMEI() : [];
       prodTbody.innerHTML = prodsArr.map((p, i) => {
@@ -4374,21 +4375,31 @@
     const cur = getCurrency();
     let hasAnyCost = false;
     let profitTotal = 0;
-    let revenueTotal = 0;
     sales.forEach(s => {
       if (!s.product || !s.price || !s.quantity) return;
-      revenueTotal += s.price * s.quantity;
-      const prod = findStockProduct(s.product);
-      if (prod && prod.costPrice !== undefined) {
+      // Prefer costPrice stored on the sale record (snapshot at sale time).
+      // Fall back to live product lookup for older records that predate this field.
+      let cost = s.costPrice;
+      if (cost === undefined) {
+        const prod = findStockProduct(s.product);
+        if (prod && prod.costPrice !== undefined) cost = prod.costPrice;
+      }
+      if (cost !== undefined) {
         hasAnyCost = true;
-        profitTotal += (s.price - prod.costPrice) * s.quantity;
+        profitTotal += (s.price - Number(cost)) * s.quantity;
       }
     });
-    const display = hasAnyCost ? profitTotal : revenueTotal;
     const labelEl = el.closest('.stat-card') && el.closest('.stat-card').querySelector('.stat-label');
-    if (labelEl) labelEl.textContent = hasAnyCost ? 'Est. Profit' : 'Revenue';
-    el.textContent = cur + fmtComma(display);
-    el.style.color = display >= 0 ? '#38a169' : '#e53e3e';
+    if (hasAnyCost) {
+      if (labelEl) labelEl.textContent = 'Est. Profit';
+      el.textContent = cur + fmtComma(profitTotal);
+      el.style.color = profitTotal >= 0 ? '#38a169' : '#e53e3e';
+    } else {
+      // No cost prices on any product — show nothing rather than misleading revenue figure
+      if (labelEl) labelEl.textContent = 'Est. Profit';
+      el.textContent = '—';
+      el.style.color = 'var(--muted)';
+    }
   }
 
   // ── Twilio WhatsApp Integration ──
@@ -5353,15 +5364,20 @@
     const curEl = document.getElementById('dailyTotalCur');
     if (curEl) curEl.textContent = cur;
 
-    // Today's profit — only show when at least one product has a cost price
+    // Today's profit — only show when at least one sale has a known cost price
     const todayStr = new Date().toLocaleDateString();
     let profitKnown = false;
     const todayProfit = sales.reduce((sum, s) => {
       if (new Date(s.timestamp).toLocaleDateString() !== todayStr) return sum;
-      const prod = products.find(p => p.name === s.product);
-      if (!prod || prod.costPrice === undefined) return sum;
+      // Use stored costPrice first; fall back to live product lookup for old records
+      let cost = s.costPrice;
+      if (cost === undefined) {
+        const prod = products.find(p => p.name === s.product);
+        if (prod && prod.costPrice !== undefined) cost = prod.costPrice;
+      }
+      if (cost === undefined) return sum;
       profitKnown = true;
-      return sum + (s.price - prod.costPrice) * s.quantity;
+      return sum + (s.price - Number(cost)) * s.quantity;
     }, 0);
     const profWrap = document.getElementById('todayProfitWrap');
     const profEl   = document.getElementById('todayProfit');
@@ -5618,17 +5634,22 @@
             return;
           }
           // Final IMEI-product cross-check: ensure we use vault's product if mismatch
-          let finalProduct = product;
-          let finalPrice   = isNaN(price) ? match.unitPrice : price;
+          let finalProduct  = product;
+          let finalPrice    = isNaN(price) ? match.unitPrice : price;
+          // Capture cost price NOW before the product may be deducted out of stock
+          let finalCostPrice = match ? match.costPrice : undefined;
           if (imei) {
             const _vChk = _getIMEI().find(v => (v.imei||'').replace(/[\s\-]/g,'') === imei.replace(/[\s\-]/g,''));
             if (_vChk && _vChk.productName && _vChk.productName.toLowerCase() !== product.toLowerCase()) {
               finalProduct = _vChk.productName;
               const _mChk = findStockProduct(finalProduct);
-              if (_mChk) finalPrice = isNaN(price) ? _mChk.unitPrice : price;
+              if (_mChk) {
+                finalPrice    = isNaN(price) ? _mChk.unitPrice : price;
+                finalCostPrice = _mChk.costPrice; // update cost for corrected product
+              }
             }
           }
-          // Commit the sale
+          // Commit the sale — costPrice stored so profit is always calculable
           const ts = Date.now();
           sales[i] = {
             customer: customer || '',
@@ -5638,6 +5659,7 @@
             imei,
             quantity,
             price: finalPrice,
+            costPrice: finalCostPrice, // snapshot at time of sale
             timestamp: ts
           };
           // Save new customer to iflow_customers if not already present
@@ -7599,9 +7621,11 @@
       }
     } catch(_) {}
 
-    // Text search filter
+    // Text search filter — only show products that still have stock (qty > 0)
     var _tokens = _query ? _query.split(/\s+/).filter(Boolean) : [];
     var _filtered = _prods.filter(function(p) {
+      // Sold-out products are hidden from the stock view
+      if ((Number(p.stockQty) || 0) <= 0) return false;
       if (!_tokens.length) return true;
       // Include IMEI/serial numbers from vault for this product in the haystack
       var _vaultImeis = _getIMEI().filter(function(v){ return v.productName === p.name; }).map(function(v){ return v.imei || ''; }).join(' ');
@@ -10809,11 +10833,16 @@ function renderCustomers() {
     if (s.timestamp && s.timestamp > c.lastTs) c.lastTs = s.timestamp;
     if (s.warranty) c.warranties.push(s.warranty);
     c.purchases.push({ product: s.product, imei: s.imei || '', date: s.timestamp, price: price, qty: qty, warranty: s.warranty || '' });
-    var _pNameLow = (s.product || '').toLowerCase();
-    var prod = prods.find(function(p){ return (p.name || '').toLowerCase() === _pNameLow; });
-    if (!prod && _pNameLow) prod = prods.find(function(p){ var cat = (p.category || '').toLowerCase(); return cat.length > 2 && cat === _pNameLow; });
-    if (prod && prod.costPrice != null && prod.costPrice !== '' && prod.costPrice !== undefined) {
-      c.profit += (price - Number(prod.costPrice)) * qty;
+    // Use costPrice stored on sale record first; fall back to live product lookup for old records
+    var _saleCost = s.costPrice;
+    if (_saleCost === undefined) {
+      var _pNameLow = (s.product || '').toLowerCase();
+      var prod = prods.find(function(p){ return (p.name || '').toLowerCase() === _pNameLow; });
+      if (!prod && _pNameLow) prod = prods.find(function(p){ var cat = (p.category || '').toLowerCase(); return cat.length > 2 && cat === _pNameLow; });
+      if (prod && prod.costPrice != null && prod.costPrice !== '' && prod.costPrice !== undefined) _saleCost = prod.costPrice;
+    }
+    if (_saleCost !== undefined) {
+      c.profit += (price - Number(_saleCost)) * qty;
       c.profitKnown = true;
     }
   });

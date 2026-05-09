@@ -5610,9 +5610,11 @@
             _scheduleWipe(i, tr);
             return;
           }
-          // IMEI is required
-          if (!imei) {
-            showWarning('⚠️ IMEI / Serial number is required for every sale.');
+          // IMEI is required only for IMEI-tracked products (phones, unique serials).
+          // Non-tracked products (accessories, cables, etc.) can be sold without IMEI.
+          var _isIMEIProduct = match && (match.isIMEITracked || match.trackType === 'imei');
+          if (_isIMEIProduct && !imei) {
+            showWarning('⚠️ This product is IMEI-tracked — IMEI / Serial is required to complete the sale.');
             _scheduleWipe(i, tr);
             return;
           }
@@ -5655,12 +5657,20 @@
           clearTimeout(_wipeTimers[i]);
           delete _wipeTimers[i];
           setTimeout(() => render(), 0);
+          // Refresh Orders and Sheets pages live if they are currently open
+          var _ordPg = document.getElementById('page-orders');
+          if (_ordPg && _ordPg.style.display !== 'none') renderOrders();
+          var _shtPg = document.getElementById('page-sheets');
+          if (_shtPg && _shtPg.style.display !== 'none') renderSheets();
         } else {
           // Incomplete entry — warn and start 1-minute wipe timer
           const missing = [];
           if (!product)      missing.push('product');
           if (!(quantity>0)) missing.push('quantity');
-          if (!imei)         missing.push('IMEI');
+          // Only flag missing IMEI for IMEI-tracked products
+          var _matchForWarn = product ? findStockProduct(product) : null;
+          var _isIMEIWarn = _matchForWarn && (_matchForWarn.isIMEITracked || _matchForWarn.trackType === 'imei');
+          if (_isIMEIWarn && !imei) missing.push('IMEI');
           showWarning(`⚠️ Incomplete entry — missing: ${missing.join(', ')}. Row clears in 1 min.`);
           _scheduleWipe(i, tr);
         }
@@ -7436,8 +7446,8 @@
     // Tracking type (replaces old npIsIMEI checkbox)
     var serialCode    = ((document.getElementById('npSerialCode') || {}).value || '').trim();
     var _isIMEI       = /^\d{15}$/.test(serialCode);
-    var _isNumericBad = /^\d+$/.test(serialCode) && serialCode.length > 0 && !_isIMEI;
-    if (_isNumericBad) { showToast('IMEI must be exactly 15 digits (you entered ' + serialCode.length + ')'); var sc = document.getElementById('npSerialCode'); if (sc) sc.focus(); return; }
+    // Allow any serial code format — only pure 15-digit numbers are treated as IMEI.
+    // Shorter numeric codes (barcodes, EAN-8/13, UPC, etc.) are valid unique serials.
     var trackType     = _isIMEI ? 'imei' : (serialCode.length >= 3 ? 'unique' : 'none');
     var isIMEITracked = _isIMEI;
     if (!name) { showToast('Product name is required'); return; }

@@ -6199,26 +6199,32 @@
     errEl.style.display = 'none';
     delete errEl.dataset.field;
 
-    // ── Deduct stock immediately (read fresh → modify → save) ──
+    // ── Snapshot cost price at sale time so profit works even after product is removed ──
+    const _saleCostPrice = (stockMatch && stockMatch.costPrice !== undefined) ? stockMatch.costPrice : undefined;
+
+    // ── Deduct stock immediately; remove product row when qty reaches 0 ──
     var _sArr = _getProds();
     var _sNorm = normalizeProductName(product.toLowerCase().trim());
     var stockIdx = _sArr.findIndex(function(p) { return normalizeProductName((p.name || '').toLowerCase().trim()) === _sNorm; });
     if (stockIdx !== -1) {
       _sArr[stockIdx].stockQty = Math.max(0, (_sArr[stockIdx].stockQty || 0) - quantity);
-      _saveProds(_sArr);
+      if (_sArr[stockIdx].stockQty <= 0) {
+        _sArr.splice(stockIdx, 1);
+      } else {
+        const _settings = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
+        const _threshold = _sArr[stockIdx].lowStockThreshold || parseInt(_settings.lowStockThreshold) || 5;
+        if (_sArr[stockIdx].stockQty <= _threshold) { try { checkLowStock(); } catch(_) {} }
+      }
+      localStorage.setItem('iflow_products', JSON.stringify(_sArr));
+      products.length = 0; _sArr.forEach(function(p) { products.push(p); });
       renderProducts();
-      SheetsAPI.withToken(function() { SheetsAPI.updateProduct(stockIdx, _sArr[stockIdx]); });
-    }
-    if (stockIdx !== -1) {
-      const _settings = JSON.parse(localStorage.getItem('iflow_settings') || '{}');
-      const _threshold = _sArr[stockIdx].lowStockThreshold || parseInt(_settings.lowStockThreshold) || 5;
-      if (_sArr[stockIdx].stockQty <= _threshold) { try { checkLowStock(); } catch(_) {} }
     }
 
     // Use picked date if provided, otherwise now
     const timestamp = dateVal ? new Date(dateVal + 'T00:00:00').getTime() : Date.now();
     pushUndo('sales');
     const newSale = { customer, product, quantity, price, timestamp };
+    if (_saleCostPrice !== undefined) newSale.costPrice = _saleCostPrice;
     sales.push(newSale);
     persist();
     render();

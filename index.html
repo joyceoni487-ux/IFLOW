@@ -2111,7 +2111,7 @@
     <!-- Sub-tabs -->
     <div class="dispatch-tabs">
       <div class="dispatch-tab active" id="dtab-orders" onclick="switchDispatchTab('orders')">Orders</div>
-      <div class="dispatch-tab" id="dtab-riders" onclick="switchDispatchTab('riders')">🏍️ Riders</div>
+      <div class="dispatch-tab" id="dtab-riders" onclick="switchDispatchTab('riders')" style="display:none">🏍️ Riders</div>
     </div>
 
     <!-- Orders Panel -->
@@ -3284,8 +3284,8 @@
         <button class="btn-add" style="width:auto;padding:10px 32px;margin:0" onclick="saveSettings()">Save Settings</button>
       </div>
 
-      <!-- Rider View Testing -->
-      <div style="margin-top:20px;padding:20px 24px;background:var(--surface2);border-radius:16px;border:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <!-- Rider View Testing (disabled) -->
+      <div style="display:none;margin-top:20px;padding:20px 24px;background:var(--surface2);border-radius:16px;border:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
         <div>
           <div style="font-weight:700;font-size:.9rem;margin-bottom:2px">🏍️ Rider Dashboard Preview</div>
           <div style="font-size:.78rem;color:var(--muted)">Test what your delivery riders see on their phones</div>
@@ -9515,12 +9515,8 @@ function _checkMobileRole(user) {
     return true;
   }
 
-  // Owner explicitly chose to preview rider view (via Settings button)
-  if (role === 'rider') {
-    document.getElementById('mainAppWrapper').style.display = 'none';
-    _launchRiderApp(user);
-    return true;
-  }
+  // Clear any stale rider role so refreshing never redirects the owner
+  if (role === 'rider') localStorage.removeItem('iflow_role');
 
   return false; // show main app (owner/manager)
 }

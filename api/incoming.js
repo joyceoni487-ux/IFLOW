@@ -19,6 +19,18 @@
  */
 import { put } from '@vercel/blob';
 
+// Module-level dedup: prevents duplicate replies when Twilio retries a timed-out request
+const _seenSids = new Map();
+function _isDuplicate(sid) {
+  if (!sid) return false;
+  const now = Date.now();
+  // Purge entries older than 60s
+  for (const [k, t] of _seenSids) { if (now - t > 60000) _seenSids.delete(k); }
+  if (_seenSids.has(sid)) return true;
+  _seenSids.set(sid, now);
+  return false;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).end('Method Not Allowed');
@@ -39,14 +51,21 @@ export default async function handler(req, res) {
   const apiKey    = process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY || '';
   const notifyNum = req.query?.notify ? decodeURIComponent(req.query.notify) : '';
 
+  res.setHeader('Content-Type', 'text/xml');
+
+  // Fast exits — before any slow I/O
+  if (allOff) return res.status(200).send('<Response></Response>');
+  if (_isDuplicate(MessageSid)) return res.status(200).send('<Response></Response>');
+
   const ctxFromUrl  = req.query?.ctx ? decodeURIComponent(req.query.ctx) : '';
   const blobBase    = (process.env.PRODUCTS_BLOB_URL || '').replace('iflow-products.json', '');
 
-  // Load store data + this customer's conversation memory in parallel
-  const [blobData, history] = await Promise.all([
+  // Only load blob + chat memory when AI is active — skipping it when there's no key
+  // keeps the response fast and avoids Twilio retry timeouts that cause duplicate messages
+  const [blobData, history] = apiKey ? await Promise.all([
     _fetchBlobData(),
     _loadChatMemory(From, blobBase)
-  ]);
+  ]) : [{ ctx: '', paymentInfo: {}, riderEmails: [] }, []];
 
   const productCtx     = blobData.ctx || ctxFromUrl || (process.env.PRODUCTS_JSON || '');
   const paymentInfo    = blobData.paymentInfo || {};
@@ -65,9 +84,6 @@ export default async function handler(req, res) {
     hasProducts: !!productCtx, hasPayment: !!(paymentInfo.bank),
     memoryMessages: history.length, ts: new Date().toISOString()
   }));
-
-  res.setHeader('Content-Type', 'text/xml');
-  if (allOff) return res.status(200).send('<Response></Response>');
 
   const isPureGreeting = /^\s*(hi+|hello|hey+|sup|howdy|good\s*(morning|afternoon|evening|day))\s*[!?.]?\s*$/i.test(Body);
 

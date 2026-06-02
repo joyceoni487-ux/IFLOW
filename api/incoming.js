@@ -19,18 +19,6 @@
  */
 import { put } from '@vercel/blob';
 
-// Module-level dedup: prevents duplicate replies when Twilio retries a timed-out request
-const _seenSids = new Map();
-function _isDuplicate(sid) {
-  if (!sid) return false;
-  const now = Date.now();
-  // Purge entries older than 60s
-  for (const [k, t] of _seenSids) { if (now - t > 60000) _seenSids.delete(k); }
-  if (_seenSids.has(sid)) return true;
-  _seenSids.set(sid, now);
-  return false;
-}
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).end('Method Not Allowed');
@@ -50,18 +38,23 @@ export default async function handler(req, res) {
   const storeName = process.env.STORE_NAME || 'our store';
   const apiKey    = process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY || '';
   const notifyNum = req.query?.notify ? decodeURIComponent(req.query.notify) : '';
+  const twilioSid   = process.env.TWILIO_SID   || '';
+  const twilioToken = process.env.TWILIO_TOKEN || '';
+  const twilioFrom  = process.env.TWILIO_FROM  || '';
 
+  // ── Acknowledge Twilio IMMEDIATELY so it never retries ──────────────────
+  // Duplicates were caused by Twilio timing out (>15s) and retrying the webhook.
+  // We always return 200 with an empty TwiML response right away, then send the
+  // actual reply via the Twilio REST API after we have it.
   res.setHeader('Content-Type', 'text/xml');
+  res.status(200).send('<Response></Response>');
 
-  // Fast exits — before any slow I/O
-  if (allOff) return res.status(200).send('<Response></Response>');
-  if (_isDuplicate(MessageSid)) return res.status(200).send('<Response></Response>');
+  // Nothing to do
+  if (allOff || !Body.trim() || !twilioSid || !twilioToken || !twilioFrom) return;
 
   const ctxFromUrl  = req.query?.ctx ? decodeURIComponent(req.query.ctx) : '';
   const blobBase    = (process.env.PRODUCTS_BLOB_URL || '').replace('iflow-products.json', '');
 
-  // Only load blob + chat memory when AI is active — skipping it when there's no key
-  // keeps the response fast and avoids Twilio retry timeouts that cause duplicate messages
   const [blobData, history] = apiKey ? await Promise.all([
     _fetchBlobData(),
     _loadChatMemory(From, blobBase)
@@ -114,17 +107,16 @@ export default async function handler(req, res) {
         : `${ProfileName || 'Customer'} | details in conversation`;
       const confirmMsg = `Got it! 🙏 Payment received — our team is verifying now, you'll hear from us shortly.`;
       const fullReply  = confirmMsg + '\nPAYMENT ALERT: ' + orderLine;
-      const sid   = process.env.TWILIO_SID   || '';
-      const token = process.env.TWILIO_TOKEN || '';
       await Promise.allSettled([
-        _handlePaymentAlert(orderLine, From, ProfileName, storeName, sid, token, notifyNum, riderEmails),
+        _handlePaymentAlert(orderLine, From, ProfileName, storeName, twilioSid, twilioToken, notifyNum, riderEmails),
         _saveChatMemory(From, blobBase, [
           ...history,
           { role: 'user',      content: Body },
           { role: 'assistant', content: fullReply }
-        ])
+        ]),
+        _sendMessage(From, twilioFrom, confirmMsg, twilioSid, twilioToken)
       ]);
-      return res.status(200).send(`<Response><Message>${escapeXml(confirmMsg)}</Message></Response>`);
+      return;
     }
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -179,32 +171,23 @@ export default async function handler(req, res) {
     }
 
     if (aiReply) {
-      const sid   = process.env.TWILIO_SID   || '';
-      const token = process.env.TWILIO_TOKEN || '';
-
       if (/ORDER ALERT:/i.test(aiReply)) {
-        _notifyOwner(aiReply, From, ProfileName, storeName, sid, token, notifyNum).catch(() => {});
+        _notifyOwner(aiReply, From, ProfileName, storeName, twilioSid, twilioToken, notifyNum).catch(() => {});
       }
-
-      // AI-triggered payment alert (edge case: AI fires PAYMENT ALERT without server bypass)
       if (/PAYMENT ALERT:/i.test(aiReply)) {
         const alertFromAi = (aiReply.match(/PAYMENT ALERT:(.*)/i) || [])[1]?.trim()
           || `${ProfileName || 'Customer'} | details in conversation`;
-        _handlePaymentAlert(alertFromAi, From, ProfileName, storeName, sid, token, notifyNum, riderEmails).catch(() => {});
+        _handlePaymentAlert(alertFromAi, From, ProfileName, storeName, twilioSid, twilioToken, notifyNum, riderEmails).catch(() => {});
       }
-
-      // Complaint alert
       if (/COMPLAINT ALERT:/i.test(aiReply)) {
         const summary = (aiReply.match(/COMPLAINT ALERT:(.*)/i) || [])[1]?.trim()
           || `${ProfileName || 'Customer'} has a complaint`;
-        _saveAlert('complaint', summary, From, ProfileName, sid, token, notifyNum).catch(() => {});
+        _saveAlert('complaint', summary, From, ProfileName, twilioSid, twilioToken, notifyNum).catch(() => {});
       }
-
-      // Price escalation
       if (/ESCALATE ALERT:/i.test(aiReply)) {
         const summary = (aiReply.match(/ESCALATE ALERT:(.*)/i) || [])[1]?.trim()
           || `${ProfileName || 'Customer'} wants to negotiate further`;
-        _saveAlert('negotiation', summary, From, ProfileName, sid, token, notifyNum).catch(() => {});
+        _saveAlert('negotiation', summary, From, ProfileName, twilioSid, twilioToken, notifyNum).catch(() => {});
       }
 
       const customerReply = aiReply
@@ -214,14 +197,15 @@ export default async function handler(req, res) {
         .replace(/\n?ESCALATE ALERT:.*$/im, '')
         .trim();
 
-      // Save full aiReply (ORDER ALERT preserved) so payment bypass can find order details later
-      _saveChatMemory(From, blobBase, [
-        ...history,
-        { role: 'user',      content: Body },
-        { role: 'assistant', content: aiReply }
-      ]).catch(() => {});
-
-      return res.status(200).send(`<Response><Message>${escapeXml(customerReply)}</Message></Response>`);
+      await Promise.allSettled([
+        _saveChatMemory(From, blobBase, [
+          ...history,
+          { role: 'user',      content: Body },
+          { role: 'assistant', content: aiReply }
+        ]),
+        _sendMessage(From, twilioFrom, customerReply, twilioSid, twilioToken)
+      ]);
+      return;
     }
   }
 
@@ -229,10 +213,8 @@ export default async function handler(req, res) {
     const msg = ProfileName
       ? `Hi ${ProfileName}! Thanks for reaching out to *${storeName}*. We'll get back to you shortly 🙏`
       : `Hi! Thanks for reaching out to *${storeName}*. We'll be with you shortly 🙏`;
-    return res.status(200).send(`<Response><Message>${escapeXml(msg)}</Message></Response>`);
+    await _sendMessage(From, twilioFrom, msg, twilioSid, twilioToken);
   }
-
-  res.status(200).send('<Response></Response>');
 }
 
 // Chat memory file prefix — increment (v3, v4…) to wipe all stored histories
@@ -452,6 +434,16 @@ Append on new line: PAYMENT ALERT: ${name || 'Customer'} | [item from history] x
     console.error(JSON.stringify({ event: 'ai_error', error: String(err), ts: new Date().toISOString() }));
   }
   return null;
+}
+
+async function _sendMessage(to, from, body, sid, token) {
+  if (!sid || !token || !from || !to || !body) return;
+  const auth = 'Basic ' + Buffer.from(sid + ':' + token).toString('base64');
+  await fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Messages.json`, {
+    method:  'POST',
+    headers: { Authorization: auth, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body:    new URLSearchParams({ From: from, To: to, Body: body }).toString()
+  }).catch(() => {});
 }
 
 async function _notifyOwner(aiReply, customerFrom, customerName, storeName, sid, token, notifyFromUrl = '') {
